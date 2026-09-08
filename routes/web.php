@@ -41,6 +41,7 @@ Route::middleware('guest')->group(function () {
     Route::post('/login', [AuthController::class, 'login'])->name('login.post');
     Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
     Route::post('/register', [AuthController::class, 'register'])->name('register.post');
+    Route::post('/forgot-password', [AuthController::class, 'resetPassword'])->name('password.reset.post');
 
     // Admin Auth (redirect /admin/login to /login)
     Route::match(['get', 'post'], '/admin/login', [AdminAuthController::class, 'showLogin'])->name('admin.login');
@@ -76,6 +77,7 @@ Route::middleware(['auth', 'approved'])->group(function () {
     // Game Room & Live Play
     Route::get('/game/{roomId}', [GameController::class, 'play'])->name('game.play');
     Route::get('/game/{roomId}/state', [GameController::class, 'getState'])->name('game.state');
+    Route::get('/game/{roomId}/stream-frame', [GameController::class, 'getStreamFrame'])->name('game.stream.frame.get');
     Route::post('/game/{roomId}/bet', [GameController::class, 'placeBet'])->name('game.bet');
     Route::post('/game/bet/{betId}/cancel', [GameController::class, 'cancelBet'])->name('game.cancel.bet');
 
@@ -116,6 +118,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('/game-control', [AdminGameController::class, 'roomsList'])->name('game.control.index');
     Route::get('/game-control/{roomId}', [AdminGameController::class, 'controlPanel'])->name('game.control');
     Route::post('/game-control/{roomId}/action', [AdminGameController::class, 'handleAction'])->name('game.action');
+    Route::post('/game-control/{roomId}/stream-frame', [AdminGameController::class, 'uploadStreamFrame'])->name('game.stream.frame.upload');
 
     // Game & Room Management (Specification Section 33)
     Route::get('/games', [AdminGameManagementController::class, 'index'])->name('games.index');

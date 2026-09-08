@@ -16,6 +16,7 @@ class Room extends Model
         'game_id',
         'name',
         'live_stream_url',
+        'is_streaming',
         'betting_duration',
         'cancellation_duration',
         'allowed_denominations',
@@ -29,6 +30,7 @@ class Room extends Model
             'allowed_denominations' => 'array',
             'betting_duration' => 'integer',
             'cancellation_duration' => 'integer',
+            'is_streaming' => 'boolean',
             'start_time' => 'datetime',
         ];
     }

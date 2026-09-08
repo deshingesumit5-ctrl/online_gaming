@@ -155,9 +155,14 @@
                             </svg>
                         </button>
                     </div>
+                    <div class="flex items-center justify-end mt-1.5">
+                        <button type="button" onclick="switchAuthMode('forgot')" class="text-xs text-amber-400 hover:text-amber-300 font-bold transition hover:underline cursor-pointer">
+                            Forget Password?
+                        </button>
+                    </div>
                 </div>
 
-                <button type="submit" class="w-full py-3 sm:py-3.5 px-4 rounded-xl font-black text-xs uppercase tracking-widest text-slate-950 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 shadow-lg shadow-amber-500/25 transition duration-200 mt-5">
+                <button type="submit" class="w-full py-3 sm:py-3.5 px-4 rounded-xl font-black text-xs uppercase tracking-widest text-slate-950 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 shadow-lg shadow-amber-500/25 transition duration-200 mt-3">
                     LOGIN
                 </button>
             </form>
@@ -368,6 +373,107 @@
 
         </div>
 
+        <!-- PANEL 3: FORGET PASSWORD / CHANGE PASSWORD BOX (Exact Style of Image 1) -->
+        <div id="auth-box-forgot" class="relative rounded-2xl bg-[#0e1626]/95 backdrop-blur-xl border border-slate-800/90 p-5 sm:p-7 shadow-[0_20px_50px_rgba(0,0,0,0.8),0_0_30px_rgba(245,158,11,0.06)] hidden">
+            <!-- Tabs Buttons & Close Button matching Image 1 -->
+            <div class="flex items-center justify-between border-b border-slate-800/90 pb-3 sm:pb-4 mb-4 sm:mb-5">
+                <div class="flex items-center gap-2 sm:gap-3">
+                    <div class="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-slate-900/90 text-slate-400 border border-slate-800 opacity-60 select-none">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                        <span>Change Username</span>
+                    </div>
+                    <div class="flex items-center gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl text-xs sm:text-sm font-bold bg-amber-500 text-slate-950 shadow-md">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                        <span>Change Password</span>
+                    </div>
+                </div>
+                <button type="button" onclick="switchAuthMode('login')" class="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-400 hover:text-white transition text-xs font-bold flex items-center justify-center cursor-pointer" title="Close">
+                    ✕
+                </button>
+            </div>
+
+            <!-- Title & Subtitle matching Image 1 -->
+            <div class="mb-4">
+                <h3 class="text-sm sm:text-base font-bold font-royal text-white flex items-center gap-2">
+                    <svg class="w-4 h-4 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                    CHANGE PASSWORD
+                </h3>
+                <p class="text-xs text-slate-400 mt-0.5">Enter and confirm your new password below.</p>
+            </div>
+
+            <!-- Errors Banner (Forgot Password) -->
+            @if($errors->has('reset_login') || (session('active_tab') === 'forgot' && $errors->any()))
+                <div class="p-3 rounded-xl bg-red-950/80 border border-red-500/70 text-red-200 text-xs mb-4 flex items-start gap-2">
+                    <span class="text-sm shrink-0">⚠️</span>
+                    <ul class="list-disc list-inside space-y-0.5">
+                        @if($errors->has('reset_login'))
+                            <li>{{ $errors->first('reset_login') }}</li>
+                        @endif
+                        @foreach($errors->get('login') as $err)
+                            <li>{{ $err }}</li>
+                        @endforeach
+                        @foreach($errors->get('password') as $err)
+                            <li>{{ $err }}</li>
+                        @endforeach
+                    </ul>
+                </div>
+            @endif
+
+            <form action="{{ route('password.reset.post') }}" method="POST" class="space-y-4" autocomplete="off">
+                @csrf
+
+                <!-- Username or Mobile to identify account -->
+                <div>
+                    <label for="forgot-login" class="text-slate-300 text-xs font-semibold block mb-1.5">
+                        Username or Mobile Number <span class="text-red-400">*</span>
+                    </label>
+                    <input type="text" id="forgot-login" name="login" value="{{ old('login') }}" required 
+                           placeholder="Enter your username or 10-digit mobile"
+                           class="w-full px-4 py-2.5 sm:py-3 rounded-xl bg-[#0a101d] border border-slate-700/60 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition">
+                </div>
+
+                <!-- New Password matching Image 1 -->
+                <div>
+                    <label for="forgot-new-password" class="text-slate-300 text-xs font-semibold block mb-1.5">
+                        New Password <span class="text-red-400">*</span>
+                    </label>
+                    <div class="relative">
+                        <input type="password" id="forgot-new-password" name="password" required minlength="6" placeholder="Enter new password"
+                               class="w-full px-4 pr-11 py-2.5 sm:py-3 rounded-xl bg-[#0a101d] border border-slate-700/60 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition" autocomplete="new-password">
+                        <button type="button" onclick="togglePasswordVisibility('forgot-new-password', this)" style="position:absolute;top:50%;right:0.75rem;transform:translateY(-50%);" class="text-slate-400 hover:text-amber-400 focus:outline-none p-1 transition" title="Show/Hide Password" aria-label="Toggle password visibility">
+                            <svg class="w-5 h-5 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            <svg class="w-5 h-5 eye-icon-hide hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Confirm Password matching Image 1 -->
+                <div>
+                    <label for="forgot-confirm-password" class="text-slate-300 text-xs font-semibold block mb-1.5">
+                        Confirm Password <span class="text-red-400">*</span>
+                    </label>
+                    <div class="relative">
+                        <input type="password" id="forgot-confirm-password" name="password_confirmation" required minlength="6" placeholder="Confirm new password"
+                               class="w-full px-4 pr-11 py-2.5 sm:py-3 rounded-xl bg-[#0a101d] border border-slate-700/60 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-amber-500 focus:ring-1 focus:ring-amber-500 transition" autocomplete="new-password">
+                        <button type="button" onclick="togglePasswordVisibility('forgot-confirm-password', this)" style="position:absolute;top:50%;right:0.75rem;transform:translateY(-50%);" class="text-slate-400 hover:text-amber-400 focus:outline-none p-1 transition" title="Show/Hide Password" aria-label="Toggle password visibility">
+                            <svg class="w-5 h-5 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            <svg class="w-5 h-5 eye-icon-hide hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Buttons: Cancel on left side, SAVE PASSWORD on right side -->
+                <div class="flex items-center justify-between gap-3 pt-2">
+                    <button type="button" onclick="switchAuthMode('login')" class="px-5 py-2.5 sm:py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold transition border border-slate-700 cursor-pointer">
+                        Cancel
+                    </button>
+                    <button type="submit" class="px-5 py-2.5 sm:py-3 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-bold text-xs uppercase tracking-wider transition shadow-lg shadow-amber-500/20 cursor-pointer">
+                        SAVE PASSWORD
+                    </button>
+                </div>
+            </form>
+        </div>
+
     </div>
 
 </div>
@@ -419,17 +525,37 @@
     function switchAuthMode(mode) {
         const loginCard = document.getElementById('auth-box-login');
         const registerCard = document.getElementById('auth-box-register');
+        const forgotCard = document.getElementById('auth-box-forgot');
         if (!loginCard || !registerCard) return;
 
         if (mode === 'register') {
             loginCard.classList.add('hidden');
+            if (forgotCard) forgotCard.classList.add('hidden');
             registerCard.classList.remove('hidden');
             clearRegisterAutofill();
             try {
                 window.history.pushState({ mode: 'register' }, '', '{{ route('register') }}');
             } catch (e) {}
+        } else if (mode === 'forgot') {
+            loginCard.classList.add('hidden');
+            registerCard.classList.add('hidden');
+            if (forgotCard) {
+                forgotCard.classList.remove('hidden');
+                const loginInput = document.getElementById('login');
+                const forgotLoginInput = document.getElementById('forgot-login');
+                if (loginInput && forgotLoginInput && loginInput.value && !forgotLoginInput.value) {
+                    forgotLoginInput.value = loginInput.value;
+                }
+                const newPassInput = document.getElementById('forgot-new-password');
+                if (forgotLoginInput && !forgotLoginInput.value) {
+                    forgotLoginInput.focus();
+                } else if (newPassInput) {
+                    newPassInput.focus();
+                }
+            }
         } else {
             registerCard.classList.add('hidden');
+            if (forgotCard) forgotCard.classList.add('hidden');
             loginCard.classList.remove('hidden');
             try {
                 window.history.pushState({ mode: 'login' }, '', '{{ route('login') }}');
@@ -487,7 +613,9 @@
             });
         }
 
-        @if($errors->has('name') || $errors->has('username') || $errors->has('mobile') || $errors->has('password') || old('name') || request()->routeIs('register') || (isset($initialTab) && $initialTab === 'register') || request()->query('tab') === 'register')
+        @if(session('active_tab') === 'forgot' || $errors->has('reset_login'))
+            switchAuthMode('forgot');
+        @elseif($errors->has('name') || $errors->has('username') || $errors->has('mobile') || (old('password_confirmation') && !$errors->has('reset_login')) || old('name') || request()->routeIs('register') || (isset($initialTab) && $initialTab === 'register') || request()->query('tab') === 'register')
             switchAuthMode('register');
         @endif
     });

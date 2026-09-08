@@ -114,61 +114,39 @@
     <!-- Main Live Table Felt Surface (Matching Image 5) -->
     <div class="felt-surface relative flex-grow min-h-0 flex items-center justify-center p-2 sm:p-3 overflow-hidden">
         
-        @if($room->live_stream_url)
-            <!-- Live Stream Video when configured (CCTV, HLS .m3u8, YouTube, or MP4) -->
-            @php
-                $streamUrl = trim($room->live_stream_url);
-                $isYouTube = \Illuminate\Support\Str::contains($streamUrl, ['youtube.com', 'youtu.be']);
-                $isHls = \Illuminate\Support\Str::contains($streamUrl, '.m3u8');
+        <!-- Live Stream Video / Camera Broadcast Container -->
+        <div id="player-live-stream-box" class="absolute inset-0 z-0 bg-black flex items-center justify-center overflow-hidden {{ $room->is_streaming ? '' : 'hidden' }}">
+            <!-- Live Camera Frame Image (broadcasted from Admin Live Camera) -->
+            <img id="player-live-camera-img" class="w-full h-full object-cover" alt="Live Dealer Stream" src="">
 
-                if ($isYouTube) {
-                    if (preg_match('/(?:youtube\.com\/(?:watch\?v=|embed\/|live\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/i', $streamUrl, $matches)) {
-                        $ytId = $matches[1];
-                        $streamUrl = "https://www.youtube.com/embed/{$ytId}?autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0";
-                    }
-                }
-            @endphp
-            <div class="absolute inset-0 z-0 bg-black flex items-center justify-center overflow-hidden">
-                @if($isYouTube)
-                    <iframe class="w-full h-full border-0 pointer-events-auto"
-                            src="{{ $streamUrl }}"
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                            allowfullscreen></iframe>
-                @elseif($isHls)
-                    <!-- CCTV / IP Camera HLS Stream (.m3u8) -->
-                    <video id="live-cctv-stream" class="w-full h-full object-cover" autoplay muted loop playsinline></video>
-                    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
-                    <script>
-                        document.addEventListener('DOMContentLoaded', function() {
-                            const video = document.getElementById('live-cctv-stream');
-                            const hlsUrl = @json($streamUrl);
-                            if (video) {
-                                if (Hls.isSupported()) {
-                                    const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
-                                    hls.loadSource(hlsUrl);
-                                    hls.attachMedia(video);
-                                    hls.on(Hls.Events.MANIFEST_PARSED, function() {
-                                        video.play().catch(function() {});
-                                    });
-                                } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
-                                    video.src = hlsUrl;
-                                    video.addEventListener('loadedmetadata', function() {
-                                        video.play().catch(function() {});
-                                    });
-                                }
-                            }
-                        });
-                    </script>
-                @else
-                    <video class="w-full h-full object-cover" autoplay muted loop playsinline>
-                        <source src="{{ $streamUrl }}" type="video/mp4">
-                        <source src="{{ $streamUrl }}" type="video/webm">
-                    </video>
-                @endif
+            <!-- External / CCTV Live Stream Player Container -->
+            <div id="player-external-stream-wrap" class="hidden absolute inset-0 bg-black">
+                <video id="live-cctv-stream" class="w-full h-full object-cover hidden" autoplay muted loop playsinline></video>
+                <iframe id="live-youtube-stream" class="w-full h-full border-0 hidden pointer-events-auto"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowfullscreen></iframe>
             </div>
-        @else
-            <!-- Realistic Live Table Felt Simulation (Matching Image 5 Dealer Stage) -->
-            <div class="w-full h-full relative z-10 flex flex-col justify-between py-1 sm:py-2">
+
+            <!-- Live Streaming Indicator Badge -->
+            <div class="absolute top-3 left-3 z-10 flex items-center gap-2 bg-black/60 backdrop-blur-sm border border-red-500/40 px-2.5 py-1 rounded-full">
+                <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+                <span class="text-[10px] font-black uppercase tracking-wider text-red-400">LIVE DEALER</span>
+            </div>
+        </div>
+
+        <!-- Clean White Screen (When Admin ends stream or stream is offline) -->
+        <div id="player-stream-white-screen" class="absolute inset-0 z-0 bg-white flex flex-col items-center justify-center text-slate-800 transition-all {{ $room->is_streaming ? 'hidden' : '' }}">
+            <div class="text-center select-none py-6">
+                <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center text-2xl shadow-sm">
+                    🎥
+                </div>
+                <p class="font-royal font-black text-slate-800 text-sm tracking-wider uppercase">Live Stream Standby</p>
+                <p class="text-[11px] text-slate-500 mt-0.5">Dealer live camera is currently offline</p>
+            </div>
+        </div>
+
+        <!-- Realistic Live Table Felt Simulation (Overlaid Card Stages) -->
+        <div class="w-full h-full relative z-10 flex flex-col justify-between py-1 sm:py-2 pointer-events-none">
                 <!-- Top Center: Dealer First Open Card (Joker) -->
                 <div class="flex flex-col items-center justify-center">
                     <div id="first-card-slot" class="relative">
@@ -243,7 +221,6 @@
                     </div>
                 </div>
             </div>
-        @endif
 
     </div>
 
@@ -417,6 +394,7 @@
 @endsection
 
 @push('scripts')
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.7/dist/hls.min.js"></script>
 <script src="{{ asset('js/game-engine.js') }}"></script>
 <script>
     let activeSelectedChip = {{ $denominations[0] ?? 500 }};
@@ -588,7 +566,125 @@
             } else if (!cancellableBet && activeCancelBetId) {
                 stopCancelCountdown();
             }
+
+            // Sync Live Stream vs White Screen
+            syncLiveStreamView(data.is_streaming, data.live_stream_url);
         };
+
+        // BroadcastChannel Receiver for Real-Time Camera Stream
+        const playerRoomId = {{ $room->id }};
+        let lastBroadcastFrameTime = 0;
+        if ('BroadcastChannel' in window) {
+            const playerStreamChannel = new BroadcastChannel('fun2win_room_' + playerRoomId);
+            playerStreamChannel.onmessage = (e) => {
+                const msg = e.data;
+                if (!msg) return;
+                if (msg.type === 'stream_frame' && msg.frame) {
+                    lastBroadcastFrameTime = Date.now();
+                    const streamImg = document.getElementById('player-live-camera-img');
+                    if (streamImg) streamImg.src = msg.frame;
+                    syncLiveStreamView(true);
+                } else if (msg.type === 'stream_started') {
+                    syncLiveStreamView(true);
+                } else if (msg.type === 'stream_ended') {
+                    syncLiveStreamView(false);
+                }
+            };
+        }
+
+        // Cross-device fallback polling for stream frame when active
+        setInterval(() => {
+            if (window._isStreamActive && (Date.now() - lastBroadcastFrameTime > 800)) {
+                fetch("{{ route('game.stream.frame.get', $room->id) }}")
+                    .then(r => r.json())
+                    .then(d => {
+                        if (d && d.frame) {
+                            const streamImg = document.getElementById('player-live-camera-img');
+                            if (streamImg) streamImg.src = d.frame;
+                        }
+                    }).catch(() => {});
+            }
+        }, 500);
+
+        let playerHls = null;
+
+        function syncLiveStreamView(isStreaming, externalUrl) {
+            window._isStreamActive = !!isStreaming;
+            const streamBox = document.getElementById('player-live-stream-box');
+            const whiteScreen = document.getElementById('player-stream-white-screen');
+            const externalWrap = document.getElementById('player-external-stream-wrap');
+            const cctvVideo = document.getElementById('live-cctv-stream');
+            const ytIframe = document.getElementById('live-youtube-stream');
+            const fallbackImg = document.getElementById('player-live-camera-img');
+
+            const streamUrl = (externalUrl || @json($room->live_stream_url ?? ''))?.trim();
+
+            if (isStreaming) {
+                if (streamBox) streamBox.classList.remove('hidden');
+                if (whiteScreen) whiteScreen.classList.add('hidden');
+
+                if (streamUrl) {
+                    if (externalWrap) externalWrap.classList.remove('hidden');
+                    if (fallbackImg) fallbackImg.classList.add('hidden');
+
+                    const ytMatch = /(?:youtube\.com\/(?:watch\?v=|embed\/|live\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/i.exec(streamUrl);
+                    if (ytMatch) {
+                        const ytSrc = 'https://www.youtube.com/embed/' + ytMatch[1] + '?autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0';
+                        if (ytIframe) {
+                            if (ytIframe.src !== ytSrc) ytIframe.src = ytSrc;
+                            ytIframe.classList.remove('hidden');
+                        }
+                        if (cctvVideo) cctvVideo.classList.add('hidden');
+                    } else if (streamUrl.toLowerCase().includes('.m3u8')) {
+                        if (ytIframe) ytIframe.classList.add('hidden');
+                        if (cctvVideo) {
+                            cctvVideo.classList.remove('hidden');
+                            if (Hls.isSupported()) {
+                                if (!playerHls) {
+                                    playerHls = new Hls({ enableWorker: true, lowLatencyMode: true });
+                                    playerHls.loadSource(streamUrl);
+                                    playerHls.attachMedia(cctvVideo);
+                                    playerHls.on(Hls.Events.MANIFEST_PARSED, () => {
+                                        cctvVideo.play().catch(() => {});
+                                    });
+                                }
+                            } else if (cctvVideo.canPlayType('application/vnd.apple.mpegurl')) {
+                                if (cctvVideo.src !== streamUrl) cctvVideo.src = streamUrl;
+                                cctvVideo.play().catch(() => {});
+                            }
+                        }
+                    } else {
+                        // Direct video file/feed (MP4 / WebM)
+                        if (ytIframe) ytIframe.classList.add('hidden');
+                        if (cctvVideo) {
+                            cctvVideo.classList.remove('hidden');
+                            if (cctvVideo.src !== streamUrl) cctvVideo.src = streamUrl;
+                            cctvVideo.play().catch(() => {});
+                        }
+                    }
+                } else {
+                    // Local admin webcam broadcast mode
+                    if (externalWrap) externalWrap.classList.add('hidden');
+                    if (fallbackImg) fallbackImg.classList.remove('hidden');
+                }
+            } else {
+                if (streamBox) streamBox.classList.add('hidden');
+                if (whiteScreen) whiteScreen.classList.remove('hidden');
+                if (externalWrap) externalWrap.classList.add('hidden');
+                if (playerHls) {
+                    playerHls.destroy();
+                    playerHls = null;
+                }
+                if (cctvVideo) {
+                    cctvVideo.pause();
+                    cctvVideo.removeAttribute('src');
+                    cctvVideo.load();
+                }
+                if (ytIframe) {
+                    ytIframe.src = 'about:blank';
+                }
+            }
+        }
 
         // Fullscreen toggle
         document.getElementById('btn-toggle-fullscreen')?.addEventListener('click', () => {

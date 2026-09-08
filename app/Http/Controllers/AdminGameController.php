@@ -98,7 +98,7 @@ class AdminGameController extends Controller
     public function handleAction(Request $request, int $roomId): JsonResponse|RedirectResponse
     {
         $request->validate([
-            'action' => ['required', 'in:start_round,open_betting,close_betting,declare_result,create_new_round,update_stream,update_room_timings'],
+            'action' => ['required', 'in:start_round,open_betting,close_betting,declare_result,create_new_round,update_stream,update_room_timings,start_stream,end_stream'],
             'first_card' => ['nullable', 'string'],
             'winning_side' => ['nullable', 'in:andar,bahar'],
             'live_stream_url' => ['nullable', 'string', 'max:500'],
@@ -108,6 +108,22 @@ class AdminGameController extends Controller
 
         $room = Room::findOrFail($roomId);
         $action = $request->action;
+
+        if ($action === 'start_stream') {
+            $room->update(['is_streaming' => true]);
+            if ($request->wantsJson()) {
+                return response()->json(['success' => true, 'is_streaming' => true, 'message' => 'Live stream broadcast started.']);
+            }
+            return back()->with('success', 'Live stream broadcast started.');
+        }
+
+        if ($action === 'end_stream') {
+            $room->update(['is_streaming' => false]);
+            if ($request->wantsJson()) {
+                return response()->json(['success' => true, 'is_streaming' => false, 'message' => 'Live stream broadcast ended.']);
+            }
+            return back()->with('success', 'Live stream broadcast ended.');
+        }
 
         if ($action === 'update_room_timings') {
             $room->update([
@@ -323,5 +339,14 @@ class AdminGameController extends Controller
         }
 
         return $deck;
+    }
+
+    public function uploadStreamFrame(Request $request, int $roomId): JsonResponse
+    {
+        $frame = $request->input('frame');
+        if ($frame) {
+            \Illuminate\Support\Facades\Cache::put("room_stream_frame_{$roomId}", $frame, 15);
+        }
+        return response()->json(['success' => true]);
     }
 }

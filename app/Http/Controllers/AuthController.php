@@ -181,7 +181,39 @@ class AuthController extends Controller
         Auth::logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
-
         return redirect()->route('login');
+    }
+
+    public function resetPassword(Request $request): RedirectResponse
+    {
+        $validated = $request->validate([
+            'login' => ['required', 'string'],
+            'password' => ['required', 'string', 'min:6', 'confirmed'],
+        ], [
+            'login.required' => 'Please enter your username or mobile number.',
+            'password.required' => 'Please enter a new password.',
+            'password.confirmed' => 'Confirm password does not match.',
+            'password.min' => 'Password must be at least 6 characters.',
+        ]);
+
+        $loginInput = trim($validated['login']);
+
+        $user = User::where('username', $loginInput)
+            ->orWhere('mobile', $loginInput)
+            ->orWhere('email', $loginInput)
+            ->first();
+
+        if (!$user) {
+            return back()->withInput($request->only('login'))
+                ->withErrors(['reset_login' => 'No account found matching this username or mobile number.'])
+                ->with('active_tab', 'forgot');
+        }
+
+        $user->password = Hash::make($validated['password']);
+        $user->save();
+
+        return redirect()->route('login')
+            ->with('success_status', 'Password updated successfully! You can now log in with your new password.')
+            ->withInput(['login' => $user->username ?: $loginInput]);
     }
 }

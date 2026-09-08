@@ -119,6 +119,8 @@ class GameController extends Controller
             'total_bahar' => $totalBahar,
             'wallet_balance' => (float) $freshUser->wallet_balance,
             'recent_history' => $recentRounds,
+            'is_streaming' => (bool) $room->is_streaming,
+            'live_stream_url' => $room->live_stream_url,
         ]);
     }
 
@@ -246,5 +248,11 @@ class GameController extends Controller
                 'message' => $e->getMessage(),
             ], 422);
         }
+    }
+
+    public function getStreamFrame(int $roomId): JsonResponse
+    {
+        $frame = \Illuminate\Support\Facades\Cache::get("room_stream_frame_{$roomId}");
+        return response()->json(['frame' => $frame]);
     }
 }
