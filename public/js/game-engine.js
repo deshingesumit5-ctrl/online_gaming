@@ -18,6 +18,7 @@ class GameEngine {
         this.timerInterval = null;
         this.pollInterval = null;
         this.resultModalShownForRound = null;
+        this.lastWalletBalance = null;
 
         this.init();
     }
@@ -77,8 +78,23 @@ class GameEngine {
     }
 
     renderState(data) {
-        // 1. Update Wallet Balance
+        // 1. Update Wallet Balance & Detect Point Approvals
         if (data.wallet_balance !== undefined) {
+            const currentBal = Number(data.wallet_balance);
+            if (this.lastWalletBalance !== null && currentBal > this.lastWalletBalance) {
+                const diff = currentBal - this.lastWalletBalance;
+                // If wallet balance increased outside of round result declared, admin approved points!
+                if (data.round_status !== 'result_declared') {
+                    const approvedToastKey = 'pts_approved_seen_' + currentBal;
+                    if (!sessionStorage.getItem(approvedToastKey)) {
+                        sessionStorage.setItem(approvedToastKey, 'true');
+                        if (typeof window.showToast === 'function') {
+                            window.showToast(`🎉 Points Request Approved! +${diff.toLocaleString()} pts added to your wallet.`, 'success');
+                        }
+                    }
+                }
+            }
+            this.lastWalletBalance = currentBal;
             this.updateWalletBalance(data.wallet_balance);
         }
         if (data.cancellation_duration !== undefined) {
@@ -117,11 +133,31 @@ class GameEngine {
         // 6. User Bets List & Cancel buttons
         this.renderUserBets(data.user_bets || []);
 
-        // 7. Dynamic Result Celebration
+        // 7. Dynamic Result Celebration (Only show ONE time if bet won, never multiple times on entering room)
         if (data.round_status === 'result_declared' && data.winning_side !== 'none') {
-            if (this.resultModalShownForRound !== data.round_id) {
-                this.resultModalShownForRound = data.round_id;
-                this.showResultOverlay(data);
+            const seenKey = 'f2w_round_result_seen_' + data.round_id;
+            const alreadySeen = localStorage.getItem(seenKey) === 'true';
+
+            if (!alreadySeen && this.resultModalShownForRound !== data.round_id) {
+                const userBets = data.user_bets || [];
+                const winningBets = userBets.filter(b => b.selection === data.winning_side && b.status !== 'cancelled');
+                const hasWon = winningBets.length > 0;
+
+                // If this is the initial load entering the room:
+                if (!this.currentStatus) {
+                    // Only show if user actually placed a winning bet in this round and hasn't seen it yet
+                    if (hasWon) {
+                        this.resultModalShownForRound = data.round_id;
+                        this.showResultOverlay(data);
+                    } else {
+                        // User did not bet or did not win — mark as seen so old result never pops up
+                        localStorage.setItem(seenKey, 'true');
+                    }
+                } else if (this.currentStatus !== 'result_declared') {
+                    // Real-time transition while user is actively in the room
+                    this.resultModalShownForRound = data.round_id;
+                    this.showResultOverlay(data);
+                }
             }
         }
 
@@ -402,6 +438,10 @@ class GameEngine {
                 </div>`;
         }
 
+        // Persist seen state immediately so it will never show multiple times
+        const seenKey = 'f2w_round_result_seen_' + data.round_id;
+        localStorage.setItem(seenKey, 'true');
+
         modal.innerHTML = `
             <div class="glass-panel max-w-md w-full p-6 text-center border-2 ${headerColor} shadow-2xl animate-bounce-short">
                 <span class="text-xs uppercase tracking-widest text-slate-400">Round #${data.round_number} Result</span>
@@ -411,9 +451,26 @@ class GameEngine {
                 </div>
                 ${userResultHtml}
                 <div class="text-xs text-slate-400 mb-4">Updated Balance: <strong class="text-white">${Math.floor(Number(data.wallet_balance)).toLocaleString()} pts</strong></div>
-                <button onclick="document.getElementById('round-result-modal').remove()" class="btn-gold w-full py-2.5 text-sm uppercase">Continue Playing</button>
+                <button type="button" onclick="GameEngine.dismissResultModal(${data.round_id})" class="btn-gold w-full py-2.5 text-sm uppercase font-bold cursor-pointer">Continue Playing</button>
             </div>
         `;
+
+        // Also dismiss on backdrop click
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                GameEngine.dismissResultModal(data.round_id);
+            }
+        };
+    }
+
+    static dismissResultModal(roundId) {
+        if (roundId) {
+            localStorage.setItem('f2w_round_result_seen_' + roundId, 'true');
+        }
+        const modal = document.getElementById('round-result-modal');
+        if (modal) {
+            modal.remove();
+        }
     }
 }
 

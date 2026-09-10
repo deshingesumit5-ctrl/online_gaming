@@ -66,10 +66,10 @@
     .bead-a-blue  { background-color: #0284c7; color: white; }
     .bead-b-red   { background-color: #ef4444; color: white; }
 
-    /* Fullscreen HUD Container: Perfectly fits laptop screens without page scrolling */
+    /* Fullscreen HUD Container: Perfectly fits laptop & mobile screens without page scrolling */
     .game-viewport {
-        height: calc(100vh - 58px);
-        max-height: calc(100vh - 58px);
+        height: 100vh;
+        max-height: 100vh;
         overflow: hidden;
         display: flex;
         flex-direction: column;
@@ -79,11 +79,52 @@
         min-height: 0;
         overflow: hidden;
     }
+
+    /* Horizontal Aadavi Mode for Mobile & Landscape Viewports */
+    @media (orientation: landscape) and (max-height: 550px) {
+        .landscape-compact-bar {
+            padding-top: 3px !important;
+            padding-bottom: 3px !important;
+        }
+        .landscape-compact-hud {
+            padding: 4px 10px !important;
+            gap: 8px !important;
+        }
+        .landscape-compact-hud .poker-chip {
+            width: 32px !important;
+            height: 32px !important;
+            font-size: 9px !important;
+        }
+        .landscape-compact-hud .btn-hud-action {
+            padding: 4px 12px !important;
+            font-size: 11px !important;
+        }
+        .hud-andar-bahar-box {
+            width: 250px !important;
+        }
+        .hud-andar-bahar-box #btn-bet-andar,
+        .hud-andar-bahar-box #btn-bet-bahar {
+            padding: 6px 12px !important;
+            font-size: 13px !important;
+        }
+    }
+    @media (orientation: landscape) {
+        #mobile-aadavi-prompt {
+            display: none !important;
+        }
+    }
 </style>
 @endpush
 
 @section('content')
-<div class="w-full max-w-7xl mx-auto flex flex-col justify-between rounded-2xl overflow-hidden shadow-2xl border border-slate-700/80 relative select-none game-viewport" style="background: #000;">
+<div class="w-full h-full max-w-none mx-auto flex flex-col justify-between overflow-hidden relative select-none game-viewport" style="background: #000;">
+
+    <!-- Mobile Portrait Helper Prompt (Tapping enters Fullscreen Landscape / Aadavi) -->
+    <div id="mobile-aadavi-prompt" onclick="enterFullscreenLandscape()"
+         class="hidden fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-slate-950 font-black px-4 py-2 rounded-full text-xs uppercase tracking-wider shadow-2xl flex items-center gap-2 cursor-pointer border-2 border-white animate-pulse">
+        <span>🔄⛶</span>
+        <span>Tap for Fullscreen Aadavi</span>
+    </div>
 
     <!-- Top Bar (Matching Image 4: ← TABLE 1 : MIN BET 500, Center (✕) Close, Right Action Icons) -->
     <div class="relative z-30 px-3 sm:px-5 py-2.5 flex items-center justify-between text-white bg-black/50 backdrop-blur-md border-b border-white/10 shrink-0">
@@ -154,10 +195,10 @@
 
     <!-- Bottom Casino Cockpit HUD Bar (Matching Image 4 Overlaid HUD) -->
     <div class="relative z-30 p-2 sm:p-3.5 bg-black/90 backdrop-blur-md border-t border-white/15 text-white shrink-0">
-        <div class="flex flex-col lg:flex-row items-center justify-between gap-4">
+        <div class="flex flex-col landscape:flex-row lg:flex-row items-center justify-between gap-2.5 sm:gap-4 landscape-compact-hud">
             
             <!-- LEFT SECTION: Chips, Undo + Place Bet, Balance + First Bet / Second Bet -->
-            <div class="flex flex-col gap-2.5 w-full lg:w-auto">
+            <div class="flex flex-col gap-2 w-full lg:w-auto landscape:w-auto">
                 
                 <!-- Chips Row -->
                 <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
@@ -183,33 +224,33 @@
                 </div>
 
                 <!-- Action Buttons: Undo & Place Bet (and Cancel Bet) -->
-                <div class="flex items-center gap-2.5 flex-wrap">
+                <div class="flex items-center gap-2 sm:gap-2.5 flex-wrap">
                     <button type="button" id="btn-hud-undo" onclick="handleUndoBet()"
-                            class="px-5 sm:px-6 py-2 rounded-lg bg-[#991b1b] hover:bg-[#b91c1c] active:scale-95 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition shadow-md cursor-pointer">
+                            class="btn-hud-action px-4 sm:px-6 py-1.5 sm:py-2 rounded-lg bg-[#991b1b] hover:bg-[#b91c1c] active:scale-95 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition shadow-md cursor-pointer">
                         UNDO
                     </button>
 
                     <button type="button" id="btn-hud-place-bet" onclick="handleConfirmBet()"
-                            class="px-6 sm:px-8 py-2 rounded-lg bg-[#16a34a] hover:bg-[#22c55e] active:scale-95 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition shadow-md shadow-emerald-700/40 cursor-pointer">
+                            class="btn-hud-action px-5 sm:px-8 py-1.5 sm:py-2 rounded-lg bg-[#16a34a] hover:bg-[#22c55e] active:scale-95 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition shadow-md shadow-emerald-700/40 cursor-pointer">
                         PLACE BET
                     </button>
 
                     <button type="button" id="btn-hud-cancel-bet" onclick="handleCancelActiveBet()"
-                            class="hidden px-4 py-2 rounded-lg bg-red-700 hover:bg-red-600 border border-red-500 text-white font-black text-xs uppercase tracking-wider transition active:scale-95 shadow-lg shadow-red-700/50 flex items-center gap-1.5 animate-pulse">
+                            class="btn-hud-action hidden px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-red-700 hover:bg-red-600 border border-red-500 text-white font-black text-xs uppercase tracking-wider transition active:scale-95 shadow-lg shadow-red-700/50 flex items-center gap-1.5 animate-pulse">
                         <span>↩ CANCEL</span>
                         <span id="cancel-timer-countdown" class="px-1.5 py-0.5 rounded-full bg-black/60 text-[10px] font-bold text-amber-300">{{ $room->cancellation_duration }}s</span>
                     </button>
                 </div>
 
                 <!-- Readouts: Balance on left, First Bet & Second Bet stacked on right -->
-                <div class="flex items-center gap-4 pt-0.5">
+                <div class="flex items-center gap-3 sm:gap-4 pt-0.5">
                     <!-- Balance -->
-                    <div class="px-3.5 py-1.5 rounded-lg bg-black/80 border border-white/20 text-xs sm:text-sm font-bold shrink-0">
+                    <div class="px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-lg bg-black/80 border border-white/20 text-xs sm:text-sm font-bold shrink-0">
                         <span class="text-slate-300">BALANCE: <strong class="text-white font-black">₹<span class="user-wallet-balance">{{ number_format($user->wallet_balance, 0) }}</span></strong></span>
                     </div>
 
                     <!-- Stacked First Bet & Second Bet -->
-                    <div class="flex flex-col text-[11px] sm:text-xs font-bold leading-tight space-y-1">
+                    <div class="flex flex-col text-[10px] sm:text-xs font-bold leading-tight space-y-0.5 sm:space-y-1">
                         <div class="text-slate-300">
                             FIRST BET: <strong class="text-white font-black" id="status-first-bet">₹0</strong>
                         </div>
@@ -221,11 +262,11 @@
             </div>
 
             <!-- CENTER SECTION: ANDAR (Black) / BAHAR (Red) (Big Buttons, Matching Image 4) -->
-            <div class="relative flex items-center justify-center w-full sm:w-80 md:w-96 lg:w-[400px] shrink-0 my-1 lg:my-0">
+            <div class="relative flex items-center justify-center w-full sm:w-80 md:w-96 lg:w-[400px] landscape:w-[260px] sm:landscape:w-[320px] hud-andar-bahar-box shrink-0 my-1 lg:my-0">
                 <div class="w-full rounded-2xl overflow-hidden border-2 border-slate-700 bg-black shadow-2xl relative">
                     <!-- ANDAR Area (Black Bar, Big Button) -->
                     <div id="btn-bet-andar" onclick="selectBetSide('andar')"
-                         class="px-5 py-3.5 sm:py-4 bg-[#181a22] border-b border-slate-700/80 flex items-center justify-between cursor-pointer hover:bg-slate-800 transition group select-none">
+                         class="px-5 py-3 sm:py-3.5 md:py-4 bg-[#181a22] border-b border-slate-700/80 flex items-center justify-between cursor-pointer hover:bg-slate-800 transition group select-none">
                         <span class="text-sm sm:text-base md:text-lg font-black font-royal tracking-widest text-white group-hover:text-indigo-300">
                             ANDAR
                         </span>
@@ -236,7 +277,7 @@
 
                     <!-- BAHAR Area (Red Bar, Big Button) -->
                     <div id="btn-bet-bahar" onclick="selectBetSide('bahar')"
-                         class="px-5 py-3.5 sm:py-4 bg-[#dc2626] flex items-center justify-between cursor-pointer hover:bg-red-700 transition group select-none">
+                         class="px-5 py-3 sm:py-3.5 md:py-4 bg-[#dc2626] flex items-center justify-between cursor-pointer hover:bg-red-700 transition group select-none">
                         <span class="text-sm sm:text-base md:text-lg font-black font-royal tracking-widest text-white group-hover:text-red-100">
                             BAHAR
                         </span>
@@ -256,7 +297,7 @@
             </div>
 
             <!-- RIGHT SECTION: Red Timer Bar, Bead Road Matrix, Limits (Matching Image 4) -->
-            <div class="flex flex-col justify-between w-full sm:w-64 md:w-72 shrink-0 space-y-1.5">
+            <div class="flex flex-col justify-between w-full sm:w-64 md:w-72 landscape:w-52 sm:landscape:w-64 shrink-0 space-y-1 sm:space-y-1.5">
                 <!-- Red Countdown Timer Bar (Matching Image 4) -->
                 <div class="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-white/10">
                     <div id="hud-timer-bar" class="h-full bg-red-600 transition-all duration-1000 ease-linear shadow-[0_0_8px_#dc2626]" style="width: 100%;"></div>
@@ -638,14 +679,72 @@
             }
         }
 
-        // Fullscreen toggle
-        document.getElementById('btn-toggle-fullscreen')?.addEventListener('click', () => {
-            if (!document.fullscreenElement) {
-                document.documentElement.requestFullscreen().catch(() => {});
+        // Fullscreen toggle (Locked to Landscape / Aadavi on mobile)
+        window.enterFullscreenLandscape = async function() {
+            const docEl = document.documentElement;
+            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+
+            if (!isFs) {
+                try {
+                    const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+                    if (req) {
+                        await req.call(docEl);
+                    }
+                } catch (e) {
+                    console.warn('requestFullscreen error:', e);
+                }
+
+                // Lock orientation to Landscape (Aadavi)
+                if (screen.orientation && screen.orientation.lock) {
+                    try {
+                        await screen.orientation.lock('landscape');
+                    } catch (e) {
+                        console.warn('orientation.lock landscape error:', e);
+                    }
+                }
             } else {
-                document.exitFullscreen().catch(() => {});
+                if (screen.orientation && screen.orientation.unlock) {
+                    try { screen.orientation.unlock(); } catch (e) {}
+                }
+                try {
+                    const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+                    if (exit) {
+                        await exit.call(document);
+                    }
+                } catch (e) {
+                    console.warn('exitFullscreen error:', e);
+                }
             }
-        });
+        };
+
+        document.getElementById('btn-toggle-fullscreen')?.addEventListener('click', window.enterFullscreenLandscape);
+
+        // Automatic orientation to Landscape (Aadavi) when entering room
+        function applyLandscapeLock() {
+            if (screen.orientation && screen.orientation.lock) {
+                screen.orientation.lock('landscape').catch(() => {});
+            }
+        }
+        applyLandscapeLock();
+        window.addEventListener('load', applyLandscapeLock);
+        document.addEventListener('touchstart', applyLandscapeLock, { once: true });
+        document.addEventListener('click', applyLandscapeLock, { once: true });
+
+        // Show/hide mobile portrait helper prompt
+        function checkMobileOrientation() {
+            const prompt = document.getElementById('mobile-aadavi-prompt');
+            if (!prompt) return;
+            const isPortrait = window.innerHeight > window.innerWidth;
+            const isMobile = window.innerWidth <= 900 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+            if (isMobile && isPortrait) {
+                prompt.classList.remove('hidden');
+            } else {
+                prompt.classList.add('hidden');
+            }
+        }
+        window.addEventListener('resize', checkMobileOrientation);
+        window.addEventListener('orientationchange', checkMobileOrientation);
+        setTimeout(checkMobileOrientation, 300);
 
         // Sound toggle
         let soundOn = true;

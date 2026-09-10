@@ -15,7 +15,7 @@
     @stack('styles')
 </head>
 <body class="bg-[#070b14] text-slate-100 min-h-screen flex flex-col justify-between selection:bg-yellow-500 selection:text-black">
-    @if(!request()->routeIs('login') && !request()->routeIs('register') && !request()->routeIs('terms.*'))
+    @if(!request()->routeIs('login') && !request()->routeIs('register') && !request()->routeIs('terms.*') && !request()->routeIs('game.play'))
     <!-- Main Top Navigation (Laptop / Desktop Upward Direction) -->
     <header class="bg-[#0d1322] border-b border-slate-800/80 sticky top-0 z-40">
         <div class="px-4 sm:px-6 py-2.5 flex items-center justify-between gap-3 sm:gap-4">
@@ -237,7 +237,7 @@
     @endif
 
     <!-- Main Content Area -->
-    <main class="{{ request()->routeIs('login') || request()->routeIs('register') || request()->routeIs('terms.*') ? 'w-full flex-grow flex items-center justify-center py-2 sm:py-6' : (request()->routeIs('game.play') ? 'max-w-7xl mx-auto px-2 py-1 w-full flex-grow flex flex-col justify-center' : 'max-w-7xl mx-auto px-4 py-3 sm:py-5 w-full flex-grow') }}">
+    <main class="{{ request()->routeIs('login') || request()->routeIs('register') || request()->routeIs('terms.*') ? 'w-full flex-grow flex items-center justify-center py-2 sm:py-6' : (request()->routeIs('game.play') ? 'w-full h-screen p-0 m-0 overflow-hidden flex flex-col justify-center' : 'max-w-7xl mx-auto px-4 py-3 sm:py-5 w-full flex-grow') }}">
         @yield('content')
     </main>
 
