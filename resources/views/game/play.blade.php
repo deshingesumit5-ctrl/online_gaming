@@ -113,11 +113,64 @@
             display: none !important;
         }
     }
+
+    /* Mobile-only Forced Landscape ("Aadavi") Rotation Fallback */
+    @media (max-width: 768px) {
+        .forced-landscape {
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            width: 100vh !important;
+            width: 100dvh !important;
+            height: 100vw !important;
+            height: 100dvw !important;
+            transform-origin: 0 0 !important;
+            transform: rotate(90deg) translateY(-100%) !important;
+            overflow: hidden !important;
+            z-index: 9999 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            max-width: none !important;
+            max-height: none !important;
+        }
+
+        .forced-landscape .landscape-compact-bar {
+            padding-top: 3px !important;
+            padding-bottom: 3px !important;
+        }
+        .forced-landscape .landscape-compact-hud {
+            flex-direction: row !important;
+            padding: 4px 8px !important;
+            gap: 6px !important;
+        }
+        .forced-landscape .hud-andar-bahar-box {
+            width: 240px !important;
+            margin: 0 !important;
+        }
+        .forced-landscape .hud-andar-bahar-box #btn-bet-andar,
+        .forced-landscape .hud-andar-bahar-box #btn-bet-bahar {
+            padding: 4px 10px !important;
+            font-size: 12px !important;
+        }
+        .forced-landscape .poker-chip {
+            width: 30px !important;
+            height: 30px !important;
+            font-size: 9px !important;
+        }
+        .forced-landscape .btn-hud-action {
+            padding: 3px 8px !important;
+            font-size: 10px !important;
+        }
+        .forced-landscape .felt-surface {
+            flex: 1 !important;
+            min-height: 0 !important;
+        }
+    }
 </style>
 @endpush
 
 @section('content')
-<div class="w-full h-full max-w-none mx-auto flex flex-col justify-between overflow-hidden relative select-none game-viewport" style="background: #000;">
+<div id="game-main-viewport" class="w-full h-full max-w-none mx-auto flex flex-col justify-between overflow-hidden relative select-none game-viewport" style="background: #000;">
 
     <!-- Mobile Portrait Helper Prompt (Tapping enters Fullscreen Landscape / Aadavi) -->
     <div id="mobile-aadavi-prompt" onclick="enterFullscreenLandscape()"
@@ -349,39 +402,39 @@
 
         </div>
     </div>
-</div>
 
-{{-- Custom Square Alert/Warning Banner Modal Centered in Middle of Screen --}}
-<div id="squareAlertModal" class="fixed inset-0 z-50 flex items-center justify-center hidden p-4" style="background:rgba(0,0,0,0.65);backdrop-filter:blur(5px);">
-    <div class="relative flex flex-col items-center justify-between p-6 sm:p-7 rounded-3xl shadow-2xl border transition-all"
-         style="width:340px;height:340px;max-width:92vw;max-height:92vw;background:radial-gradient(circle at 50% 20%,#1e293b 0%,#0f172a 60%,#050811 100%);border-color:#f59e0b;box-shadow:0 0 45px rgba(245,158,11,0.35);">
-        
-        {{-- Close X Button at Top-Right --}}
-        <button onclick="closeSquareAlertModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-sm font-bold transition border border-white/20 hover:scale-110 active:scale-95" title="Close (X)">
-            ✕
-        </button>
+    {{-- Custom Square Alert/Warning Banner Modal Centered in Middle of Screen --}}
+    <div id="squareAlertModal" class="fixed inset-0 z-50 flex items-center justify-center hidden p-4" style="background:rgba(0,0,0,0.65);backdrop-filter:blur(5px);">
+        <div class="relative flex flex-col items-center justify-between p-6 sm:p-7 rounded-3xl shadow-2xl border transition-all"
+             style="width:340px;height:340px;max-width:92vw;max-height:92vw;background:radial-gradient(circle at 50% 20%,#1e293b 0%,#0f172a 60%,#050811 100%);border-color:#f59e0b;box-shadow:0 0 45px rgba(245,158,11,0.35);">
+            
+            {{-- Close X Button at Top-Right --}}
+            <button onclick="closeSquareAlertModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-sm font-bold transition border border-white/20 hover:scale-110 active:scale-95" title="Close (X)">
+                ✕
+            </button>
 
-        {{-- Icon --}}
-        <div class="mt-2">
-            <div id="squareAlertIcon" class="w-14 h-14 rounded-2xl bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-amber-400 text-3xl font-black shadow-lg shadow-amber-500/30">
-                ⚠️
+            {{-- Icon --}}
+            <div class="mt-2">
+                <div id="squareAlertIcon" class="w-14 h-14 rounded-2xl bg-amber-500/20 border-2 border-amber-400 flex items-center justify-center text-amber-400 text-3xl font-black shadow-lg shadow-amber-500/30">
+                    ⚠️
+                </div>
             </div>
-        </div>
 
-        {{-- Title & Body --}}
-        <div class="text-center px-2 my-2 flex flex-col items-center justify-center flex-grow">
-            <h3 id="squareAlertTitle" class="text-xs font-bold uppercase tracking-widest text-amber-400 mb-2 font-royal">
-                Selection Required
-            </h3>
-            <p id="squareAlertMessage" class="text-white text-sm font-semibold leading-relaxed">
-                Please select ANDAR or BAHAR before placing your bet.
-            </p>
-        </div>
+            {{-- Title & Body --}}
+            <div class="text-center px-2 my-2 flex flex-col items-center justify-center flex-grow">
+                <h3 id="squareAlertTitle" class="text-xs font-bold uppercase tracking-widest text-amber-400 mb-2 font-royal">
+                    Selection Required
+                </h3>
+                <p id="squareAlertMessage" class="text-white text-sm font-semibold leading-relaxed">
+                    Please select ANDAR or BAHAR before placing your bet.
+                </p>
+            </div>
 
-        {{-- Bottom OK Button --}}
-        <button onclick="closeSquareAlertModal()" class="w-full py-2.5 rounded-xl font-black text-xs uppercase tracking-wider text-slate-950 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 transition shadow-lg shadow-amber-500/40 hover:brightness-110 active:scale-95">
-            OK
-        </button>
+            {{-- Bottom OK Button --}}
+            <button onclick="closeSquareAlertModal()" class="w-full py-2.5 rounded-xl font-black text-xs uppercase tracking-wider text-slate-950 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 transition shadow-lg shadow-amber-500/40 hover:brightness-110 active:scale-95">
+                OK
+            </button>
+        </div>
     </div>
 </div>
 @endsection
@@ -679,10 +732,60 @@
             }
         }
 
+        // Helper mobile checks (Desktop layout is completely untouched)
+        function isMobileDevice() {
+            const isSmallScreen = window.innerWidth <= 768;
+            const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+            return isSmallScreen || isMobileUA;
+        }
+
+        function isLandscapeMode() {
+            if (window.matchMedia && window.matchMedia('(orientation: landscape)').matches) {
+                return true;
+            }
+            return window.innerWidth > window.innerHeight;
+        }
+
+        function isFullscreenActive() {
+            return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+        }
+
+        function updateMobileOrientation() {
+            const gameViewport = document.getElementById('game-main-viewport');
+            const prompt = document.getElementById('mobile-aadavi-prompt');
+            if (!gameViewport) return;
+
+            // Desktop layout: do NOT alter desktop layout at all!
+            if (!isMobileDevice()) {
+                gameViewport.classList.remove('forced-landscape');
+                if (prompt) prompt.classList.add('hidden');
+                return;
+            }
+
+            const inLandscape = isLandscapeMode();
+            const inFullscreen = isFullscreenActive();
+
+            if (inLandscape) {
+                // Native or fullscreen landscape active
+                gameViewport.classList.remove('forced-landscape');
+                if (prompt) prompt.classList.add('hidden');
+            } else {
+                // Mobile portrait: apply CSS transform-based forced landscape rotation fallback
+                gameViewport.classList.add('forced-landscape');
+                if (prompt) {
+                    if (!inFullscreen) {
+                        prompt.classList.remove('hidden');
+                    } else {
+                        prompt.classList.add('hidden');
+                    }
+                }
+            }
+        }
+
         // Fullscreen toggle (Locked to Landscape / Aadavi on mobile)
         window.enterFullscreenLandscape = async function() {
             const docEl = document.documentElement;
-            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+            const isFs = isFullscreenActive();
 
             if (!isFs) {
                 try {
@@ -694,15 +797,16 @@
                     console.warn('requestFullscreen error:', e);
                 }
 
-                // Lock orientation to Landscape (Aadavi)
-                if (screen.orientation && screen.orientation.lock) {
+                // Lock orientation to Landscape (Aadavi) on mobile
+                if (isMobileDevice() && screen.orientation && screen.orientation.lock) {
                     try {
                         await screen.orientation.lock('landscape');
                     } catch (e) {
-                        console.warn('orientation.lock landscape error:', e);
+                        console.warn('screen.orientation.lock error:', e);
                     }
                 }
             } else {
+                // Exit fullscreen
                 if (screen.orientation && screen.orientation.unlock) {
                     try { screen.orientation.unlock(); } catch (e) {}
                 }
@@ -715,36 +819,42 @@
                     console.warn('exitFullscreen error:', e);
                 }
             }
+
+            setTimeout(updateMobileOrientation, 150);
         };
 
         document.getElementById('btn-toggle-fullscreen')?.addEventListener('click', window.enterFullscreenLandscape);
 
         // Automatic orientation to Landscape (Aadavi) when entering room
         function applyLandscapeLock() {
-            if (screen.orientation && screen.orientation.lock) {
+            if (isMobileDevice() && screen.orientation && screen.orientation.lock) {
                 screen.orientation.lock('landscape').catch(() => {});
             }
+            updateMobileOrientation();
         }
+
         applyLandscapeLock();
         window.addEventListener('load', applyLandscapeLock);
         document.addEventListener('touchstart', applyLandscapeLock, { once: true });
         document.addEventListener('click', applyLandscapeLock, { once: true });
 
-        // Show/hide mobile portrait helper prompt
-        function checkMobileOrientation() {
-            const prompt = document.getElementById('mobile-aadavi-prompt');
-            if (!prompt) return;
-            const isPortrait = window.innerHeight > window.innerWidth;
-            const isMobile = window.innerWidth <= 900 || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-            if (isMobile && isPortrait) {
-                prompt.classList.remove('hidden');
-            } else {
-                prompt.classList.add('hidden');
+        window.addEventListener('resize', updateMobileOrientation);
+        window.addEventListener('orientationchange', () => {
+            setTimeout(updateMobileOrientation, 200);
+        });
+        document.addEventListener('fullscreenchange', () => {
+            if (!isFullscreenActive() && screen.orientation && screen.orientation.unlock) {
+                try { screen.orientation.unlock(); } catch (e) {}
             }
-        }
-        window.addEventListener('resize', checkMobileOrientation);
-        window.addEventListener('orientationchange', checkMobileOrientation);
-        setTimeout(checkMobileOrientation, 300);
+            setTimeout(updateMobileOrientation, 150);
+        });
+        document.addEventListener('webkitfullscreenchange', () => {
+            if (!isFullscreenActive() && screen.orientation && screen.orientation.unlock) {
+                try { screen.orientation.unlock(); } catch (e) {}
+            }
+            setTimeout(updateMobileOrientation, 150);
+        });
+        setTimeout(updateMobileOrientation, 300);
 
         // Sound toggle
         let soundOn = true;

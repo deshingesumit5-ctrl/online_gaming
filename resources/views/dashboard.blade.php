@@ -313,7 +313,8 @@
 
 <script>
     function enterRoomAadavi(e, url) {
-        if (screen.orientation && screen.orientation.lock) {
+        const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        if (isMobile && screen.orientation && screen.orientation.lock) {
             screen.orientation.lock('landscape').catch(() => {});
         }
     }

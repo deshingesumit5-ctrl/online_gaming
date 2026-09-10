@@ -17,8 +17,13 @@ class GameEngine {
         this.remainingSeconds = 0;
         this.timerInterval = null;
         this.pollInterval = null;
-        this.resultModalShownForRound = null;
+
+        // De-duplication tracking (State variable + storage guard)
+        const storedLastProcessed = sessionStorage.getItem('f2w_last_processed_round_' + this.roomId);
+        this.lastProcessedRoundId = storedLastProcessed ? parseInt(storedLastProcessed, 10) : null;
+        this.resultModalShownForRound = this.lastProcessedRoundId;
         this.lastWalletBalance = null;
+        this.isInitialStateFetch = true;
 
         this.init();
     }
@@ -78,14 +83,17 @@ class GameEngine {
     }
 
     renderState(data) {
-        // 1. Update Wallet Balance & Detect Point Approvals
+        const isInitial = this.isInitialStateFetch;
+        this.isInitialStateFetch = false;
+
+        // 1. Update Wallet Balance & Detect Point Approvals (Deduplicated per balance increase)
         if (data.wallet_balance !== undefined) {
             const currentBal = Number(data.wallet_balance);
             if (this.lastWalletBalance !== null && currentBal > this.lastWalletBalance) {
                 const diff = currentBal - this.lastWalletBalance;
                 // If wallet balance increased outside of round result declared, admin approved points!
                 if (data.round_status !== 'result_declared') {
-                    const approvedToastKey = 'pts_approved_seen_' + currentBal;
+                    const approvedToastKey = 'pts_approved_seen_' + this.roomId + '_' + currentBal;
                     if (!sessionStorage.getItem(approvedToastKey)) {
                         sessionStorage.setItem(approvedToastKey, 'true');
                         if (typeof window.showToast === 'function') {
@@ -133,29 +141,31 @@ class GameEngine {
         // 6. User Bets List & Cancel buttons
         this.renderUserBets(data.user_bets || []);
 
-        // 7. Dynamic Result Celebration (Only show ONE time if bet won, never multiple times on entering room)
-        if (data.round_status === 'result_declared' && data.winning_side !== 'none') {
-            const seenKey = 'f2w_round_result_seen_' + data.round_id;
-            const alreadySeen = localStorage.getItem(seenKey) === 'true';
+        // 7. Dynamic Result Celebration (Strict de-duplication: exactly ONCE per round, never replay on resume/re-open)
+        if (data.round_status === 'result_declared' && data.winning_side && data.winning_side !== 'none') {
+            const roundId = data.round_id;
+            const seenKey = 'f2w_round_result_seen_' + roundId;
+            const alreadySeenLocal = localStorage.getItem(seenKey) === 'true';
+            const alreadySeenSession = sessionStorage.getItem('f2w_round_result_seen_' + roundId) === 'true';
+            const isAlreadyProcessed = (this.lastProcessedRoundId === roundId) || (this.resultModalShownForRound === roundId);
 
-            if (!alreadySeen && this.resultModalShownForRound !== data.round_id) {
-                const userBets = data.user_bets || [];
-                const winningBets = userBets.filter(b => b.selection === data.winning_side && b.status !== 'cancelled');
-                const hasWon = winningBets.length > 0;
+            if (isInitial) {
+                // Guard: Re-opening or resuming the room when round is already settled must NEVER replay modal
+                this.lastProcessedRoundId = roundId;
+                this.resultModalShownForRound = roundId;
+                sessionStorage.setItem('f2w_last_processed_round_' + this.roomId, roundId.toString());
+                sessionStorage.setItem('f2w_round_result_seen_' + roundId, 'true');
+                localStorage.setItem(seenKey, 'true');
+            } else if (!alreadySeenLocal && !alreadySeenSession && !isAlreadyProcessed) {
+                // Only trigger if this is an active transition in state while user is in the room
+                if (this.currentStatus && this.currentStatus !== 'result_declared') {
+                    // Mark processed immediately to block duplicate triggers from concurrent polling calls
+                    this.lastProcessedRoundId = roundId;
+                    this.resultModalShownForRound = roundId;
+                    sessionStorage.setItem('f2w_last_processed_round_' + this.roomId, roundId.toString());
+                    sessionStorage.setItem('f2w_round_result_seen_' + roundId, 'true');
+                    localStorage.setItem(seenKey, 'true');
 
-                // If this is the initial load entering the room:
-                if (!this.currentStatus) {
-                    // Only show if user actually placed a winning bet in this round and hasn't seen it yet
-                    if (hasWon) {
-                        this.resultModalShownForRound = data.round_id;
-                        this.showResultOverlay(data);
-                    } else {
-                        // User did not bet or did not win — mark as seen so old result never pops up
-                        localStorage.setItem(seenKey, 'true');
-                    }
-                } else if (this.currentStatus !== 'result_declared') {
-                    // Real-time transition while user is actively in the room
-                    this.resultModalShownForRound = data.round_id;
                     this.showResultOverlay(data);
                 }
             }
@@ -397,19 +407,24 @@ class GameEngine {
     }
 
     showResultOverlay(data) {
+        // Prevent duplicate modal instances in DOM
+        let modal = document.getElementById('round-result-modal');
+        if (modal) {
+            return; // Modal is already rendered and active
+        }
+
+        modal = document.createElement('div');
+        modal.id = 'round-result-modal';
+        modal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md';
+
+        const viewportContainer = document.getElementById('game-main-viewport') || document.body;
+        viewportContainer.appendChild(modal);
+
         const winningSide = data.winning_side;
         const userBets = data.user_bets || [];
         const winningBets = userBets.filter(b => b.selection === winningSide && b.status !== 'cancelled');
         const hasWon = winningBets.length > 0;
         const totalWonPayout = winningBets.reduce((acc, b) => acc + (b.amount * 2), 0);
-
-        let modal = document.getElementById('round-result-modal');
-        if (!modal) {
-            modal = document.createElement('div');
-            modal.id = 'round-result-modal';
-            modal.className = 'fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md';
-            document.body.appendChild(modal);
-        }
 
         const isAndar = winningSide === 'andar';
         const winTitle = isAndar ? 'ROYAL ANDAR WON!' : 'ROYAL BAHAR WON!';
@@ -441,6 +456,7 @@ class GameEngine {
         // Persist seen state immediately so it will never show multiple times
         const seenKey = 'f2w_round_result_seen_' + data.round_id;
         localStorage.setItem(seenKey, 'true');
+        sessionStorage.setItem(seenKey, 'true');
 
         modal.innerHTML = `
             <div class="glass-panel max-w-md w-full p-6 text-center border-2 ${headerColor} shadow-2xl animate-bounce-short">
@@ -466,6 +482,7 @@ class GameEngine {
     static dismissResultModal(roundId) {
         if (roundId) {
             localStorage.setItem('f2w_round_result_seen_' + roundId, 'true');
+            sessionStorage.setItem('f2w_round_result_seen_' + roundId, 'true');
         }
         const modal = document.getElementById('round-result-modal');
         if (modal) {
