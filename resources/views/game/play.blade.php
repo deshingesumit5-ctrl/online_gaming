@@ -83,18 +83,25 @@
 @endpush
 
 @section('content')
-<div class="w-full max-w-7xl mx-auto flex flex-col justify-between rounded-2xl overflow-hidden casino-felt-table shadow-2xl border border-slate-700/80 relative select-none game-viewport">
+<div class="w-full max-w-7xl mx-auto flex flex-col justify-between rounded-2xl overflow-hidden shadow-2xl border border-slate-700/80 relative select-none game-viewport" style="background: #000;">
 
-    <!-- Top Bar (Matching Image 5: ← TABLE 1 : MIN BET 500 & Action Icons) -->
-    <div class="relative z-30 px-3 sm:px-5 py-2 flex items-center justify-between text-white bg-black/40 backdrop-blur-sm border-b border-white/10 shrink-0">
+    <!-- Top Bar (Matching Image 4: ← TABLE 1 : MIN BET 500, Center (✕) Close, Right Action Icons) -->
+    <div class="relative z-30 px-3 sm:px-5 py-2.5 flex items-center justify-between text-white bg-black/50 backdrop-blur-md border-b border-white/10 shrink-0">
         <!-- Left: Back Navigation & Table Title -->
         <div class="flex items-center gap-3 font-royal">
-            <a href="{{ route('dashboard') }}" class="text-white hover:text-amber-400 transition text-base font-bold flex items-center gap-1.5" title="Back to Lobby">
+            <a href="{{ route('dashboard', ['tab' => 'lobby']) }}" class="text-white hover:text-amber-400 transition text-base font-bold flex items-center gap-1.5" title="Back to Lobby">
                 <span>&larr;</span>
             </a>
             <h1 class="text-xs sm:text-sm md:text-base font-black tracking-wider uppercase">
                 {{ strtoupper($room->name) }} : MIN BET {{ $denominations[0] ?? 500 }}
             </h1>
+        </div>
+
+        <!-- Center: (✕) Circular Close Button (Matching Image 4) -->
+        <div>
+            <a href="{{ route('dashboard', ['tab' => 'lobby']) }}" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 hover:bg-black/90 border border-white/25 text-white flex items-center justify-center text-xs sm:text-sm font-bold transition hover:scale-110 active:scale-95 shadow-lg" title="Close / Return to Lobby">
+                ✕
+            </a>
         </div>
 
         <!-- Right: 3 Round Icon Buttons (History/Refresh, Sound, Fullscreen) -->
@@ -111,10 +118,11 @@
         </div>
     </div>
 
-    <!-- Main Live Table Felt Surface (Matching Image 5) -->
-    <div class="felt-surface relative flex-grow min-h-0 flex items-center justify-center p-2 sm:p-3 overflow-hidden">
+    <!-- Main Live Table Surface (Matching Image 4 Dealer Table Camera Stream) -->
+    <div class="felt-surface relative flex-grow min-h-0 flex items-center justify-center overflow-hidden"
+         style="background: #1e1a17 url('{{ asset('images/live-table-bg.jpg') }}') center center / cover no-repeat;">
         
-        <!-- Live Stream Video / Camera Broadcast Container -->
+        <!-- Live Stream Video / Camera Broadcast Container (Overlaid when stream is active) -->
         <div id="player-live-stream-box" class="absolute inset-0 z-0 bg-black flex items-center justify-center overflow-hidden {{ $room->is_streaming ? '' : 'hidden' }}">
             <!-- Live Camera Frame Image (broadcasted from Admin Live Camera) -->
             <img id="player-live-camera-img" class="w-full h-full object-cover" alt="Live Dealer Stream" src="">
@@ -134,222 +142,162 @@
             </div>
         </div>
 
-        <!-- Clean White Screen (When Admin ends stream or stream is offline) -->
-        <div id="player-stream-white-screen" class="absolute inset-0 z-0 bg-white flex flex-col items-center justify-center text-slate-800 transition-all {{ $room->is_streaming ? 'hidden' : '' }}">
-            <div class="text-center select-none py-6">
-                <div class="w-12 h-12 mx-auto mb-2 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center text-2xl shadow-sm">
-                    🎥
-                </div>
-                <p class="font-royal font-black text-slate-800 text-sm tracking-wider uppercase">Live Stream Standby</p>
-                <p class="text-[11px] text-slate-500 mt-0.5">Dealer live camera is currently offline</p>
-            </div>
+        <!-- Joker First Card Slot Overlaid on Felt (Hidden / Clean) -->
+        <div class="hidden">
+            <span id="first-card-val-top">{{ $currentRound->first_card ? strtoupper(explode('_', $currentRound->first_card)[0]) : '4' }}</span>
+            <span id="first-card-suit-top">♣</span>
+            <span id="first-card-val-bottom">{{ $currentRound->first_card ? strtoupper(explode('_', $currentRound->first_card)[0]) : '4' }}</span>
+            <span id="first-card-suit-bottom">♣</span>
         </div>
-
-        <!-- Realistic Live Table Felt Simulation (Overlaid Card Stages) -->
-        <div class="w-full h-full relative z-10 flex flex-col justify-between py-1 sm:py-2 pointer-events-none">
-                <!-- Top Center: Dealer First Open Card (Joker) -->
-                <div class="flex flex-col items-center justify-center">
-                    <div id="first-card-slot" class="relative">
-                        <!-- Card: 4 Clubs or Dealt Card -->
-                        <div class="w-12 sm:w-14 h-16 sm:h-20 rounded-lg bg-white border-2 border-slate-300 shadow-xl flex flex-col justify-between p-1 text-slate-900 transition-transform duration-300 hover:scale-105">
-                            <div class="flex items-center justify-between text-[10px] font-bold leading-none">
-                                <span id="first-card-val-top">{{ $currentRound->first_card ? strtoupper(explode('_', $currentRound->first_card)[0]) : '4' }}</span>
-                                <span id="first-card-suit-top" class="text-xs">♣</span>
-                            </div>
-                            <div class="my-auto text-center">
-                                <div class="w-6 h-7 mx-auto rounded bg-yellow-200/80 border border-yellow-300/60 flex items-center justify-center text-sm">
-                                    ♣
-                                </div>
-                            </div>
-                            <div class="flex items-center justify-between text-[10px] font-bold leading-none transform rotate-180">
-                                <span id="first-card-val-bottom">{{ $currentRound->first_card ? strtoupper(explode('_', $currentRound->first_card)[0]) : '4' }}</span>
-                                <span id="first-card-suit-bottom" class="text-xs">♣</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Center: Fanned Deck of Cards Spread on Table (Image 5) -->
-                <div class="flex items-center justify-center my-1 sm:my-2">
-                    <!-- Deck block stack -->
-                    <div class="w-12 h-16 rounded-lg bg-white border border-slate-300 shadow-xl p-1 relative -mr-3 z-10 hidden sm:flex items-center justify-center">
-                        <div class="w-full h-full rounded bg-slate-900 border border-slate-700 flex flex-col items-center justify-center">
-                            <span class="text-red-500 text-xs">★</span>
-                            <span class="text-[7px] text-slate-400 uppercase font-bold mt-0.5">Deck</span>
-                        </div>
-                    </div>
-                    <!-- Spread cards ribbon -->
-                    <div class="flex items-center -space-x-2.5 overflow-hidden max-w-xs sm:max-w-md px-2 py-0.5">
-                        @for($i = 0; $i < 28; $i++)
-                            <div class="fanned-card shrink-0 {{ $i === 0 ? 'bg-pink-700' : 'bg-slate-100' }}"></div>
-                        @endfor
-                    </div>
-                </div>
-
-                <!-- Right Side: Dealt Cards to Andar & Bahar (Image 5) -->
-                <div class="absolute right-3 sm:right-8 top-3 sm:top-5 flex flex-col gap-2 sm:gap-3">
-                    <!-- Andar dealt stack -->
-                    <div class="flex items-center gap-2">
-                        <div class="relative flex -space-x-3">
-                            <div class="w-10 h-14 rounded bg-white border border-slate-300 shadow-md p-1 flex flex-col justify-between text-red-600">
-                                <span class="text-[9px] font-bold leading-none">3♦</span>
-                                <div class="text-center text-[10px]">♦</div>
-                                <span class="text-[9px] font-bold leading-none transform rotate-180">3♦</span>
-                            </div>
-                            <div class="w-10 h-14 rounded bg-white border border-slate-300 shadow-md p-1 flex flex-col justify-between text-red-600">
-                                <span class="text-[9px] font-bold leading-none">2♦</span>
-                                <div class="text-center text-[10px]">♦</div>
-                                <span class="text-[9px] font-bold leading-none transform rotate-180">2♦</span>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Bahar dealt stack -->
-                    <div class="flex items-center gap-2">
-                        <div class="relative flex -space-x-3">
-                            <div class="w-10 h-14 rounded bg-white border border-slate-300 shadow-md p-1 flex flex-col justify-between text-red-600">
-                                <span class="text-[9px] font-bold leading-none">8♦</span>
-                                <div class="text-center text-[10px]">♦</div>
-                                <span class="text-[9px] font-bold leading-none transform rotate-180">8♦</span>
-                            </div>
-                            <div class="w-10 h-14 rounded bg-white border border-slate-300 shadow-md p-1 flex flex-col justify-between text-red-600">
-                                <span class="text-[9px] font-bold leading-none">K♥</span>
-                                <div class="text-center text-[10px]">♥</div>
-                                <span class="text-[9px] font-bold leading-none transform rotate-180">K♥</span>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
 
     </div>
 
-    <!-- Bottom Casino Cockpit HUD Bar (Compact & Perfectly Scaled) -->
-    <div class="relative z-30 p-2 bg-[#101520]/95 backdrop-blur-md border-t border-slate-700/80 text-white shrink-0">
-        <div class="flex flex-row items-center justify-between gap-2 flex-wrap sm:flex-nowrap">
+    <!-- Bottom Casino Cockpit HUD Bar (Matching Image 4 Overlaid HUD) -->
+    <div class="relative z-30 p-2 sm:p-3 bg-black/85 backdrop-blur-md border-t border-white/10 text-white shrink-0">
+        <div class="flex flex-col md:flex-row items-center justify-between gap-3 flex-wrap lg:flex-nowrap">
             
-            <!-- LEFT SECTION: Poker Chips & Action Buttons & Status pills -->
-            <div class="flex flex-col gap-1.5 w-full sm:w-auto">
-                <!-- Row 1: Poker Chips (100, 500, 1k, 2k, 5k, 10k) -->
-                <div class="flex items-center gap-2 flex-wrap">
-                    @foreach($denominations as $idx => $denom)
+            <!-- LEFT SECTION: Fun 2 Win Logo, Poker Chips, Action Buttons & Balance Strip -->
+            <div class="flex flex-col gap-2 w-full lg:w-auto">
+                
+                <div class="flex items-center gap-3">
+                    <!-- Fun 2 Win Logo Watermark (Matching Image 4) -->
+                    <img src="{{ asset('images/logo.png') }}" alt="Fun 2 Win" class="h-8 sm:h-10 w-auto object-contain drop-shadow-[0_2px_8px_rgba(245,158,11,0.3)] shrink-0">
+
+                    <!-- Row of Chips: 500, 1k, 2k, 5k, 10k (Matching Image 4) -->
+                    <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
                         @php
-                            $label = $denom >= 1000 ? ($denom / 1000) . 'k' : $denom;
+                            $chipColorClasses = [
+                                500   => 'chip-green',
+                                1000  => 'chip-silver',
+                                2000  => 'chip-purple',
+                                5000  => 'chip-pink',
+                                10000 => 'chip-gold',
+                            ];
                         @endphp
-                        <div class="poker-chip chip-{{ $denom }} {{ $idx === 0 ? 'selected' : '' }}" 
-                             data-value="{{ $denom }}" onclick="selectPokerChip({{ $denom }}, this)">
-                            <span>{{ $label }}</span>
-                        </div>
-                    @endforeach
+                        @foreach($denominations as $idx => $denom)
+                            @php
+                                $label = $denom >= 1000 ? ($denom / 1000) . 'k' : $denom;
+                                $colorClass = $chipColorClasses[$denom] ?? 'chip-green';
+                            @endphp
+                            <div class="poker-chip {{ $colorClass }} {{ $idx === 0 ? 'selected' : '' }}" 
+                                 data-value="{{ $denom }}" onclick="selectPokerChip({{ $denom }}, this)">
+                                <span>{{ $label }}</span>
+                            </div>
+                        @endforeach
+                    </div>
                 </div>
 
-                <!-- Row 2: Action Buttons (UNDO, PLACE BET, CANCEL BET) & Status Pills -->
+                <!-- Row of Buttons: UNDO (Red), PLACE BET (Green), CANCEL BET & Status Pill -->
                 <div class="flex items-center gap-2 flex-wrap">
                     <button type="button" id="btn-hud-undo" onclick="handleUndoBet()"
-                            class="px-3.5 py-1.5 rounded-lg bg-[#272b35] hover:bg-[#343a46] border border-slate-600 text-slate-200 font-black text-xs uppercase tracking-wider transition active:scale-95">
+                            class="px-4 sm:px-5 py-1.5 rounded-full bg-[#991b1b] hover:bg-[#b91c1c] active:scale-95 text-white font-black text-xs uppercase tracking-wider transition shadow-md cursor-pointer">
                         UNDO
                     </button>
 
                     <button type="button" id="btn-hud-place-bet" onclick="handleConfirmBet()"
-                            class="px-4 py-1.5 rounded-lg bg-[#3a4150] hover:bg-emerald-600 border border-slate-600 text-white font-black text-xs uppercase tracking-wider transition active:scale-95 shadow-md">
+                            class="px-5 sm:px-6 py-1.5 rounded-full bg-[#16a34a] hover:bg-[#22c55e] active:scale-95 text-white font-black text-xs uppercase tracking-wider transition shadow-md shadow-emerald-700/40 cursor-pointer">
                         PLACE BET
                     </button>
 
                     <button type="button" id="btn-hud-cancel-bet" onclick="handleCancelActiveBet()"
-                            class="hidden px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-600 border border-red-500 text-white font-black text-xs uppercase tracking-wider transition active:scale-95 shadow-lg shadow-red-700/50 flex items-center gap-1.5 animate-pulse">
-                        <span>↩ CANCEL BET</span>
-                        <span id="cancel-timer-countdown" class="px-1.5 py-0.5 rounded bg-black/50 text-[10px] font-bold text-amber-300">{{ $room->cancellation_duration }}s</span>
+                            class="hidden px-4 py-1.5 rounded-full bg-red-700 hover:bg-red-600 border border-red-500 text-white font-black text-xs uppercase tracking-wider transition active:scale-95 shadow-lg shadow-red-700/50 flex items-center gap-1.5 animate-pulse">
+                        <span>↩ CANCEL</span>
+                        <span id="cancel-timer-countdown" class="px-1.5 py-0.5 rounded-full bg-black/60 text-[10px] font-bold text-amber-300">{{ $room->cancellation_duration }}s</span>
                     </button>
 
-                    <!-- Status Readout 1: BALANCE: ₹0 -->
-                    <div class="px-2.5 py-1 rounded-lg bg-black/60 border border-slate-700/80 text-[10px] sm:text-[11px] font-bold text-slate-200">
-                        BALANCE: <span class="text-white font-extrabold">₹<span class="user-wallet-balance">{{ number_format($user->wallet_balance, 0) }}</span></span>
-                    </div>
-
-                    <!-- Status Readout 2: FIRST BET: ₹0 -->
-                    <div class="px-2.5 py-1 rounded-lg bg-black/60 border border-slate-700/80 text-[10px] sm:text-[11px] font-bold text-slate-300">
-                        FIRST BET: <span class="text-amber-400 font-extrabold" id="status-first-bet">₹0</span>
-                    </div>
-
-                    <!-- Status Readout 3: SECOND BET: ₹0 -->
-                    <div class="px-2.5 py-1 rounded-lg bg-black/60 border border-slate-700/80 text-[10px] sm:text-[11px] font-bold text-slate-300">
-                        SECOND BET: <span class="text-amber-400 font-extrabold" id="status-second-bet">₹0</span>
+                    <!-- Status Readout Bar (Matching Image 4) -->
+                    <div class="flex items-center gap-2 px-3 py-1 rounded-lg bg-black/80 border border-white/10 text-[10px] sm:text-[11px] font-bold">
+                        <span class="text-slate-300">BALANCE: <strong class="text-white font-black">₹<span class="user-wallet-balance">{{ number_format($user->wallet_balance, 0) }}</span></strong></span>
+                        <span class="text-slate-500">|</span>
+                        <span class="text-slate-300">FIRST BET: <strong class="text-white font-black" id="status-first-bet">₹0</strong></span>
+                        <span class="text-slate-500">|</span>
+                        <span class="text-slate-300">SECOND BET: <strong class="text-white font-black" id="status-second-bet">₹0</strong></span>
                     </div>
                 </div>
             </div>
 
-            <!-- CENTER SECTION: ANDAR & BAHAR Boxes with Joker Notch -->
-            <div class="relative flex items-center justify-center w-full sm:w-72 md:w-80 shrink-0 my-1 sm:my-0">
-                <div class="w-full rounded-xl bg-[#1e232f] border border-slate-700 overflow-hidden shadow-xl relative">
-                    <!-- ANDAR Area -->
+            <!-- CENTER SECTION: ANDAR (Black) / BAHAR (Red) Stacked Box (Matching Image 4) -->
+            <div class="relative flex items-center justify-center w-full sm:w-72 md:w-80 shrink-0 my-1 md:my-0">
+                <div class="w-full rounded-2xl overflow-hidden border-2 border-slate-700 bg-black shadow-2xl relative">
+                    <!-- ANDAR Area (Black Bar) -->
                     <div id="btn-bet-andar" onclick="selectBetSide('andar')"
-                         class="p-2.5 border-b border-slate-700/80 flex items-center justify-between cursor-pointer hover:bg-slate-800/80 transition group">
-                        <span class="text-xs sm:text-sm font-black font-royal tracking-widest text-slate-100 group-hover:text-indigo-300">
+                         class="px-4 py-2.5 bg-[#181a20] border-b border-slate-700/80 flex items-center justify-between cursor-pointer hover:bg-slate-800 transition group select-none">
+                        <span class="text-xs sm:text-sm font-black font-royal tracking-widest text-white group-hover:text-indigo-300">
                             ANDAR
                         </span>
                         <div class="flex items-center gap-2">
-                            <span id="andar-bet-badge" class="text-xs font-bold text-indigo-300"></span>
+                            <span id="andar-bet-badge" class="text-xs font-black text-amber-300"></span>
                         </div>
                     </div>
 
-                    <!-- BAHAR Area -->
+                    <!-- BAHAR Area (Red Bar) -->
                     <div id="btn-bet-bahar" onclick="selectBetSide('bahar')"
-                         class="p-2.5 flex items-center justify-between cursor-pointer hover:bg-slate-800/80 transition group">
-                        <span class="text-xs sm:text-sm font-black font-royal tracking-widest text-slate-100 group-hover:text-red-300">
+                         class="px-4 py-2.5 bg-[#dc2626] flex items-center justify-between cursor-pointer hover:bg-red-700 transition group select-none">
+                        <span class="text-xs sm:text-sm font-black font-royal tracking-widest text-white group-hover:text-red-100">
                             BAHAR
                         </span>
                         <div class="flex items-center gap-2">
-                            <span id="bahar-bet-badge" class="text-xs font-bold text-red-300"></span>
+                            <span id="bahar-bet-badge" class="text-xs font-black text-amber-300"></span>
                         </div>
                     </div>
 
-                    <!-- Joker Card Notch on the right side of the card box -->
-                    <div class="absolute right-0 top-1/2 -translate-y-1/2 translate-x-1.5 z-20 flex items-center">
-                        <div class="w-9 h-12 rounded-lg bg-white border-2 border-red-500 shadow-[0_0_12px_rgba(239,68,68,0.5)] flex flex-col justify-between p-0.5 text-slate-900 pointer-events-none">
-                            <div class="flex items-center justify-between text-[7px] font-bold leading-none">
-                                <span>{{ $currentRound->first_card ? strtoupper(explode('_', $currentRound->first_card)[0]) : '4' }}</span>
-                                <span>♣</span>
-                            </div>
-                            <div class="text-center text-xs leading-none">
-                                ♣
-                            </div>
-                            <div class="flex items-center justify-between text-[7px] font-bold leading-none transform rotate-180">
-                                <span>{{ $currentRound->first_card ? strtoupper(explode('_', $currentRound->first_card)[0]) : '4' }}</span>
-                                <span>♣</span>
-                            </div>
+                    <!-- Right Capsule Indicator (Matching Image 4) -->
+                    <div class="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-r from-transparent to-black/60 flex items-center justify-center pointer-events-none">
+                        <div class="w-8 h-12 rounded-xl bg-gradient-to-b from-slate-900 to-red-950 border border-white/20 flex flex-col items-center justify-center text-[10px] font-bold text-white shadow-inner">
+                            <span>{{ $currentRound->first_card ? strtoupper(explode('_', $currentRound->first_card)[0]) : '4' }}</span>
+                            <span class="text-red-400 text-xs leading-none">★</span>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- RIGHT SECTION: Red Timer Bar, Bead Plate History, Limits -->
-            <div class="flex flex-col justify-between w-full sm:w-60 md:w-64 shrink-0 space-y-1">
-                <!-- Red Countdown Timer Line -->
-                <div class="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden">
-                    <div id="hud-timer-bar" class="h-full bg-red-600 transition-all duration-1000 ease-linear" style="width: 100%;"></div>
+            <!-- RIGHT SECTION: Red Timer Bar, Bead Road Matrix, Limits (Matching Image 4) -->
+            <div class="flex flex-col justify-between w-full sm:w-64 md:w-72 shrink-0 space-y-1.5">
+                <!-- Red Countdown Timer Bar (Matching Image 4) -->
+                <div class="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-white/10">
+                    <div id="hud-timer-bar" class="h-full bg-red-600 transition-all duration-1000 ease-linear shadow-[0_0_8px_#dc2626]" style="width: 100%;"></div>
                 </div>
 
-                <!-- History Road / Bead Plate -->
-                <div class="flex items-center gap-1 overflow-x-auto py-0.5 scrollbar-none">
-                    <div class="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bead-a-green font-black text-[8px] flex items-center justify-center shrink-0">A</div>
-                    <div class="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bead-a-blue font-black text-[8px] flex items-center justify-center shrink-0">A</div>
-                    <div class="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bead-b-red font-black text-[8px] flex items-center justify-center shrink-0">B</div>
-                    <div class="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bead-a-green font-black text-[8px] flex items-center justify-center shrink-0">A</div>
-                    <div class="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bead-b-red font-black text-[8px] flex items-center justify-center shrink-0">B</div>
-                    <div class="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bead-b-red font-black text-[8px] flex items-center justify-center shrink-0">B</div>
-                    <div class="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bead-b-red font-black text-[8px] flex items-center justify-center shrink-0">B</div>
-                    <div class="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bead-b-red font-black text-[8px] flex items-center justify-center shrink-0">B</div>
-                    <div class="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bead-a-green font-black text-[8px] flex items-center justify-center shrink-0">A</div>
-                    <div class="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bead-a-blue font-black text-[8px] flex items-center justify-center shrink-0">A</div>
-                    <div class="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bead-b-red font-black text-[8px] flex items-center justify-center shrink-0">B</div>
-                    <div class="w-4 h-4 sm:w-4.5 sm:h-4.5 rounded-full bead-b-red font-black text-[8px] flex items-center justify-center shrink-0">B</div>
-                    <span class="text-slate-500 text-[10px] tracking-widest shrink-0">&bull; &bull; &bull;</span>
+                <!-- Bead Road Grid Matrix (Matching Image 4) -->
+                <div class="bg-black/60 p-1.5 rounded-xl border border-white/10">
+                    <!-- Row 1 of beads & dots -->
+                    <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none">
+                        <div class="bead-b-circle shrink-0">B</div>
+                        <div class="bead-b-circle shrink-0">B</div>
+                        <div class="bead-a-circle shrink-0">A</div>
+                        <div class="bead-a-circle shrink-0">A</div>
+                        <div class="bead-b-circle shrink-0">B</div>
+                        <div class="bead-a-circle shrink-0">A</div>
+                        <div class="bead-b-circle shrink-0">B</div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                    </div>
+                    <!-- Row 2 of beads & dots -->
+                    <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none mt-1">
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                    </div>
                 </div>
 
-                <!-- Limits Display -->
+                <!-- Limits Display (Matching Image 4) -->
                 <div class="text-right">
                     <span class="text-[10px] text-slate-400 font-medium">
-                        Bet: {{ number_format($denominations[0] ?? 500, 0) }}/500,000
+                        Bet: 0/500,000
                     </span>
                 </div>
             </div>
@@ -417,13 +365,13 @@
         const baharBox = document.getElementById('btn-bet-bahar');
 
         if (side === 'andar') {
-            andarBox.classList.add('bg-indigo-950/80', 'ring-2', 'ring-indigo-500');
-            baharBox.classList.remove('bg-red-950/80', 'ring-2', 'ring-red-500');
+            andarBox.classList.add('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
+            baharBox.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
             document.getElementById('status-first-bet').textContent = `₹${activeSelectedChip.toLocaleString()}`;
             document.getElementById('status-second-bet').textContent = `₹0`;
         } else {
-            baharBox.classList.add('bg-red-950/80', 'ring-2', 'ring-red-500');
-            andarBox.classList.remove('bg-indigo-950/80', 'ring-2', 'ring-indigo-500');
+            baharBox.classList.add('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
+            andarBox.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
             document.getElementById('status-second-bet').textContent = `₹${activeSelectedChip.toLocaleString()}`;
             document.getElementById('status-first-bet').textContent = `₹0`;
         }
@@ -447,8 +395,8 @@
         activeSelectedSide = null;
         const andarBox = document.getElementById('btn-bet-andar');
         const baharBox = document.getElementById('btn-bet-bahar');
-        andarBox.classList.remove('bg-indigo-950/80', 'ring-2', 'ring-indigo-500');
-        baharBox.classList.remove('bg-red-950/80', 'ring-2', 'ring-red-500');
+        andarBox.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
+        baharBox.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
         document.getElementById('andar-bet-badge').textContent = '';
         document.getElementById('bahar-bet-badge').textContent = '';
         document.getElementById('status-first-bet').textContent = '₹0';

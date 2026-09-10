@@ -91,109 +91,91 @@
 @endif
 
     {{-- ═══════════════════════════════════════════════════════════ --}}
-    {{-- SECTION 3: LIVE GAMING ROOMS (Lobby Tab Only) --}}
-    {{-- Shows: Active Game, Available Rooms, Game Status, Join Game --}}
+    {{-- SECTION 3: LIVE GAMING ROOMS (Matching Images 3 & 5)      --}}
     {{-- ═══════════════════════════════════════════════════════════ --}}
     @if($tab === 'lobby')
-    <div>
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-3">
-                <span class="w-3 h-3 rounded-full bg-red-500 animate-pulse"></span>
-                <h2 class="text-xl font-bold font-royal text-white">Live Gaming Rooms</h2>
-            </div>
-            <span class="text-xs text-slate-400">Real-Time Dealer Tables</span>
+    <div class="casino-pattern-bg rounded-2xl p-4 sm:p-8 md:p-10 border border-slate-800 shadow-2xl relative overflow-hidden">
+        
+        <!-- Top-Right Red Logout Button (Matching Images 3 & 5) -->
+        <div class="flex justify-end mb-2">
+            <a href="{{ route('logout') }}" class="px-4 py-1.5 rounded-full bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-600/40 transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                <span>Logout</span>
+            </a>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-5">
-            @php $hasRooms = false; @endphp
-            @forelse($games as $game)
-                @foreach($game->rooms as $room)
-                    @php $hasRooms = true; @endphp
-                    <div class="glass-card overflow-hidden flex flex-col justify-between border-slate-800 rounded-2xl hover:border-amber-500/40 transition">
-                        {{-- Table Card Top Banner --}}
-                        <div class="relative h-28 sm:h-32 bg-slate-950 flex items-center justify-center overflow-hidden border-b border-slate-800">
-                            <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-900/60 to-transparent z-10"></div>
-                            <div class="absolute inset-0 opacity-20 bg-[radial-gradient(#f59e0b_1px,transparent_1px)] [background-size:16px_16px]"></div>
+        <!-- Center Brand Header with Fun 2 Win Logo & Greeting (Matching Images 3 & 5) -->
+        <div class="flex flex-col items-center justify-center text-center my-4 sm:my-6">
+            <img src="{{ asset('images/logo.png') }}" alt="Fun 2 Win" class="h-16 sm:h-20 md:h-24 w-auto object-contain drop-shadow-[0_4px_12px_rgba(245,158,11,0.3)] mb-3 transition hover:scale-105">
+            <h1 class="text-lg sm:text-2xl md:text-3xl font-extrabold text-white tracking-wide">
+                Welcome, {{ $user->mobile ?? $user->username ?? $user->name ?? '9845516868' }}!
+            </h1>
+        </div>
 
-                            {{-- Status Badges --}}
-                            <div class="absolute top-2.5 left-2.5 z-20 flex items-center gap-1.5">
-                                {{-- GAME STATUS --}}
+        <!-- 4 Room Cards (Matching Image 3 on Laptop & Image 5 on Mobile) -->
+        <div class="my-6 sm:my-8 max-w-5xl mx-auto">
+            @php 
+                $allRoomsList = [];
+                foreach($games as $game) {
+                    foreach($game->rooms as $r) {
+                        $allRoomsList[] = $r;
+                    }
+                }
+            @endphp
+
+            @if(count($allRoomsList) > 0)
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-5 md:gap-6">
+                    @foreach($allRoomsList as $roomIndex => $room)
+                        <div class="flex flex-col items-center">
+                            {{-- Room Card with White Border & Dealer Thumbnail --}}
+                            <a href="{{ route('game.play', $room->id) }}" class="casino-room-card block w-full aspect-[4/3] rounded-xl border-2 border-white overflow-hidden shadow-2xl group cursor-pointer relative" title="Enter {{ $room->name }}">
+                                <img src="{{ asset('images/room-thumb.jpg') }}" alt="{{ $room->name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                                <div class="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition flex items-center justify-center p-2">
+                                    <span class="px-2.5 py-1 rounded-md bg-black/70 border border-white/30 text-white font-black text-xs sm:text-sm tracking-wider uppercase text-center shadow-lg font-royal">
+                                        {{ $room->name }}
+                                    </span>
+                                </div>
+                            </a>
+
+                            {{-- Status & Metadata (Online/Offline, Users, Opening/Closing Hours) --}}
+                            <div class="w-full text-center mt-2.5">
                                 @if($room->status === 'live')
-                                    <span class="badge-live px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider flex items-center gap-1">
-                                        <span class="w-1.5 h-1.5 rounded-full bg-red-400 animate-ping"></span> LIVE DEALER
-                                    </span>
+                                    <div class="inline-flex items-center justify-center gap-1.5 text-emerald-400 font-black text-xs sm:text-sm">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse"></span>
+                                        <span>Online</span>
+                                    </div>
+                                    <div class="text-[10px] sm:text-xs text-slate-300 mt-1 font-medium space-y-0.5">
+                                        <div>Users: 26</div>
+                                        <div>Opening: 11:15 AM</div>
+                                        <div>Closing: 10:00 PM</div>
+                                    </div>
                                 @else
-                                    <span class="px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-slate-800 text-slate-400">
-                                        CLOSED
-                                    </span>
+                                    <div class="inline-flex items-center justify-center gap-1.5 text-red-500 font-black text-xs sm:text-sm">
+                                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
+                                        <span>Offline</span>
+                                    </div>
+                                    <div class="text-[10px] sm:text-xs text-slate-400 mt-1 font-medium space-y-0.5">
+                                        <div>Users: 0</div>
+                                        <div>Opening: 11:15 AM</div>
+                                        <div>Closing: 10:00 PM</div>
+                                    </div>
                                 @endif
                             </div>
-
-                            <div class="absolute top-2.5 right-2.5 z-20">
-                                <span class="badge-gold px-2 py-0.5 rounded-full text-[9px] uppercase font-bold">
-                                    VIP TABLE
-                                </span>
-                            </div>
-
-                            {{-- Decorative Center Card Graphic --}}
-                            <div class="relative z-10 text-center">
-                                <div class="flex items-center justify-center gap-2">
-                                    <div class="w-8 h-11 sm:w-9 sm:h-12 rounded bg-indigo-600 border border-indigo-300 flex items-center justify-center text-white font-bold text-sm sm:text-base shadow-lg">
-                                        A
-                                    </div>
-                                    <span class="text-[10px] font-bold text-amber-400 font-royal">VS</span>
-                                    <div class="w-8 h-11 sm:w-9 sm:h-12 rounded bg-red-600 border border-red-300 flex items-center justify-center text-white font-bold text-sm sm:text-base shadow-lg">
-                                        B
-                                    </div>
-                                </div>
-                                <span class="text-[11px] sm:text-xs font-bold text-slate-200 mt-1.5 block font-royal truncate max-w-[180px] mx-auto">{{ $room->name }}</span>
-                            </div>
                         </div>
-
-                        {{-- Table Details --}}
-                        <div class="p-3.5 sm:p-4 flex flex-col justify-between flex-grow">
-                            <div class="space-y-1.5 mb-3 text-[11px] sm:text-xs">
-                                <div class="flex justify-between text-slate-400">
-                                    <span>Game Type:</span>
-                                    <strong class="text-slate-200 truncate ml-2">{{ $game->name }}</strong>
-                                </div>
-                                {{-- GAME STATUS --}}
-                                <div class="flex justify-between text-slate-400">
-                                    <span>Game Status:</span>
-                                    <strong class="{{ $room->status === 'live' ? 'text-emerald-400' : 'text-slate-500' }}">
-                                        {{ ucfirst($room->status) }}
-                                    </strong>
-                                </div>
-                                <div class="flex justify-between text-slate-400">
-                                    <span>Betting Timer:</span>
-                                    <strong class="text-amber-300">{{ $room->betting_duration }}s</strong>
-                                </div>
-                                <div class="flex justify-between text-slate-400">
-                                    <span>Cancel Window:</span>
-                                    <strong class="text-slate-200">{{ $room->cancellation_duration }}s</strong>
-                                </div>
-                                <div class="flex justify-between text-slate-400">
-                                    <span>Denominations:</span>
-                                    <span class="text-slate-300 text-[10px]">
-                                        {{ implode(', ', $room->allowed_denominations ?? []) ?: 'Standard' }}
-                                    </span>
-                                </div>
-                            </div>
-
-                            {{-- JOIN GAME --}}
-                            <a href="{{ route('game.play', $room->id) }}" class="btn-gold w-full text-center py-2 text-xs uppercase tracking-wider block font-extrabold rounded-xl shadow-md">
-                                Enter Table &amp; Play Now &rarr;
-                            </a>
-                        </div>
-                    </div>
-                @endforeach
-            @empty
-            @endforelse
-            @if(!$hasRooms)
-                <div class="col-span-3 p-8 glass-panel text-center text-slate-400">
-                    No data available
+                    @endforeach
+                </div>
+            @else
+                <div class="p-8 text-center text-slate-400 text-sm">
+                    No gaming rooms available at the moment.
                 </div>
             @endif
+        </div>
+
+        <!-- Bottom Welcome Text (Matching Images 3 & 5) -->
+        <div class="text-center text-xs sm:text-sm font-semibold text-slate-300 tracking-wider mt-6 sm:mt-10">
+            Welcome to Fun 2 Win
         </div>
     </div>
     @endif
