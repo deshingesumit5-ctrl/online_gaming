@@ -26,76 +26,58 @@
         </div>
     </div>
 
-    <!-- LuckyStar/Fun2Win Style Live Gaming Rooms Grid (Matching Images 3 & 5) -->
-    <div class="casino-pattern-bg rounded-2xl p-5 sm:p-8 border border-slate-800 shadow-2xl relative overflow-hidden">
-        
-        <!-- Header Banner -->
-        <div class="flex flex-col items-center justify-center text-center my-3 sm:my-5">
-            <img src="{{ asset('images/logo.png') }}" alt="Fun 2 Win" class="h-14 sm:h-18 md:h-20 w-auto object-contain drop-shadow-[0_4px_12px_rgba(245,158,11,0.3)] mb-2">
-            <h2 class="text-base sm:text-xl md:text-2xl font-extrabold text-white tracking-wide">
-                Live Gaming Rooms & Control Tables
-            </h2>
-            <p class="text-xs text-slate-400 mt-1">Select a table below to enter the live operator cockpit</p>
-        </div>
+    <!-- Rooms Grid Directly Shown -->
+    <div class="w-full my-4">
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 max-w-6xl mx-auto">
+            @forelse($rooms as $room)
+                <div class="flex flex-col items-center">
+                    {{-- Room Card with White Border & Dealer Thumbnail --}}
+                    <a href="{{ route('admin.game.control', $room->id) }}" class="casino-room-card block w-full aspect-[4/3] rounded-xl border-2 border-white overflow-hidden shadow-2xl group cursor-pointer relative" title="Enter Operator Panel: {{ $room->name }}">
+                        <img src="{{ asset('images/room-thumb.jpg') }}" alt="{{ $room->name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                        <div class="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition flex items-center justify-center p-2">
+                            <span class="px-3 py-1 rounded-md bg-black/70 border border-white/30 text-white font-black text-xs sm:text-sm tracking-wider uppercase text-center shadow-lg font-royal">
+                                {{ $room->name }}
+                            </span>
+                        </div>
+                    </a>
 
-        <!-- 4-Card Responsive Rooms Grid (Matching Image 3 on Laptop & Image 5 on Mobile) -->
-        <div class="my-6 max-w-5xl mx-auto">
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-5 md:gap-6">
-                @forelse($rooms as $room)
-                    <div class="flex flex-col items-center">
-                        {{-- Room Card with White Border & Dealer Thumbnail --}}
-                        <a href="{{ route('admin.game.control', $room->id) }}" class="casino-room-card block w-full aspect-[4/3] rounded-xl border-2 border-white overflow-hidden shadow-2xl group cursor-pointer relative" title="Enter Operator Panel: {{ $room->name }}">
-                            <img src="{{ asset('images/room-thumb.jpg') }}" alt="{{ $room->name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
-                            <div class="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition flex items-center justify-center p-2">
-                                <span class="px-2.5 py-1 rounded-md bg-black/70 border border-white/30 text-white font-black text-xs sm:text-sm tracking-wider uppercase text-center shadow-lg font-royal">
-                                    {{ $room->name }}
-                                </span>
+                    {{-- Status & Metadata (Online/Offline, Users, Opening/Closing Hours) --}}
+                    <div class="w-full text-center mt-2.5">
+                        @if($room->status === 'live')
+                            <div class="inline-flex items-center justify-center gap-1.5 text-emerald-400 font-black text-xs sm:text-sm">
+                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse"></span>
+                                <span>Online</span>
                             </div>
-                        </a>
-
-                        {{-- Status & Metadata (Online/Offline, Users, Opening/Closing Hours) --}}
-                        <div class="w-full text-center mt-2.5">
-                            @if($room->status === 'live')
-                                <div class="inline-flex items-center justify-center gap-1.5 text-emerald-400 font-black text-xs sm:text-sm">
-                                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse"></span>
-                                    <span>Online</span>
-                                </div>
-                                <div class="text-[10px] sm:text-xs text-slate-300 mt-1 font-medium space-y-0.5">
-                                    <div>Users: {{ $room->active_bets_count > 0 ? $room->active_bets_count * 2 : '26' }}</div>
-                                    <div>Opening: 11:15 AM</div>
-                                    <div>Closing: 10:00 PM</div>
-                                </div>
-                            @else
-                                <div class="inline-flex items-center justify-center gap-1.5 text-red-500 font-black text-xs sm:text-sm">
-                                    <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
-                                    <span>Offline</span>
-                                </div>
-                                <div class="text-[10px] sm:text-xs text-slate-400 mt-1 font-medium space-y-0.5">
-                                    <div>Users: 0</div>
-                                    <div>Opening: 11:15 AM</div>
-                                    <div>Closing: 10:00 PM</div>
-                                </div>
-                            @endif
-
-                            {{-- Admin Quick Control Button --}}
-                            <div class="mt-2">
-                                <a href="{{ route('admin.game.control', $room->id) }}" class="inline-block px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black uppercase rounded-lg shadow transition active:scale-95">
-                                    🎮 Control Room
-                                </a>
+                            <div class="text-[10px] sm:text-xs text-slate-300 mt-1 font-medium space-y-0.5">
+                                <div>Users: {{ $room->active_bets_count > 0 ? $room->active_bets_count * 2 : '26' }}</div>
+                                <div>Opening: 11:15 AM</div>
+                                <div>Closing: 10:00 PM</div>
                             </div>
+                        @else
+                            <div class="inline-flex items-center justify-center gap-1.5 text-red-500 font-black text-xs sm:text-sm">
+                                <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
+                                <span>Offline</span>
+                            </div>
+                            <div class="text-[10px] sm:text-xs text-slate-400 mt-1 font-medium space-y-0.5">
+                                <div>Users: 0</div>
+                                <div>Opening: 11:15 AM</div>
+                                <div>Closing: 10:00 PM</div>
+                            </div>
+                        @endif
+
+                        {{-- Admin Quick Control Button --}}
+                        <div class="mt-2">
+                            <a href="{{ route('admin.game.control', $room->id) }}" class="inline-block px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black uppercase rounded-lg shadow transition active:scale-95">
+                                🎮 Control Room
+                            </a>
                         </div>
                     </div>
-                @empty
-                    <div class="col-span-full py-10 text-center text-slate-500 text-xs">
-                        No game rooms found.
-                    </div>
-                @endforelse
-            </div>
-        </div>
-
-        <!-- Bottom Welcome / Branding Text -->
-        <div class="text-center text-xs sm:text-sm font-semibold text-slate-300 tracking-wider mt-4">
-            Welcome to Fun 2 Win
+                </div>
+            @empty
+                <div class="col-span-full py-10 text-center text-slate-500 text-xs">
+                    No game rooms found.
+                </div>
+            @endforelse
         </div>
     </div>
 

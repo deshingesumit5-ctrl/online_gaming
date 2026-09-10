@@ -153,99 +153,103 @@
     </div>
 
     <!-- Bottom Casino Cockpit HUD Bar (Matching Image 4 Overlaid HUD) -->
-    <div class="relative z-30 p-2 sm:p-3 bg-black/85 backdrop-blur-md border-t border-white/10 text-white shrink-0">
-        <div class="flex flex-col md:flex-row items-center justify-between gap-3 flex-wrap lg:flex-nowrap">
+    <div class="relative z-30 p-2 sm:p-3.5 bg-black/90 backdrop-blur-md border-t border-white/15 text-white shrink-0">
+        <div class="flex flex-col lg:flex-row items-center justify-between gap-4">
             
-            <!-- LEFT SECTION: Fun 2 Win Logo, Poker Chips, Action Buttons & Balance Strip -->
-            <div class="flex flex-col gap-2 w-full lg:w-auto">
+            <!-- LEFT SECTION: Chips, Undo + Place Bet, Balance + First Bet / Second Bet -->
+            <div class="flex flex-col gap-2.5 w-full lg:w-auto">
                 
-                <div class="flex items-center gap-3">
-                    <!-- Fun 2 Win Logo Watermark (Matching Image 4) -->
-                    <img src="{{ asset('images/logo.png') }}" alt="Fun 2 Win" class="h-8 sm:h-10 w-auto object-contain drop-shadow-[0_2px_8px_rgba(245,158,11,0.3)] shrink-0">
-
-                    <!-- Row of Chips: 500, 1k, 2k, 5k, 10k (Matching Image 4) -->
-                    <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                <!-- Chips Row -->
+                <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
+                    @php
+                        $chipColorClasses = [
+                            500   => 'chip-green',
+                            1000  => 'chip-silver',
+                            2000  => 'chip-purple',
+                            5000  => 'chip-pink',
+                            10000 => 'chip-gold',
+                        ];
+                    @endphp
+                    @foreach($denominations as $idx => $denom)
                         @php
-                            $chipColorClasses = [
-                                500   => 'chip-green',
-                                1000  => 'chip-silver',
-                                2000  => 'chip-purple',
-                                5000  => 'chip-pink',
-                                10000 => 'chip-gold',
-                            ];
+                            $label = $denom >= 1000 ? ($denom / 1000) . 'k' : $denom;
+                            $colorClass = $chipColorClasses[$denom] ?? 'chip-green';
                         @endphp
-                        @foreach($denominations as $idx => $denom)
-                            @php
-                                $label = $denom >= 1000 ? ($denom / 1000) . 'k' : $denom;
-                                $colorClass = $chipColorClasses[$denom] ?? 'chip-green';
-                            @endphp
-                            <div class="poker-chip {{ $colorClass }} {{ $idx === 0 ? 'selected' : '' }}" 
-                                 data-value="{{ $denom }}" onclick="selectPokerChip({{ $denom }}, this)">
-                                <span>{{ $label }}</span>
-                            </div>
-                        @endforeach
-                    </div>
+                        <div class="poker-chip {{ $colorClass }} {{ $idx === 0 ? 'selected' : '' }}" 
+                             data-value="{{ $denom }}" onclick="selectPokerChip({{ $denom }}, this)">
+                            <span>{{ $label }}</span>
+                        </div>
+                    @endforeach
                 </div>
 
-                <!-- Row of Buttons: UNDO (Red), PLACE BET (Green), CANCEL BET & Status Pill -->
-                <div class="flex items-center gap-2 flex-wrap">
+                <!-- Action Buttons: Undo & Place Bet (and Cancel Bet) -->
+                <div class="flex items-center gap-2.5 flex-wrap">
                     <button type="button" id="btn-hud-undo" onclick="handleUndoBet()"
-                            class="px-4 sm:px-5 py-1.5 rounded-full bg-[#991b1b] hover:bg-[#b91c1c] active:scale-95 text-white font-black text-xs uppercase tracking-wider transition shadow-md cursor-pointer">
+                            class="px-5 sm:px-6 py-2 rounded-lg bg-[#991b1b] hover:bg-[#b91c1c] active:scale-95 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition shadow-md cursor-pointer">
                         UNDO
                     </button>
 
                     <button type="button" id="btn-hud-place-bet" onclick="handleConfirmBet()"
-                            class="px-5 sm:px-6 py-1.5 rounded-full bg-[#16a34a] hover:bg-[#22c55e] active:scale-95 text-white font-black text-xs uppercase tracking-wider transition shadow-md shadow-emerald-700/40 cursor-pointer">
+                            class="px-6 sm:px-8 py-2 rounded-lg bg-[#16a34a] hover:bg-[#22c55e] active:scale-95 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition shadow-md shadow-emerald-700/40 cursor-pointer">
                         PLACE BET
                     </button>
 
                     <button type="button" id="btn-hud-cancel-bet" onclick="handleCancelActiveBet()"
-                            class="hidden px-4 py-1.5 rounded-full bg-red-700 hover:bg-red-600 border border-red-500 text-white font-black text-xs uppercase tracking-wider transition active:scale-95 shadow-lg shadow-red-700/50 flex items-center gap-1.5 animate-pulse">
+                            class="hidden px-4 py-2 rounded-lg bg-red-700 hover:bg-red-600 border border-red-500 text-white font-black text-xs uppercase tracking-wider transition active:scale-95 shadow-lg shadow-red-700/50 flex items-center gap-1.5 animate-pulse">
                         <span>↩ CANCEL</span>
                         <span id="cancel-timer-countdown" class="px-1.5 py-0.5 rounded-full bg-black/60 text-[10px] font-bold text-amber-300">{{ $room->cancellation_duration }}s</span>
                     </button>
+                </div>
 
-                    <!-- Status Readout Bar (Matching Image 4) -->
-                    <div class="flex items-center gap-2 px-3 py-1 rounded-lg bg-black/80 border border-white/10 text-[10px] sm:text-[11px] font-bold">
+                <!-- Readouts: Balance on left, First Bet & Second Bet stacked on right -->
+                <div class="flex items-center gap-4 pt-0.5">
+                    <!-- Balance -->
+                    <div class="px-3.5 py-1.5 rounded-lg bg-black/80 border border-white/20 text-xs sm:text-sm font-bold shrink-0">
                         <span class="text-slate-300">BALANCE: <strong class="text-white font-black">₹<span class="user-wallet-balance">{{ number_format($user->wallet_balance, 0) }}</span></strong></span>
-                        <span class="text-slate-500">|</span>
-                        <span class="text-slate-300">FIRST BET: <strong class="text-white font-black" id="status-first-bet">₹0</strong></span>
-                        <span class="text-slate-500">|</span>
-                        <span class="text-slate-300">SECOND BET: <strong class="text-white font-black" id="status-second-bet">₹0</strong></span>
+                    </div>
+
+                    <!-- Stacked First Bet & Second Bet -->
+                    <div class="flex flex-col text-[11px] sm:text-xs font-bold leading-tight space-y-1">
+                        <div class="text-slate-300">
+                            FIRST BET: <strong class="text-white font-black" id="status-first-bet">₹0</strong>
+                        </div>
+                        <div class="text-slate-300">
+                            SECOND BET: <strong class="text-white font-black" id="status-second-bet">₹0</strong>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- CENTER SECTION: ANDAR (Black) / BAHAR (Red) Stacked Box (Matching Image 4) -->
-            <div class="relative flex items-center justify-center w-full sm:w-72 md:w-80 shrink-0 my-1 md:my-0">
+            <!-- CENTER SECTION: ANDAR (Black) / BAHAR (Red) (Big Buttons, Matching Image 4) -->
+            <div class="relative flex items-center justify-center w-full sm:w-80 md:w-96 lg:w-[400px] shrink-0 my-1 lg:my-0">
                 <div class="w-full rounded-2xl overflow-hidden border-2 border-slate-700 bg-black shadow-2xl relative">
-                    <!-- ANDAR Area (Black Bar) -->
+                    <!-- ANDAR Area (Black Bar, Big Button) -->
                     <div id="btn-bet-andar" onclick="selectBetSide('andar')"
-                         class="px-4 py-2.5 bg-[#181a20] border-b border-slate-700/80 flex items-center justify-between cursor-pointer hover:bg-slate-800 transition group select-none">
-                        <span class="text-xs sm:text-sm font-black font-royal tracking-widest text-white group-hover:text-indigo-300">
+                         class="px-5 py-3.5 sm:py-4 bg-[#181a22] border-b border-slate-700/80 flex items-center justify-between cursor-pointer hover:bg-slate-800 transition group select-none">
+                        <span class="text-sm sm:text-base md:text-lg font-black font-royal tracking-widest text-white group-hover:text-indigo-300">
                             ANDAR
                         </span>
-                        <div class="flex items-center gap-2">
-                            <span id="andar-bet-badge" class="text-xs font-black text-amber-300"></span>
+                        <div class="flex items-center gap-2 pr-10">
+                            <span id="andar-bet-badge" class="text-xs sm:text-sm font-black text-amber-300"></span>
                         </div>
                     </div>
 
-                    <!-- BAHAR Area (Red Bar) -->
+                    <!-- BAHAR Area (Red Bar, Big Button) -->
                     <div id="btn-bet-bahar" onclick="selectBetSide('bahar')"
-                         class="px-4 py-2.5 bg-[#dc2626] flex items-center justify-between cursor-pointer hover:bg-red-700 transition group select-none">
-                        <span class="text-xs sm:text-sm font-black font-royal tracking-widest text-white group-hover:text-red-100">
+                         class="px-5 py-3.5 sm:py-4 bg-[#dc2626] flex items-center justify-between cursor-pointer hover:bg-red-700 transition group select-none">
+                        <span class="text-sm sm:text-base md:text-lg font-black font-royal tracking-widest text-white group-hover:text-red-100">
                             BAHAR
                         </span>
-                        <div class="flex items-center gap-2">
-                            <span id="bahar-bet-badge" class="text-xs font-black text-amber-300"></span>
+                        <div class="flex items-center gap-2 pr-10">
+                            <span id="bahar-bet-badge" class="text-xs sm:text-sm font-black text-amber-300"></span>
                         </div>
                     </div>
 
                     <!-- Right Capsule Indicator (Matching Image 4) -->
-                    <div class="absolute right-0 top-0 bottom-0 w-12 bg-gradient-to-r from-transparent to-black/60 flex items-center justify-center pointer-events-none">
-                        <div class="w-8 h-12 rounded-xl bg-gradient-to-b from-slate-900 to-red-950 border border-white/20 flex flex-col items-center justify-center text-[10px] font-bold text-white shadow-inner">
+                    <div class="absolute right-0 top-0 bottom-0 w-12 sm:w-14 bg-gradient-to-r from-transparent via-black/40 to-black/80 flex items-center justify-center pointer-events-none">
+                        <div class="w-8 sm:w-9 h-14 sm:h-16 rounded-xl bg-gradient-to-b from-slate-900 via-slate-800 to-red-950 border border-white/20 flex flex-col items-center justify-center text-[11px] font-bold text-white shadow-inner">
                             <span>{{ $currentRound->first_card ? strtoupper(explode('_', $currentRound->first_card)[0]) : '4' }}</span>
-                            <span class="text-red-400 text-xs leading-none">★</span>
+                            <span class="text-red-400 text-xs sm:text-sm leading-none mt-0.5">★</span>
                         </div>
                     </div>
                 </div>
@@ -259,7 +263,7 @@
                 </div>
 
                 <!-- Bead Road Grid Matrix (Matching Image 4) -->
-                <div class="bg-black/60 p-1.5 rounded-xl border border-white/10">
+                <div class="bg-black/60 p-2 rounded-xl border border-white/10">
                     <!-- Row 1 of beads & dots -->
                     <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none">
                         <div class="bead-b-circle shrink-0">B</div>
@@ -277,7 +281,7 @@
                         <div class="bead-dot shrink-0"></div>
                     </div>
                     <!-- Row 2 of beads & dots -->
-                    <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none mt-1">
+                    <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none mt-1.5">
                         <div class="bead-dot shrink-0"></div>
                         <div class="bead-dot shrink-0"></div>
                         <div class="bead-dot shrink-0"></div>

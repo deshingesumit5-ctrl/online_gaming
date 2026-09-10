@@ -91,92 +91,65 @@
 @endif
 
     {{-- ═══════════════════════════════════════════════════════════ --}}
-    {{-- SECTION 3: LIVE GAMING ROOMS (Matching Images 3 & 5)      --}}
+    {{-- SECTION 3: LIVE GAMING ROOMS                                --}}
     {{-- ═══════════════════════════════════════════════════════════ --}}
     @if($tab === 'lobby')
-    <div class="casino-pattern-bg rounded-2xl p-4 sm:p-8 md:p-10 border border-slate-800 shadow-2xl relative overflow-hidden">
-        
-        <!-- Top-Right Red Logout Button (Matching Images 3 & 5) -->
-        <div class="flex justify-end mb-2">
-            <a href="{{ route('logout') }}" class="px-4 py-1.5 rounded-full bg-red-600 hover:bg-red-500 active:scale-95 text-white font-bold text-xs flex items-center gap-2 shadow-lg shadow-red-600/40 transition">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                <span>Logout</span>
-            </a>
-        </div>
-
-        <!-- Center Brand Header with Fun 2 Win Logo & Greeting (Matching Images 3 & 5) -->
-        <div class="flex flex-col items-center justify-center text-center my-4 sm:my-6">
-            <img src="{{ asset('images/logo.png') }}" alt="Fun 2 Win" class="h-16 sm:h-20 md:h-24 w-auto object-contain drop-shadow-[0_4px_12px_rgba(245,158,11,0.3)] mb-3 transition hover:scale-105">
-            <h1 class="text-lg sm:text-2xl md:text-3xl font-extrabold text-white tracking-wide">
-                Welcome, {{ $user->mobile ?? $user->username ?? $user->name ?? '9845516868' }}!
-            </h1>
-        </div>
-
-        <!-- 4 Room Cards (Matching Image 3 on Laptop & Image 5 on Mobile) -->
-        <div class="my-6 sm:my-8 max-w-5xl mx-auto">
-            @php 
-                $allRoomsList = [];
-                foreach($games as $game) {
-                    foreach($game->rooms as $r) {
-                        $allRoomsList[] = $r;
-                    }
+    <div class="w-full my-2 sm:my-4">
+        @php 
+            $allRoomsList = [];
+            foreach($games as $game) {
+                foreach($game->rooms as $r) {
+                    $allRoomsList[] = $r;
                 }
-            @endphp
+            }
+        @endphp
 
-            @if(count($allRoomsList) > 0)
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-5 md:gap-6">
-                    @foreach($allRoomsList as $roomIndex => $room)
-                        <div class="flex flex-col items-center">
-                            {{-- Room Card with White Border & Dealer Thumbnail --}}
-                            <a href="{{ route('game.play', $room->id) }}" class="casino-room-card block w-full aspect-[4/3] rounded-xl border-2 border-white overflow-hidden shadow-2xl group cursor-pointer relative" title="Enter {{ $room->name }}">
-                                <img src="{{ asset('images/room-thumb.jpg') }}" alt="{{ $room->name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
-                                <div class="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition flex items-center justify-center p-2">
-                                    <span class="px-2.5 py-1 rounded-md bg-black/70 border border-white/30 text-white font-black text-xs sm:text-sm tracking-wider uppercase text-center shadow-lg font-royal">
-                                        {{ $room->name }}
-                                    </span>
-                                </div>
-                            </a>
-
-                            {{-- Status & Metadata (Online/Offline, Users, Opening/Closing Hours) --}}
-                            <div class="w-full text-center mt-2.5">
-                                @if($room->status === 'live')
-                                    <div class="inline-flex items-center justify-center gap-1.5 text-emerald-400 font-black text-xs sm:text-sm">
-                                        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse"></span>
-                                        <span>Online</span>
-                                    </div>
-                                    <div class="text-[10px] sm:text-xs text-slate-300 mt-1 font-medium space-y-0.5">
-                                        <div>Users: 26</div>
-                                        <div>Opening: 11:15 AM</div>
-                                        <div>Closing: 10:00 PM</div>
-                                    </div>
-                                @else
-                                    <div class="inline-flex items-center justify-center gap-1.5 text-red-500 font-black text-xs sm:text-sm">
-                                        <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
-                                        <span>Offline</span>
-                                    </div>
-                                    <div class="text-[10px] sm:text-xs text-slate-400 mt-1 font-medium space-y-0.5">
-                                        <div>Users: 0</div>
-                                        <div>Opening: 11:15 AM</div>
-                                        <div>Closing: 10:00 PM</div>
-                                    </div>
-                                @endif
+        @if(count($allRoomsList) > 0)
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 max-w-6xl mx-auto">
+                @foreach($allRoomsList as $roomIndex => $room)
+                    <div class="flex flex-col items-center">
+                        {{-- Room Card with White Border & Dealer Thumbnail --}}
+                        <a href="{{ route('game.play', $room->id) }}" class="casino-room-card block w-full aspect-[4/3] rounded-xl border-2 border-white overflow-hidden shadow-2xl group cursor-pointer relative" title="Enter {{ $room->name }}">
+                            <img src="{{ asset('images/room-thumb.jpg') }}" alt="{{ $room->name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                            <div class="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition flex items-center justify-center p-2">
+                                <span class="px-3 py-1 rounded-md bg-black/70 border border-white/30 text-white font-black text-xs sm:text-sm tracking-wider uppercase text-center shadow-lg font-royal">
+                                    {{ $room->name }}
+                                </span>
                             </div>
-                        </div>
-                    @endforeach
-                </div>
-            @else
-                <div class="p-8 text-center text-slate-400 text-sm">
-                    No gaming rooms available at the moment.
-                </div>
-            @endif
-        </div>
+                        </a>
 
-        <!-- Bottom Welcome Text (Matching Images 3 & 5) -->
-        <div class="text-center text-xs sm:text-sm font-semibold text-slate-300 tracking-wider mt-6 sm:mt-10">
-            Welcome to Fun 2 Win
-        </div>
+                        {{-- Status & Metadata (Online/Offline, Users, Opening/Closing Hours) --}}
+                        <div class="w-full text-center mt-2.5">
+                            @if($room->status === 'live')
+                                <div class="inline-flex items-center justify-center gap-1.5 text-emerald-400 font-black text-xs sm:text-sm">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse"></span>
+                                    <span>Online</span>
+                                </div>
+                                <div class="text-[10px] sm:text-xs text-slate-300 mt-1 font-medium space-y-0.5">
+                                    <div>Users: 26</div>
+                                    <div>Opening: 11:15 AM</div>
+                                    <div>Closing: 10:00 PM</div>
+                                </div>
+                            @else
+                                <div class="inline-flex items-center justify-center gap-1.5 text-red-500 font-black text-xs sm:text-sm">
+                                    <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
+                                    <span>Offline</span>
+                                </div>
+                                <div class="text-[10px] sm:text-xs text-slate-400 mt-1 font-medium space-y-0.5">
+                                    <div>Users: 0</div>
+                                    <div>Opening: 11:15 AM</div>
+                                    <div>Closing: 10:00 PM</div>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+                @endforeach
+            </div>
+        @else
+            <div class="p-8 text-center text-slate-400 text-sm">
+                No gaming rooms available at the moment.
+            </div>
+        @endif
     </div>
     @endif
 
