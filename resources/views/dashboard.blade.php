@@ -109,7 +109,7 @@
                 @foreach($allRoomsList as $roomIndex => $room)
                     <div class="flex flex-col items-center">
                         {{-- Room Card with White Border & Dealer Thumbnail --}}
-                        <a href="{{ route('game.play', $room->id) }}" onclick="enterRoomAadavi(event, this.href)" class="casino-room-card block w-full aspect-[4/3] rounded-xl border-2 border-white overflow-hidden shadow-2xl group cursor-pointer relative" title="Enter {{ $room->name }}">
+                      <a href="{{ route('game.play', $room->id) }}" class="casino-room-card block w-full aspect-[4/3] rounded-xl border-2 border-white overflow-hidden shadow-2xl group cursor-pointer relative" title="Enter {{ $room->name }}">
                             <img src="{{ asset('images/room-thumb.jpg') }}" alt="{{ $room->name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
                             <div class="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition flex items-center justify-center p-2">
                                 <span class="px-3 py-1 rounded-md bg-black/70 border border-white/30 text-white font-black text-xs sm:text-sm tracking-wider uppercase text-center shadow-lg font-royal">
@@ -310,13 +310,4 @@
 
     @endif
 </div>
-
-<script>
-    function enterRoomAadavi(e, url) {
-        const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        if (isMobile && screen.orientation && screen.orientation.lock) {
-            screen.orientation.lock('landscape').catch(() => {});
-        }
-    }
-</script>
 @endsection

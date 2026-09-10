@@ -80,7 +80,7 @@
         overflow: hidden;
     }
 
-    /* Horizontal Aadavi Mode for Mobile & Landscape Viewports */
+
     @media (orientation: landscape) and (max-height: 550px) {
         .landscape-compact-bar {
             padding-top: 3px !important;
@@ -108,76 +108,12 @@
             font-size: 13px !important;
         }
     }
-    @media (orientation: landscape) {
-        #mobile-aadavi-prompt {
-            display: none !important;
-        }
-    }
-
-    /* Mobile-only Forced Landscape ("Aadavi") Rotation Fallback */
-    @media (max-width: 768px) {
-        .forced-landscape {
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            width: 100vh !important;
-            width: 100dvh !important;
-            height: 100vw !important;
-            height: 100dvw !important;
-            transform-origin: 0 0 !important;
-            transform: rotate(90deg) translateY(-100%) !important;
-            overflow: hidden !important;
-            z-index: 9999 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            max-width: none !important;
-            max-height: none !important;
-        }
-
-        .forced-landscape .landscape-compact-bar {
-            padding-top: 3px !important;
-            padding-bottom: 3px !important;
-        }
-        .forced-landscape .landscape-compact-hud {
-            flex-direction: row !important;
-            padding: 4px 8px !important;
-            gap: 6px !important;
-        }
-        .forced-landscape .hud-andar-bahar-box {
-            width: 240px !important;
-            margin: 0 !important;
-        }
-        .forced-landscape .hud-andar-bahar-box #btn-bet-andar,
-        .forced-landscape .hud-andar-bahar-box #btn-bet-bahar {
-            padding: 4px 10px !important;
-            font-size: 12px !important;
-        }
-        .forced-landscape .poker-chip {
-            width: 30px !important;
-            height: 30px !important;
-            font-size: 9px !important;
-        }
-        .forced-landscape .btn-hud-action {
-            padding: 3px 8px !important;
-            font-size: 10px !important;
-        }
-        .forced-landscape .felt-surface {
-            flex: 1 !important;
-            min-height: 0 !important;
-        }
-    }
 </style>
 @endpush
 
 @section('content')
 <div id="game-main-viewport" class="w-full h-full max-w-none mx-auto flex flex-col justify-between overflow-hidden relative select-none game-viewport" style="background: #000;">
 
-    <!-- Mobile Portrait Helper Prompt (Tapping enters Fullscreen Landscape / Aadavi) -->
-    <div id="mobile-aadavi-prompt" onclick="enterFullscreenLandscape()"
-         class="hidden fixed top-14 left-1/2 -translate-x-1/2 z-50 bg-amber-500 text-slate-950 font-black px-4 py-2 rounded-full text-xs uppercase tracking-wider shadow-2xl flex items-center gap-2 cursor-pointer border-2 border-white animate-pulse">
-        <span>🔄⛶</span>
-        <span>Tap for Fullscreen Aadavi</span>
-    </div>
 
     <!-- Top Bar (Matching Image 4: ← TABLE 1 : MIN BET 500, Center (✕) Close, Right Action Icons) -->
     <div class="relative z-30 px-3 sm:px-5 py-2.5 flex items-center justify-between text-white bg-black/50 backdrop-blur-md border-b border-white/10 shrink-0">
@@ -732,129 +668,24 @@
             }
         }
 
-        // Helper mobile checks (Desktop layout is completely untouched)
-        function isMobileDevice() {
-            const isSmallScreen = window.innerWidth <= 768;
-            const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-            return isSmallScreen || isMobileUA;
-        }
-
-        function isLandscapeMode() {
-            if (window.matchMedia && window.matchMedia('(orientation: landscape)').matches) {
-                return true;
-            }
-            return window.innerWidth > window.innerHeight;
-        }
-
-        function isFullscreenActive() {
-            return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
-        }
-
-        function updateMobileOrientation() {
-            const gameViewport = document.getElementById('game-main-viewport');
-            const prompt = document.getElementById('mobile-aadavi-prompt');
-            if (!gameViewport) return;
-
-            // Desktop layout: do NOT alter desktop layout at all!
-            if (!isMobileDevice()) {
-                gameViewport.classList.remove('forced-landscape');
-                if (prompt) prompt.classList.add('hidden');
-                return;
-            }
-
-            const inLandscape = isLandscapeMode();
-            const inFullscreen = isFullscreenActive();
-
-            if (inLandscape) {
-                // Native or fullscreen landscape active
-                gameViewport.classList.remove('forced-landscape');
-                if (prompt) prompt.classList.add('hidden');
-            } else {
-                // Mobile portrait: apply CSS transform-based forced landscape rotation fallback
-                gameViewport.classList.add('forced-landscape');
-                if (prompt) {
-                    if (!inFullscreen) {
-                        prompt.classList.remove('hidden');
-                    } else {
-                        prompt.classList.add('hidden');
-                    }
-                }
-            }
-        }
-
-        // Fullscreen toggle (Locked to Landscape / Aadavi on mobile)
-        window.enterFullscreenLandscape = async function() {
+        // Plain fullscreen toggle — no forced rotation/orientation lock
+        window.toggleFullscreen = async function() {
             const docEl = document.documentElement;
-            const isFs = isFullscreenActive();
-
-            if (!isFs) {
-                try {
+            const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+            try {
+                if (!isFs) {
                     const req = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
-                    if (req) {
-                        await req.call(docEl);
-                    }
-                } catch (e) {
-                    console.warn('requestFullscreen error:', e);
-                }
-
-                // Lock orientation to Landscape (Aadavi) on mobile
-                if (isMobileDevice() && screen.orientation && screen.orientation.lock) {
-                    try {
-                        await screen.orientation.lock('landscape');
-                    } catch (e) {
-                        console.warn('screen.orientation.lock error:', e);
-                    }
-                }
-            } else {
-                // Exit fullscreen
-                if (screen.orientation && screen.orientation.unlock) {
-                    try { screen.orientation.unlock(); } catch (e) {}
-                }
-                try {
+                    if (req) await req.call(docEl);
+                } else {
                     const exit = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
-                    if (exit) {
-                        await exit.call(document);
-                    }
-                } catch (e) {
-                    console.warn('exitFullscreen error:', e);
+                    if (exit) await exit.call(document);
                 }
+            } catch (e) {
+                console.warn('Fullscreen toggle error:', e);
             }
-
-            setTimeout(updateMobileOrientation, 150);
         };
 
-        document.getElementById('btn-toggle-fullscreen')?.addEventListener('click', window.enterFullscreenLandscape);
-
-        // Automatic orientation to Landscape (Aadavi) when entering room
-        function applyLandscapeLock() {
-            if (isMobileDevice() && screen.orientation && screen.orientation.lock) {
-                screen.orientation.lock('landscape').catch(() => {});
-            }
-            updateMobileOrientation();
-        }
-
-        applyLandscapeLock();
-        window.addEventListener('load', applyLandscapeLock);
-        document.addEventListener('touchstart', applyLandscapeLock, { once: true });
-        document.addEventListener('click', applyLandscapeLock, { once: true });
-
-        window.addEventListener('resize', updateMobileOrientation);
-        window.addEventListener('orientationchange', () => {
-            setTimeout(updateMobileOrientation, 200);
-        });
-        document.addEventListener('fullscreenchange', () => {
-            if (!isFullscreenActive() && screen.orientation && screen.orientation.unlock) {
-                try { screen.orientation.unlock(); } catch (e) {}
-            }
-            setTimeout(updateMobileOrientation, 150);
-        });
-        document.addEventListener('webkitfullscreenchange', () => {
-            if (!isFullscreenActive() && screen.orientation && screen.orientation.unlock) {
-                try { screen.orientation.unlock(); } catch (e) {}
-            }
-            setTimeout(updateMobileOrientation, 150);
-        });
-        setTimeout(updateMobileOrientation, 300);
+        document.getElementById('btn-toggle-fullscreen')?.addEventListener('click', window.toggleFullscreen);
 
         // Sound toggle
         let soundOn = true;
