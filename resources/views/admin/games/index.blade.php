@@ -181,7 +181,7 @@
                                         </a>
 
                                         <button type="button" 
-                                                onclick="openEditRoomModal({{ $room->id }}, '{{ addslashes($room->name) }}', {{ $room->betting_duration }}, {{ $room->cancellation_duration }}, '{{ implode(', ', $denoms) }}', '{{ addslashes($room->live_stream_url ?? '') }}', '{{ $room->status }}', '{{ $room->start_time ? $room->start_time->format('Y-m-d\TH:i') : '' }}')"
+                                                onclick="openEditRoomModal({{ $room->id }}, '{{ addslashes($room->name) }}', {{ $room->betting_duration }}, {{ $room->cancellation_duration }}, '{{ implode(', ', $denoms) }}', '{{ addslashes($room->live_stream_url ?? '') }}', '{{ $room->status }}', '{{ $room->start_time ? $room->start_time->format('Y-m-d\TH:i') : '' }}', '{{ addslashes($room->opening_time ?? '11:15 AM') }}', '{{ addslashes($room->closing_time ?? '10:00 PM') }}')"
                                                 class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-700 transition">
                                             Edit
                                         </button>
@@ -277,7 +277,7 @@
 
                                                     <!-- Edit Room -->
                                                     <button type="button" 
-                                                            onclick="openEditRoomModal({{ $room->id }}, '{{ addslashes($room->name) }}', {{ $room->betting_duration }}, {{ $room->cancellation_duration }}, '{{ implode(', ', $denoms) }}', '{{ addslashes($room->live_stream_url ?? '') }}', '{{ $room->status }}', '{{ $room->start_time ? $room->start_time->format('Y-m-d\TH:i') : '' }}')"
+                                                            onclick="openEditRoomModal({{ $room->id }}, '{{ addslashes($room->name) }}', {{ $room->betting_duration }}, {{ $room->cancellation_duration }}, '{{ implode(', ', $denoms) }}', '{{ addslashes($room->live_stream_url ?? '') }}', '{{ $room->status }}', '{{ $room->start_time ? $room->start_time->format('Y-m-d\TH:i') : '' }}', '{{ addslashes($room->opening_time ?? '11:15 AM') }}', '{{ addslashes($room->closing_time ?? '10:00 PM') }}')"
                                                             class="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold border border-slate-700 transition">
                                                         Edit
                                                     </button>
@@ -447,6 +447,16 @@
                     <input type="datetime-local" name="start_time" class="form-input-custom">
                 </div>
             </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-slate-300 font-bold mb-1.5 uppercase">Opening Time</label>
+                    <input type="text" name="opening_time" value="11:15 AM" placeholder="e.g. 11:15 AM" class="form-input-custom">
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-bold mb-1.5 uppercase">Closing Time</label>
+                    <input type="text" name="closing_time" value="10:00 PM" placeholder="e.g. 10:00 PM" class="form-input-custom">
+                </div>
+            </div>
             <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
                 <button type="button" onclick="closeModal('modal-create-room')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold">
                     Cancel
@@ -506,6 +516,16 @@
                     <input type="datetime-local" id="edit-room-start-time" name="start_time" class="form-input-custom">
                 </div>
             </div>
+            <div class="grid grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-slate-300 font-bold mb-1.5 uppercase">Opening Time</label>
+                    <input type="text" id="edit-room-opening-time" name="opening_time" placeholder="e.g. 11:15 AM" class="form-input-custom">
+                </div>
+                <div>
+                    <label class="block text-slate-300 font-bold mb-1.5 uppercase">Closing Time</label>
+                    <input type="text" id="edit-room-closing-time" name="closing_time" placeholder="e.g. 10:00 PM" class="form-input-custom">
+                </div>
+            </div>
             <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
                 <button type="button" onclick="closeModal('modal-edit-room')" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl font-bold">
                     Cancel
@@ -553,7 +573,7 @@
         openModal('modal-create-room');
     }
 
-    function openEditRoomModal(id, name, bettingDur, cancelDur, denoms, streamUrl, status, startTime) {
+    function openEditRoomModal(id, name, bettingDur, cancelDur, denoms, streamUrl, status, startTime, openingTime, closingTime) {
         document.getElementById('form-edit-room').action = `/admin/rooms/${id}`;
         document.getElementById('edit-room-name').value = name;
         document.getElementById('edit-room-betting-duration').value = bettingDur;
@@ -562,6 +582,8 @@
         document.getElementById('edit-room-stream-url').value = streamUrl;
         document.getElementById('edit-room-status').value = status;
         document.getElementById('edit-room-start-time').value = startTime;
+        document.getElementById('edit-room-opening-time').value = openingTime || '11:15 AM';
+        document.getElementById('edit-room-closing-time').value = closingTime || '10:00 PM';
         openModal('modal-edit-room');
     }
 </script>

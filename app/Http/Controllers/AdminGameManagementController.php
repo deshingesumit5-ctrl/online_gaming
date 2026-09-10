@@ -102,6 +102,8 @@ class AdminGameManagementController extends Controller
             'live_stream_url' => ['nullable', 'string', 'max:500'],
             'status' => ['required', 'in:live,closed'],
             'start_time' => ['nullable', 'date'],
+            'opening_time' => ['nullable', 'string', 'max:50'],
+            'closing_time' => ['nullable', 'string', 'max:50'],
         ]);
 
         // Parse denominations into integer array
@@ -116,6 +118,8 @@ class AdminGameManagementController extends Controller
             'live_stream_url' => $validated['live_stream_url'] ?? null,
             'status' => $validated['status'],
             'start_time' => $validated['start_time'] ?? null,
+            'opening_time' => $validated['opening_time'] ?? '11:15 AM',
+            'closing_time' => $validated['closing_time'] ?? '10:00 PM',
         ]);
 
         // Automatically initialize Round #1 for live play
@@ -144,6 +148,8 @@ class AdminGameManagementController extends Controller
             'live_stream_url' => ['nullable', 'string', 'max:500'],
             'status' => ['required', 'in:live,closed'],
             'start_time' => ['nullable', 'date'],
+            'opening_time' => ['nullable', 'string', 'max:50'],
+            'closing_time' => ['nullable', 'string', 'max:50'],
         ]);
 
         $denominations = $this->parseDenominations($validated['allowed_denominations'] ?? null);
@@ -156,6 +162,8 @@ class AdminGameManagementController extends Controller
             'live_stream_url' => $validated['live_stream_url'] ?? null,
             'status' => $validated['status'],
             'start_time' => $validated['start_time'] ?? null,
+            'opening_time' => $validated['opening_time'] ?? $room->opening_time,
+            'closing_time' => $validated['closing_time'] ?? $room->closing_time,
         ]);
 
         return redirect()->route('admin.games.index')->with('success', "Table/Room '{$room->name}' updated successfully.");

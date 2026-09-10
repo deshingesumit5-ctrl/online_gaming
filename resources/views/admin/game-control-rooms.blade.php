@@ -49,9 +49,9 @@
                                 <span>Online</span>
                             </div>
                             <div class="text-[10px] sm:text-xs text-slate-300 mt-1 font-medium space-y-0.5">
-                                <div>Users: {{ $room->active_bets_count > 0 ? $room->active_bets_count * 2 : '26' }}</div>
-                                <div>Opening: 11:15 AM</div>
-                                <div>Closing: 10:00 PM</div>
+                                <div>Users: {{ $room->active_users_count }}</div>
+                                <div>Opening: {{ $room->opening_time ?? '11:15 AM' }}</div>
+                                <div>Closing: {{ $room->closing_time ?? '10:00 PM' }}</div>
                             </div>
                         @else
                             <div class="inline-flex items-center justify-center gap-1.5 text-red-500 font-black text-xs sm:text-sm">
@@ -60,8 +60,8 @@
                             </div>
                             <div class="text-[10px] sm:text-xs text-slate-400 mt-1 font-medium space-y-0.5">
                                 <div>Users: 0</div>
-                                <div>Opening: 11:15 AM</div>
-                                <div>Closing: 10:00 PM</div>
+                                <div>Opening: {{ $room->opening_time ?? '11:15 AM' }}</div>
+                                <div>Closing: {{ $room->closing_time ?? '10:00 PM' }}</div>
                             </div>
                         @endif
 

@@ -18,7 +18,7 @@ class DashboardController extends Controller
     {
         $user = Auth::user();
         $games = Game::with(['rooms' => function ($query) {
-            $query->orderBy('id', 'asc');
+            $query->with('currentRound')->orderBy('id', 'asc');
         }])->where('status', '!=', 'closed')->get();
 
         $recentBets = $user->bets()

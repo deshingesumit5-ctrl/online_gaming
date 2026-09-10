@@ -22,6 +22,8 @@ class Room extends Model
         'allowed_denominations',
         'status',
         'start_time',
+        'opening_time',
+        'closing_time',
     ];
 
     protected function casts(): array
@@ -53,5 +55,16 @@ class Room extends Model
     public function currentRound(): HasOne
     {
         return $this->hasOne(GameRound::class)->latestOfMany();
+    }
+
+    public function getActiveUsersCountAttribute(): int
+    {
+        $latestRoundId = $this->currentRound?->id ?? $this->gameRounds()->latest()->value('id');
+        if (!$latestRoundId) {
+            return 0;
+        }
+        return (int) \App\Models\Bet::where('game_round_id', $latestRoundId)
+            ->distinct('user_id')
+            ->count('user_id');
     }
 }
