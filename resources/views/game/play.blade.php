@@ -613,7 +613,12 @@
         }
 
         function keepHlsAtLiveEdge(hls, video) {
+            let isLive = true;
+            hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
+                if (data && data.details) isLive = !!data.details.live;
+            });
             const snapToLive = () => {
+                if (!isLive) return;
                 try {
                     if (video.seekable && video.seekable.length > 0) {
                         const live = video.seekable.end(video.seekable.length - 1);
@@ -736,7 +741,7 @@
             if (externalWrap) externalWrap.classList.remove('hidden');
             if (!cctvVideo) return;
             cctvVideo.classList.remove('hidden');
-            const playUrl = livePlaylistUrl || streamUrl;
+            const playUrl = streamUrl;
             if (Hls.isSupported()) {
                 if (!playerHls) {
                     playerHls = createLowLatencyHls();

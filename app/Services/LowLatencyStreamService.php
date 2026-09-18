@@ -88,6 +88,10 @@ class LowLatencyStreamService
             return null;
         }
 
+        if (str_contains($body, '#EXT-X-STREAM-INF')) {
+            return $body;
+        }
+
         $base = preg_replace('#/[^/]*$#', '/', $sourceUrl);
         $lines = preg_split('/\r\n|\n|\r/', $body) ?: [];
         $header = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-START:TIME-OFFSET=-1,PRECISE=YES'];
