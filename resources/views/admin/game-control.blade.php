@@ -444,22 +444,18 @@
         return new Hls({
             enableWorker: true,
             lowLatencyMode: true,
-            backBufferLength: 0,
-            maxBufferLength: 3,
-            maxMaxBufferLength: 4,
-            liveSyncDuration: 1,
-            liveMaxLatencyDuration: 3,
+            backBufferLength: 30,
+            maxBufferLength: 30,
+            maxMaxBufferLength: 60,
+            liveSyncDurationCount: 1,
+            liveMaxLatencyDurationCount: 4,
             liveDurationInfinity: true,
-            highBufferWatchdogPeriod: 0.5,
-            maxLiveSyncPlaybackRate: 5,
-            startFragPrefetch: true,
-            initialLiveManifestSize: 1,
-            testBandwidth: false
+            startFragPrefetch: true
         });
     }
 
     function keepHlsAtLiveEdge(hls, video) {
-        let isLive = true;
+        let isLive = false;
         hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
             if (data && data.details) isLive = !!data.details.live;
         });
@@ -492,7 +488,7 @@
         video.src = streamUrl;
         const seekLive = () => {
             try {
-                if (video.seekable && video.seekable.length > 0) {
+                if (!isFinite(video.duration) && video.seekable && video.seekable.length > 0) {
                     video.currentTime = Math.max(0, video.seekable.end(video.seekable.length - 1) - 0.3);
                 }
             } catch (e) {}
@@ -558,10 +554,16 @@
                                     cctvVideo.play().catch(() => {});
                                 });
                                 adminHls.on(Hls.Events.ERROR, function(_, data) {
-                                    if (data && data.fatal && playUrl !== parsed.streamUrl) {
-                                        adminHls.loadSource(parsed.streamUrl);
+                                    if (!data || !data.fatal || !adminHls) return;
+                                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                                        adminHls.startLoad();
+                                    } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                                        adminHls.recoverMediaError();
                                     }
                                 });
+                                cctvVideo.onclick = function() {
+                                    cctvVideo.play().catch(() => {});
+                                };
                             } else if (cctvVideo.canPlayType('application/vnd.apple.mpegurl')) {
                                 playNativeHlsAtLiveEdge(cctvVideo, playUrl);
                             }
@@ -569,31 +571,7 @@
                     };
 
                     playHls();
-                    window._adminJpegProbe = function() {
-                        const probe = new Image();
-                        probe.onload = function() {
-                            if (adminHls) {
-                                adminHls.destroy();
-                                adminHls = null;
-                            }
-                            if (cctvVideo) cctvVideo.classList.add('hidden');
-                            if (cctvJpg) {
-                                cctvJpg.classList.remove('hidden');
-                                cctvJpg.src = probe.src;
-                                if (adminLiveJpegTimer) clearInterval(adminLiveJpegTimer);
-                                let busy = false;
-                                adminLiveJpegTimer = setInterval(() => {
-                                    if (busy) return;
-                                    busy = true;
-                                    const tmp = new Image();
-                                    tmp.onload = () => { cctvJpg.src = tmp.src; busy = false; };
-                                    tmp.onerror = () => { busy = false; };
-                                    tmp.src = liveJpegUrl + '?t=' + Date.now();
-                                }, 120);
-                            }
-                        };
-                        probe.src = liveJpegUrl + '?t=' + Date.now();
-                    };
+                    window._adminJpegProbe = function() {};
                 } else {
                     // Direct MP4 / WebM video link
                     if (cctvIframe) cctvIframe.classList.add('hidden');

@@ -598,22 +598,18 @@
             return new Hls({
                 enableWorker: true,
                 lowLatencyMode: true,
-                backBufferLength: 0,
-                maxBufferLength: 3,
-                maxMaxBufferLength: 4,
-                liveSyncDuration: 1,
-                liveMaxLatencyDuration: 3,
+                backBufferLength: 30,
+                maxBufferLength: 30,
+                maxMaxBufferLength: 60,
+                liveSyncDurationCount: 1,
+                liveMaxLatencyDurationCount: 4,
                 liveDurationInfinity: true,
-                highBufferWatchdogPeriod: 0.5,
-                maxLiveSyncPlaybackRate: 5,
-                startFragPrefetch: true,
-                initialLiveManifestSize: 1,
-                testBandwidth: false
+                startFragPrefetch: true
             });
         }
 
         function keepHlsAtLiveEdge(hls, video) {
-            let isLive = true;
+            let isLive = false;
             hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
                 if (data && data.details) isLive = !!data.details.live;
             });
@@ -646,7 +642,7 @@
             if (video.src !== streamUrl) video.src = streamUrl;
             const seekLive = () => {
                 try {
-                    if (video.seekable && video.seekable.length > 0) {
+                    if (!isFinite(video.duration) && video.seekable && video.seekable.length > 0) {
                         video.currentTime = Math.max(0, video.seekable.end(video.seekable.length - 1) - 0.3);
                     }
                 } catch (e) {}
@@ -707,32 +703,6 @@
             if (cctvMode) return;
             cctvMode = 'hls';
             startHlsPlayback(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
-            const urls = snapshotCandidates(streamUrl);
-            let idx = 0;
-            const tryNext = () => {
-                if (cctvMode === 'jpeg' || idx >= urls.length) return;
-                const url = urls[idx++];
-                const probe = new Image();
-                probe.onload = function() {
-                    if (cctvMode === 'jpeg') return;
-                    cctvMode = 'jpeg';
-                    if (playerHls) {
-                        playerHls.destroy();
-                        playerHls = null;
-                    }
-                    if (ytIframe) ytIframe.classList.add('hidden');
-                    if (cctvVideo) cctvVideo.classList.add('hidden');
-                    if (externalWrap) externalWrap.classList.add('hidden');
-                    if (fallbackImg) {
-                        fallbackImg.classList.remove('hidden');
-                        fallbackImg.src = probe.src;
-                        startLiveJpegFromUrl(fallbackImg, url);
-                    }
-                };
-                probe.onerror = tryNext;
-                probe.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
-            };
-            tryNext();
         }
 
         function startHlsPlayback(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg) {
@@ -752,10 +722,16 @@
                         cctvVideo.play().catch(() => {});
                     });
                     playerHls.on(Hls.Events.ERROR, function(_, data) {
-                        if (data && data.fatal && playUrl !== streamUrl) {
-                            playerHls.loadSource(streamUrl);
+                        if (!data || !data.fatal || !playerHls) return;
+                        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                            playerHls.startLoad();
+                        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                            playerHls.recoverMediaError();
                         }
                     });
+                    cctvVideo.onclick = function() {
+                        cctvVideo.play().catch(() => {});
+                    };
                 }
             } else if (cctvVideo.canPlayType('application/vnd.apple.mpegurl')) {
                 playNativeHlsAtLiveEdge(cctvVideo, playUrl);
@@ -817,6 +793,10 @@
                 if (playerHls) {
                     playerHls.destroy();
                     playerHls = null;
+                }
+                if (cctvVideo && cctvVideo._liveEdgeIv) {
+                    clearInterval(cctvVideo._liveEdgeIv);
+                    cctvVideo._liveEdgeIv = null;
                 }
                 stopLiveJpeg();
                 cctvMode = null;
