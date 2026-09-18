@@ -435,6 +435,50 @@
         }
     }
 
+    function createLowLatencyHls() {
+        return new Hls({
+            enableWorker: true,
+            lowLatencyMode: true,
+            backBufferLength: 0,
+            maxBufferLength: 2,
+            maxMaxBufferLength: 4,
+            liveSyncDurationCount: 1,
+            liveMaxLatencyDurationCount: 3,
+            liveDurationInfinity: true,
+            highBufferWatchdogPeriod: 1,
+            maxLiveSyncPlaybackRate: 2,
+            startFragPrefetch: true
+        });
+    }
+
+    function keepHlsAtLiveEdge(hls, video) {
+        const snapToLive = () => {
+            try {
+                const livePos = hls.liveSyncPosition;
+                if (livePos != null && (livePos - video.currentTime) > 1) {
+                    video.currentTime = livePos;
+                }
+            } catch (e) {}
+        };
+        hls.on(Hls.Events.MANIFEST_PARSED, snapToLive);
+        hls.on(Hls.Events.LEVEL_UPDATED, snapToLive);
+        hls.on(Hls.Events.FRAG_LOADED, snapToLive);
+    }
+
+    function playNativeHlsAtLiveEdge(video, streamUrl) {
+        video.src = streamUrl;
+        const seekLive = () => {
+            try {
+                if (video.seekable && video.seekable.length > 0) {
+                    video.currentTime = Math.max(0, video.seekable.end(video.seekable.length - 1) - 0.3);
+                }
+            } catch (e) {}
+            video.play().catch(() => {});
+        };
+        video.addEventListener('loadedmetadata', seekLive, { once: true });
+        seekLive();
+    }
+
     function parseStreamUrl(url) {
         if (!url) return null;
         url = url.trim();
@@ -479,15 +523,15 @@
                         cctvVideo.classList.remove('hidden');
                         if (Hls.isSupported()) {
                             if (adminHls) adminHls.destroy();
-                            adminHls = new Hls({ enableWorker: true, lowLatencyMode: true });
+                            adminHls = createLowLatencyHls();
                             adminHls.loadSource(parsed.streamUrl);
                             adminHls.attachMedia(cctvVideo);
+                            keepHlsAtLiveEdge(adminHls, cctvVideo);
                             adminHls.on(Hls.Events.MANIFEST_PARSED, () => {
                                 cctvVideo.play().catch(() => {});
                             });
                         } else if (cctvVideo.canPlayType('application/vnd.apple.mpegurl')) {
-                            cctvVideo.src = parsed.streamUrl;
-                            cctvVideo.play().catch(() => {});
+                            playNativeHlsAtLiveEdge(cctvVideo, parsed.streamUrl);
                         }
                     }
                 } else {

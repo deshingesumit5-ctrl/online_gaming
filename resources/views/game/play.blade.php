@@ -590,6 +590,50 @@
 
         let playerHls = null;
 
+        function createLowLatencyHls() {
+            return new Hls({
+                enableWorker: true,
+                lowLatencyMode: true,
+                backBufferLength: 0,
+                maxBufferLength: 2,
+                maxMaxBufferLength: 4,
+                liveSyncDurationCount: 1,
+                liveMaxLatencyDurationCount: 3,
+                liveDurationInfinity: true,
+                highBufferWatchdogPeriod: 1,
+                maxLiveSyncPlaybackRate: 2,
+                startFragPrefetch: true
+            });
+        }
+
+        function keepHlsAtLiveEdge(hls, video) {
+            const snapToLive = () => {
+                try {
+                    const livePos = hls.liveSyncPosition;
+                    if (livePos != null && (livePos - video.currentTime) > 1) {
+                        video.currentTime = livePos;
+                    }
+                } catch (e) {}
+            };
+            hls.on(Hls.Events.MANIFEST_PARSED, snapToLive);
+            hls.on(Hls.Events.LEVEL_UPDATED, snapToLive);
+            hls.on(Hls.Events.FRAG_LOADED, snapToLive);
+        }
+
+        function playNativeHlsAtLiveEdge(video, streamUrl) {
+            if (video.src !== streamUrl) video.src = streamUrl;
+            const seekLive = () => {
+                try {
+                    if (video.seekable && video.seekable.length > 0) {
+                        video.currentTime = Math.max(0, video.seekable.end(video.seekable.length - 1) - 0.3);
+                    }
+                } catch (e) {}
+                video.play().catch(() => {});
+            };
+            video.addEventListener('loadedmetadata', seekLive, { once: true });
+            seekLive();
+        }
+
         function syncLiveStreamView(isStreaming, externalUrl) {
             window._isStreamActive = !!isStreaming;
             const streamBox = document.getElementById('player-live-stream-box');
@@ -623,16 +667,16 @@
                             cctvVideo.classList.remove('hidden');
                             if (Hls.isSupported()) {
                                 if (!playerHls) {
-                                    playerHls = new Hls({ enableWorker: true, lowLatencyMode: true });
+                                    playerHls = createLowLatencyHls();
                                     playerHls.loadSource(streamUrl);
                                     playerHls.attachMedia(cctvVideo);
+                                    keepHlsAtLiveEdge(playerHls, cctvVideo);
                                     playerHls.on(Hls.Events.MANIFEST_PARSED, () => {
                                         cctvVideo.play().catch(() => {});
                                     });
                                 }
                             } else if (cctvVideo.canPlayType('application/vnd.apple.mpegurl')) {
-                                if (cctvVideo.src !== streamUrl) cctvVideo.src = streamUrl;
-                                cctvVideo.play().catch(() => {});
+                                playNativeHlsAtLiveEdge(cctvVideo, streamUrl);
                             }
                         }
                     } else {
