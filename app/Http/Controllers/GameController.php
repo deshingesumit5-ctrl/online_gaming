@@ -8,12 +8,15 @@ use App\Models\GameRound;
 use App\Models\Room;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Services\LowLatencyStreamService;
 use App\Services\WalletService;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\View\View;
 
 class GameController extends Controller
@@ -254,5 +257,60 @@ class GameController extends Controller
     {
         $frame = \Illuminate\Support\Facades\Cache::get("room_stream_frame_{$roomId}");
         return response()->json(['frame' => $frame]);
+    }
+
+    public function liveJpeg(int $roomId, LowLatencyStreamService $liveStream)
+    {
+        $path = $liveStream->latestJpegPath($roomId);
+        if (!$path) {
+            abort(404);
+        }
+
+        return response()->file($path, [
+            'Content-Type' => 'image/jpeg',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ]);
+    }
+
+    public function livePlaylist(int $roomId, LowLatencyStreamService $liveStream): Response
+    {
+        $room = Room::findOrFail($roomId);
+        $playlist = $liveStream->rewrittenPlaylist($room);
+        if (!$playlist) {
+            abort(404);
+        }
+
+        return response($playlist, 200, [
+            'Content-Type' => 'application/vnd.apple.mpegurl',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
+        ]);
+    }
+
+    public function liveSegment(Request $request, int $roomId, LowLatencyStreamService $liveStream)
+    {
+        $url = (string) $request->query('u', '');
+        $sig = (string) $request->query('s', '');
+        $resolved = $liveStream->resolveSegmentUrl($roomId, $url, $sig);
+        if (!$resolved) {
+            abort(403);
+        }
+
+        try {
+            $response = Http::timeout(5)
+                ->withOptions(['verify' => false, 'allow_redirects' => true])
+                ->get($resolved);
+            if (!$response->successful()) {
+                abort(502);
+            }
+
+            return response($response->body(), 200, [
+                'Content-Type' => $response->header('Content-Type') ?: 'video/MP2T',
+                'Cache-Control' => 'no-store, no-cache, max-age=0',
+            ]);
+        } catch (\Throwable $e) {
+            abort(502);
+        }
     }
 }

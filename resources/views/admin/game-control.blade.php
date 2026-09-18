@@ -110,7 +110,8 @@
 
                 <!-- External / CCTV Live Stream Player Container -->
                 <div id="admin-cctv-stream-container" class="w-full h-full absolute inset-0 hidden bg-black">
-                    <video id="admin-cctv-video" class="w-full h-full object-cover hidden" autoplay muted loop playsinline></video>
+                    <video id="admin-cctv-video" class="w-full h-full object-cover hidden" autoplay muted playsinline></video>
+                    <img id="admin-cctv-live-jpg" class="w-full h-full object-cover hidden" alt="Live CCTV">
                     <iframe id="admin-cctv-iframe" class="w-full h-full border-0 hidden" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                 </div>
 
@@ -435,34 +436,51 @@
         }
     }
 
+    let adminLiveJpegTimer = null;
+    const liveJpegUrl = @json(route('game.live.jpeg', $room->id));
+    const livePlaylistUrl = @json(route('game.live.playlist', $room->id));
+
     function createLowLatencyHls() {
         return new Hls({
             enableWorker: true,
             lowLatencyMode: true,
             backBufferLength: 0,
-            maxBufferLength: 2,
+            maxBufferLength: 3,
             maxMaxBufferLength: 4,
-            liveSyncDurationCount: 1,
-            liveMaxLatencyDurationCount: 3,
+            liveSyncDuration: 1,
+            liveMaxLatencyDuration: 3,
             liveDurationInfinity: true,
-            highBufferWatchdogPeriod: 1,
-            maxLiveSyncPlaybackRate: 2,
-            startFragPrefetch: true
+            highBufferWatchdogPeriod: 0.5,
+            maxLiveSyncPlaybackRate: 5,
+            startFragPrefetch: true,
+            initialLiveManifestSize: 1,
+            testBandwidth: false
         });
     }
 
     function keepHlsAtLiveEdge(hls, video) {
         const snapToLive = () => {
             try {
-                const livePos = hls.liveSyncPosition;
-                if (livePos != null && (livePos - video.currentTime) > 1) {
-                    video.currentTime = livePos;
+                if (video.seekable && video.seekable.length > 0) {
+                    const live = video.seekable.end(video.seekable.length - 1);
+                    const gap = live - video.currentTime;
+                    if (gap > 2.2) {
+                        video.currentTime = Math.max(0, live - 0.35);
+                        video.playbackRate = 1;
+                    } else if (gap > 0.6) {
+                        video.playbackRate = 1.75;
+                    } else {
+                        video.playbackRate = 1;
+                    }
                 }
             } catch (e) {}
         };
         hls.on(Hls.Events.MANIFEST_PARSED, snapToLive);
         hls.on(Hls.Events.LEVEL_UPDATED, snapToLive);
         hls.on(Hls.Events.FRAG_LOADED, snapToLive);
+        if (!video._liveEdgeIv) {
+            video._liveEdgeIv = setInterval(snapToLive, 250);
+        }
     }
 
     function playNativeHlsAtLiveEdge(video, streamUrl) {
@@ -519,21 +537,58 @@
                     }
                 } else if (parsed.type === 'hls') {
                     if (cctvIframe) cctvIframe.classList.add('hidden');
-                    if (cctvVideo) {
-                        cctvVideo.classList.remove('hidden');
-                        if (Hls.isSupported()) {
-                            if (adminHls) adminHls.destroy();
-                            adminHls = createLowLatencyHls();
-                            adminHls.loadSource(parsed.streamUrl);
-                            adminHls.attachMedia(cctvVideo);
-                            keepHlsAtLiveEdge(adminHls, cctvVideo);
-                            adminHls.on(Hls.Events.MANIFEST_PARSED, () => {
-                                cctvVideo.play().catch(() => {});
-                            });
-                        } else if (cctvVideo.canPlayType('application/vnd.apple.mpegurl')) {
-                            playNativeHlsAtLiveEdge(cctvVideo, parsed.streamUrl);
+                    const cctvJpg = document.getElementById('admin-cctv-live-jpg');
+                    const playHls = () => {
+                        if (cctvJpg) cctvJpg.classList.add('hidden');
+                        if (cctvVideo) {
+                            cctvVideo.classList.remove('hidden');
+                            const playUrl = livePlaylistUrl || parsed.streamUrl;
+                            if (Hls.isSupported()) {
+                                if (adminHls) adminHls.destroy();
+                                adminHls = createLowLatencyHls();
+                                adminHls.loadSource(playUrl);
+                                adminHls.attachMedia(cctvVideo);
+                                keepHlsAtLiveEdge(adminHls, cctvVideo);
+                                adminHls.on(Hls.Events.MANIFEST_PARSED, () => {
+                                    cctvVideo.play().catch(() => {});
+                                });
+                                adminHls.on(Hls.Events.ERROR, function(_, data) {
+                                    if (data && data.fatal && playUrl !== parsed.streamUrl) {
+                                        adminHls.loadSource(parsed.streamUrl);
+                                    }
+                                });
+                            } else if (cctvVideo.canPlayType('application/vnd.apple.mpegurl')) {
+                                playNativeHlsAtLiveEdge(cctvVideo, playUrl);
+                            }
                         }
-                    }
+                    };
+
+                    playHls();
+                    window._adminJpegProbe = function() {
+                        const probe = new Image();
+                        probe.onload = function() {
+                            if (adminHls) {
+                                adminHls.destroy();
+                                adminHls = null;
+                            }
+                            if (cctvVideo) cctvVideo.classList.add('hidden');
+                            if (cctvJpg) {
+                                cctvJpg.classList.remove('hidden');
+                                cctvJpg.src = probe.src;
+                                if (adminLiveJpegTimer) clearInterval(adminLiveJpegTimer);
+                                let busy = false;
+                                adminLiveJpegTimer = setInterval(() => {
+                                    if (busy) return;
+                                    busy = true;
+                                    const tmp = new Image();
+                                    tmp.onload = () => { cctvJpg.src = tmp.src; busy = false; };
+                                    tmp.onerror = () => { busy = false; };
+                                    tmp.src = liveJpegUrl + '?t=' + Date.now();
+                                }, 120);
+                            }
+                        };
+                        probe.src = liveJpegUrl + '?t=' + Date.now();
+                    };
                 } else {
                     // Direct MP4 / WebM video link
                     if (cctvIframe) cctvIframe.classList.add('hidden');
@@ -582,6 +637,11 @@
                 },
                 body: JSON.stringify({ action: 'start_stream' })
             });
+
+            if (parsed && parsed.type === 'hls' && typeof window._adminJpegProbe === 'function') {
+                setTimeout(window._adminJpegProbe, 600);
+                setTimeout(window._adminJpegProbe, 1600);
+            }
 
             // Start broadcasting frames to user panel if video element is active
             const activeVideoEl = parsed ? (parsed.type !== 'youtube' ? cctvVideo : null) : webcamVideo;
@@ -633,6 +693,11 @@
             frameBroadcastInterval = null;
         }
 
+        if (adminLiveJpegTimer) {
+            clearInterval(adminLiveJpegTimer);
+            adminLiveJpegTimer = null;
+        }
+
         if (adminHls) {
             adminHls.destroy();
             adminHls = null;
@@ -648,6 +713,11 @@
             cctvVideo.removeAttribute('src');
             cctvVideo.load();
             cctvVideo.classList.add('hidden');
+        }
+        const cctvJpg = document.getElementById('admin-cctv-live-jpg');
+        if (cctvJpg) {
+            cctvJpg.removeAttribute('src');
+            cctvJpg.classList.add('hidden');
         }
         if (cctvIframe) {
             cctvIframe.src = 'about:blank';

@@ -57,6 +57,10 @@ Route::match(['get', 'post'], '/admin/logout', [AdminAuthController::class, 'log
 
 // Notifications Routes (Player and Admin shared)
 Route::middleware('auth')->group(function () {
+    Route::get('/game/{roomId}/live.jpg', [GameController::class, 'liveJpeg'])->name('game.live.jpeg');
+    Route::get('/game/{roomId}/live.m3u8', [GameController::class, 'livePlaylist'])->name('game.live.playlist');
+    Route::get('/game/{roomId}/live-seg', [GameController::class, 'liveSegment'])->name('game.live.segment');
+
     Route::get('/notifications/recent', [NotificationController::class, 'getRecent'])->name('notifications.recent');
     Route::post('/notifications/mark-all-read', [NotificationController::class, 'markAllRead'])->name('notifications.markAllRead');
     Route::post('/notifications/{id}/read', [NotificationController::class, 'markRead'])->name('notifications.read');

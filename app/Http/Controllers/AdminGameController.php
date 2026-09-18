@@ -111,6 +111,10 @@ class AdminGameController extends Controller
 
         if ($action === 'start_stream') {
             $room->update(['is_streaming' => true]);
+            try {
+                app(\App\Services\LowLatencyStreamService::class)->start($room);
+            } catch (\Throwable $e) {
+            }
             if ($request->wantsJson()) {
                 return response()->json(['success' => true, 'is_streaming' => true, 'message' => 'Live stream broadcast started.']);
             }
@@ -119,6 +123,10 @@ class AdminGameController extends Controller
 
         if ($action === 'end_stream') {
             $room->update(['is_streaming' => false]);
+            try {
+                app(\App\Services\LowLatencyStreamService::class)->stop($room);
+            } catch (\Throwable $e) {
+            }
             if ($request->wantsJson()) {
                 return response()->json(['success' => true, 'is_streaming' => false, 'message' => 'Live stream broadcast ended.']);
             }
