@@ -1011,6 +1011,21 @@
             if (cctvVideo) cctvVideo.play().catch(() => {});
         });
 
+        window.addEventListener('pageshow', () => {
+            if (streamEndedByAdmin || !window._isStreamActive) return;
+            const url = @json($room->live_stream_url ?? '');
+            if (playerHls) {
+                try { playerHls.destroy(); } catch (e) {}
+                playerHls = null;
+            }
+            if (playerRtc) {
+                try { playerRtc.close(); } catch (e) {}
+                playerRtc = null;
+            }
+            cctvMode = null;
+            syncLiveStreamView(true, url);
+        });
+
         (function runPenLoop() {
             pollPenPosition().finally(() => setTimeout(runPenLoop, 20));
         })();

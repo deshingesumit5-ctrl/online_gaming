@@ -136,8 +136,8 @@
                 <video id="admin-live-camera" class="w-full h-full object-cover hidden" autoplay muted playsinline></video>
 
                 <!-- External / CCTV Live Stream Player Container -->
-                <div id="admin-cctv-stream-container" class="w-full h-full absolute inset-0 hidden bg-black">
-                    <video id="admin-cctv-video" class="w-full h-full object-cover hidden" autoplay muted playsinline></video>
+                <div id="admin-cctv-stream-container" class="w-full h-full absolute inset-0 bg-black {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}">
+                    <video id="admin-cctv-video" class="w-full h-full object-cover {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}" autoplay muted playsinline></video>
                     <img id="admin-cctv-live-jpg" class="w-full h-full object-cover hidden" alt="Live CCTV">
                     <iframe id="admin-cctv-iframe" class="w-full h-full border-0 hidden" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                 </div>
@@ -448,6 +448,9 @@
     let adminMediaStream = null;
     let frameBroadcastInterval = null;
     let adminHls = null;
+    let adminWantsLive = {{ $room->is_streaming ? 'true' : 'false' }};
+    let adminHlsWatchdog = null;
+    let adminStreamStarting = false;
     const currentRoomId = {{ $room->id }};
     const configuredStreamUrl = @json($room->live_stream_url ?? '');
     const streamChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('fun2win_room_' + currentRoomId) : null;
@@ -563,18 +566,103 @@
     const liveJpegUrl = @json(route('game.live.jpeg', $room->id));
     const livePlaylistUrl = @json(route('game.live.playlist', $room->id));
 
-    function createLowLatencyHls() {
+    function createLowLatencyHls(lowLatencyMode) {
         return new Hls({
             enableWorker: true,
-            lowLatencyMode: true,
-            backBufferLength: 30,
-            maxBufferLength: 30,
-            maxMaxBufferLength: 60,
-            liveSyncDurationCount: 1,
-            liveMaxLatencyDurationCount: 4,
+            lowLatencyMode: lowLatencyMode !== false,
+            backBufferLength: 0,
+            maxBufferLength: 8,
+            maxMaxBufferLength: 16,
+            liveSyncDurationCount: 3,
+            liveMaxLatencyDurationCount: 10,
             liveDurationInfinity: true,
             startFragPrefetch: true
         });
+    }
+
+    function stopAdminHls() {
+        const cctvVideo = document.getElementById('admin-cctv-video');
+        if (cctvVideo && cctvVideo._liveEdgeIv) {
+            clearInterval(cctvVideo._liveEdgeIv);
+            cctvVideo._liveEdgeIv = null;
+        }
+        if (adminHls) {
+            try { adminHls.destroy(); } catch (e) {}
+            adminHls = null;
+        }
+    }
+
+    function attachAdminHls(video, playUrl, allowLowLatency) {
+        if (!video || !playUrl || !adminWantsLive) return;
+        stopAdminHls();
+        video.classList.remove('hidden');
+        video.muted = true;
+        video.autoplay = true;
+        video.playsInline = true;
+        if (!Hls.isSupported()) {
+            if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                playNativeHlsAtLiveEdge(video, playUrl);
+            }
+            return;
+        }
+        const useLl = allowLowLatency !== false;
+        adminHls = createLowLatencyHls(useLl);
+        adminHls.loadSource(playUrl);
+        adminHls.attachMedia(video);
+        keepHlsAtLiveEdge(adminHls, video);
+        adminHls.on(Hls.Events.MANIFEST_PARSED, () => {
+            video.play().catch(() => {});
+        });
+        adminHls.on(Hls.Events.ERROR, function(_, data) {
+            if (!adminWantsLive || !data) return;
+            if (!data.fatal) {
+                video.play().catch(() => {});
+                return;
+            }
+            if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                if (useLl) {
+                    attachAdminHls(video, playUrl, false);
+                    return;
+                }
+                if (adminHls) adminHls.startLoad();
+                video.play().catch(() => {});
+                return;
+            }
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR && adminHls) {
+                adminHls.recoverMediaError();
+                video.play().catch(() => {});
+                return;
+            }
+            setTimeout(() => {
+                if (adminWantsLive) attachAdminHls(video, playUrl, false);
+            }, 800);
+        });
+        video.onclick = function() {
+            video.play().catch(() => {});
+        };
+    }
+
+    function startAdminHlsWatchdog(video, playUrl) {
+        if (adminHlsWatchdog) clearInterval(adminHlsWatchdog);
+        let stuck = 0;
+        let lastTime = 0;
+        adminHlsWatchdog = setInterval(() => {
+            if (!adminWantsLive) return;
+            if (!video) return;
+            video.play().catch(() => {});
+            const t = video.currentTime || 0;
+            const playing = video.readyState >= 2 && !video.paused && Math.abs(t - lastTime) > 0.01;
+            lastTime = t;
+            if (playing) {
+                stuck = 0;
+                return;
+            }
+            stuck += 1;
+            if (stuck >= 2) {
+                stuck = 0;
+                attachAdminHls(video, playUrl, false);
+            }
+        }, 2000);
     }
 
     function keepHlsAtLiveEdge(hls, video) {
@@ -638,6 +726,9 @@
     }
 
     async function startLiveCameraStream() {
+        if (adminStreamStarting) return;
+        adminStreamStarting = true;
+        adminWantsLive = true;
         try {
             const whiteScreen = document.getElementById('admin-stream-white-screen');
             const badge = document.getElementById('admin-stream-status-badge');
@@ -662,45 +753,19 @@
                 } else if (parsed.type === 'hls') {
                     if (cctvIframe) cctvIframe.classList.add('hidden');
                     const cctvJpg = document.getElementById('admin-cctv-live-jpg');
-                    const playHls = () => {
-                        if (cctvJpg) cctvJpg.classList.add('hidden');
-                        if (cctvVideo) {
-                            cctvVideo.classList.remove('hidden');
-                            const playUrl = parsed.streamUrl;
-                            if (Hls.isSupported()) {
-                                if (adminHls) adminHls.destroy();
-                                adminHls = createLowLatencyHls();
-                                adminHls.loadSource(playUrl);
-                                adminHls.attachMedia(cctvVideo);
-                                keepHlsAtLiveEdge(adminHls, cctvVideo);
-                                adminHls.on(Hls.Events.MANIFEST_PARSED, () => {
-                                    cctvVideo.play().catch(() => {});
-                                });
-                                adminHls.on(Hls.Events.ERROR, function(_, data) {
-                                    if (!data || !data.fatal || !adminHls) return;
-                                    if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                                        adminHls.startLoad();
-                                    } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-                                        adminHls.recoverMediaError();
-                                    }
-                                });
-                                cctvVideo.onclick = function() {
-                                    cctvVideo.play().catch(() => {});
-                                };
-                            } else if (cctvVideo.canPlayType('application/vnd.apple.mpegurl')) {
-                                playNativeHlsAtLiveEdge(cctvVideo, playUrl);
-                            }
-                        }
-                    };
-
-                    playHls();
+                    if (cctvJpg) cctvJpg.classList.add('hidden');
+                    if (cctvVideo) {
+                        cctvVideo.classList.remove('hidden');
+                        attachAdminHls(cctvVideo, parsed.streamUrl, true);
+                        startAdminHlsWatchdog(cctvVideo, parsed.streamUrl);
+                    }
                     window._adminJpegProbe = function() {};
                 } else {
                     // Direct MP4 / WebM video link
                     if (cctvIframe) cctvIframe.classList.add('hidden');
                     if (cctvVideo) {
                         cctvVideo.classList.remove('hidden');
-                        cctvVideo.src = parsed.streamUrl;
+                        if (cctvVideo.src !== parsed.streamUrl) cctvVideo.src = parsed.streamUrl;
                         cctvVideo.play().catch(() => {});
                     }
                 }
@@ -755,7 +820,11 @@
 
             if (activeVideoEl) {
                 frameBroadcastInterval = setInterval(() => {
-                    if (!activeVideoEl || activeVideoEl.paused || activeVideoEl.ended || !canvasCtx) return;
+                    if (!activeVideoEl || !canvasCtx) return;
+                    if (activeVideoEl.paused || activeVideoEl.ended) {
+                        activeVideoEl.play().catch(() => {});
+                        return;
+                    }
                     try {
                         canvasCtx.drawImage(activeVideoEl, 0, 0, canvasForFrames.width, canvasForFrames.height);
                         const frameData = canvasForFrames.toDataURL('image/jpeg', 0.55);
@@ -783,7 +852,11 @@
             bindAdminPenTracking();
         } catch (err) {
             console.error('Camera/Stream start error:', err);
-            alert('Could not start stream: ' + (err.message || 'Please check stream link or camera permission.'));
+            if (!{{ $room->is_streaming ? 'true' : 'false' }}) {
+                alert('Could not start stream: ' + (err.message || 'Please check stream link or camera permission.'));
+            }
+        } finally {
+            adminStreamStarting = false;
         }
     }
 
@@ -795,6 +868,13 @@
         const cctvIframe = document.getElementById('admin-cctv-iframe');
         const webcamVideo = document.getElementById('admin-live-camera');
 
+        adminWantsLive = false;
+        adminStreamStarting = false;
+        if (adminHlsWatchdog) {
+            clearInterval(adminHlsWatchdog);
+            adminHlsWatchdog = null;
+        }
+
         if (frameBroadcastInterval) {
             clearInterval(frameBroadcastInterval);
             frameBroadcastInterval = null;
@@ -805,10 +885,7 @@
             adminLiveJpegTimer = null;
         }
 
-        if (adminHls) {
-            adminHls.destroy();
-            adminHls = null;
-        }
+        stopAdminHls();
 
         if (adminMediaStream) {
             adminMediaStream.getTracks().forEach(track => track.stop());
@@ -965,12 +1042,25 @@
         if (e.target === this) closeResultBannerModal();
     });
 
-    // If room is already streaming on page load, auto-initialize camera
-    @if($room->is_streaming)
-        document.addEventListener('DOMContentLoaded', () => {
-            startLiveCameraStream();
-        });
-    @endif
+    function resumeAdminLiveStream() {
+        if (!adminWantsLive) return;
+        const video = document.getElementById('admin-cctv-video');
+        if (video && adminHls && video.readyState >= 2 && !video.paused) {
+            video.play().catch(() => {});
+            return;
+        }
+        startLiveCameraStream();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', resumeAdminLiveStream);
+    } else {
+        resumeAdminLiveStream();
+    }
+    window.addEventListener('pageshow', resumeAdminLiveStream);
+    document.addEventListener('visibilitychange', function () {
+        if (!document.hidden) resumeAdminLiveStream();
+    });
 
     document.addEventListener('keydown', function (e) {
         const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
