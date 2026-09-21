@@ -24,6 +24,34 @@
     #admin-stream-preview.is-pen-live {
         cursor: crosshair;
     }
+    #admin-live-card-overlay {
+        position: absolute;
+        left: 48%;
+        top: 58%;
+        width: 48px;
+        height: 70px;
+        margin: 0;
+        transform: translate(-50%, -50%);
+        border-radius: 6px;
+        background: #fff;
+        border: 1px solid #111;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.45);
+        z-index: 32;
+        display: none;
+        pointer-events: auto;
+        cursor: grab;
+        padding: 4px 6px;
+        flex-direction: column;
+        justify-content: space-between;
+        font-weight: 900;
+        line-height: 1;
+        font-size: 14px;
+        user-select: none;
+    }
+    #admin-live-card-overlay.is-visible { display: flex; }
+    #admin-live-card-overlay.is-red { color: #dc2626; }
+    #admin-live-card-overlay.is-black { color: #111; }
+    #admin-live-card-overlay .suit { text-align: center; font-size: 18px; }
 </style>
 @endpush
 
@@ -101,6 +129,7 @@
                     @endforeach
                 </div>
 
+                <p class="text-[10px] text-slate-500">Or keep this page focused and tap 2–9 / 0 — the card appears on the live camera table, not in a corner box.</p>
                 <button type="submit" class="btn-gold w-full py-2.5 text-xs font-bold uppercase tracking-wider">
                     Set Dealer First Card & Start Round
                 </button>
@@ -160,6 +189,10 @@
                     </span>
                 </div>
                 <div id="admin-pen-marker" class="hidden"></div>
+                <div id="admin-live-card-overlay">
+                    <div class="rank" id="admin-live-card-rank"></div>
+                    <div class="suit" id="admin-live-card-suit"></div>
+                </div>
             </div>
 
             <!-- Below Start and End button -->
@@ -171,6 +204,7 @@
                     <span>⏹ END</span>
                 </button>
             </div>
+            <p class="text-[10px] text-slate-500 mt-2">Press 2–9 or 0 on this page to put that card on the live table video. Drag it over the real card so it covers it for all players.</p>
         </div>
 
         <!-- STEP 3: Betting Window Control -->
@@ -1036,6 +1070,97 @@
         if (video) video.play().catch(() => {});
     });
 
+    let adminOverlayCard = @json($currentRound->first_card);
+    let adminOverlayX = 0.48;
+    let adminOverlayY = 0.58;
+
+    function paintAdminOverlayCard(code, x, y) {
+        const overlay = document.getElementById('admin-live-card-overlay');
+        const rankEl = document.getElementById('admin-live-card-rank');
+        const suitEl = document.getElementById('admin-live-card-suit');
+        if (!overlay || !code) return;
+        adminOverlayCard = code;
+        if (x != null) adminOverlayX = Number(x);
+        if (y != null) adminOverlayY = Number(y);
+        const parts = String(code).split('_');
+        const raw = (parts[0] || '').toUpperCase();
+        const suit = (parts[1] || 'spades').toLowerCase();
+        const shortVal = raw === 'JACK' ? 'J' : (raw === 'QUEEN' ? 'Q' : (raw === 'KING' ? 'K' : (raw === 'ACE' ? 'A' : raw)));
+        const symbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+        const isRed = (suit === 'hearts' || suit === 'diamonds');
+        if (rankEl) rankEl.textContent = shortVal;
+        if (suitEl) suitEl.textContent = symbols[suit] || '♠';
+        overlay.classList.add('is-visible');
+        overlay.classList.toggle('is-red', isRed);
+        overlay.classList.toggle('is-black', !isRed);
+        overlay.style.left = (adminOverlayX * 100) + '%';
+        overlay.style.top = (adminOverlayY * 100) + '%';
+    }
+
+    function publishOverlayCard() {
+        if (!adminOverlayCard) return;
+        if (streamChannel) {
+            streamChannel.postMessage({
+                type: 'overlay_card',
+                first_card: adminOverlayCard,
+                card_x: adminOverlayX,
+                card_y: adminOverlayY,
+                t: Date.now()
+            });
+        }
+        const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+        const token = tokenMeta ? tokenMeta.content : '';
+        fetch("{{ route('admin.game.action', $room->id) }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': token
+            },
+            body: JSON.stringify({
+                action: 'update_first_card',
+                first_card: adminOverlayCard,
+                x: adminOverlayX,
+                y: adminOverlayY
+            })
+        }).then(r => r.json()).then(data => {
+            if (data && data.success) {
+                const label = document.getElementById('admin-first-card-set-label');
+                if (label) label.textContent = 'Card Set: ' + adminOverlayCard.replace('_', ' ').toUpperCase();
+            }
+        }).catch(() => {});
+    }
+
+    (function bindAdminCardDrag() {
+        const overlay = document.getElementById('admin-live-card-overlay');
+        if (!overlay || !adminPreview) return;
+        let dragging = false;
+        overlay.addEventListener('pointerdown', function (e) {
+            dragging = true;
+            overlay.setPointerCapture(e.pointerId);
+            overlay.style.cursor = 'grabbing';
+            e.preventDefault();
+            e.stopPropagation();
+        });
+        overlay.addEventListener('pointermove', function (e) {
+            if (!dragging) return;
+            e.preventDefault();
+            e.stopPropagation();
+            const rect = adminPreview.getBoundingClientRect();
+            adminOverlayX = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+            adminOverlayY = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+            overlay.style.left = (adminOverlayX * 100) + '%';
+            overlay.style.top = (adminOverlayY * 100) + '%';
+        });
+        overlay.addEventListener('pointerup', function (e) {
+            if (!dragging) return;
+            dragging = false;
+            overlay.style.cursor = 'grab';
+            e.stopPropagation();
+            publishOverlayCard();
+        });
+    })();
+
     document.addEventListener('keydown', function (e) {
         const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
         if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) {
@@ -1057,22 +1182,12 @@
         const radio = document.querySelector('input[name="first_card"][value="' + newCode + '"]');
         if (radio) radio.checked = true;
 
-        const tokenMeta = document.querySelector('meta[name="csrf-token"]');
-        const token = tokenMeta ? tokenMeta.content : '';
-        fetch("{{ route('admin.game.action', $room->id) }}", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json',
-                'X-CSRF-TOKEN': token
-            },
-            body: JSON.stringify({ action: 'update_first_card', first_card: newCode })
-        }).then(r => r.json()).then(data => {
-            if (data && data.success) {
-                const label = document.getElementById('admin-first-card-set-label');
-                if (label) label.textContent = 'Card Set: ' + newCode.replace('_', ' ').toUpperCase();
-            }
-        }).catch(() => {});
+        paintAdminOverlayCard(newCode);
+        publishOverlayCard();
     });
+
+    if (adminOverlayCard) {
+        paintAdminOverlayCard(adminOverlayCard);
+    }
 </script>
 @endsection

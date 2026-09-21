@@ -98,6 +98,33 @@
         display: none;
     }
 
+    .live-card-overlay {
+        position: absolute;
+        left: 48%;
+        top: 58%;
+        width: 78px;
+        height: 112px;
+        margin: 0;
+        transform: translate(-50%, -50%);
+        border-radius: 8px;
+        background: #fff;
+        border: 2px solid #111;
+        box-shadow: 0 8px 24px rgba(0,0,0,0.55);
+        z-index: 24;
+        display: none;
+        pointer-events: none;
+        padding: 6px 8px;
+        flex-direction: column;
+        justify-content: space-between;
+        font-weight: 900;
+        line-height: 1;
+    }
+    .live-card-overlay.is-visible { display: flex; }
+    .live-card-overlay .rank { font-size: 28px; }
+    .live-card-overlay .suit { font-size: 36px; text-align: center; }
+    .live-card-overlay.is-red { color: #dc2626; }
+    .live-card-overlay.is-black { color: #111; }
+
 
     @media (orientation: landscape) and (max-height: 550px) {
         .landscape-compact-bar {
@@ -183,6 +210,11 @@
                         allowfullscreen></iframe>
             </div>
             <div id="player-pen-marker" aria-hidden="true"></div>
+            <div id="player-live-card-overlay" class="live-card-overlay" aria-hidden="true">
+                <div class="rank" id="player-live-card-rank"></div>
+                <div class="suit" id="player-live-card-suit"></div>
+                <div class="rank" style="transform:rotate(180deg)" id="player-live-card-rank-b"></div>
+            </div>
 
             <!-- Live Streaming Indicator Badge -->
             <div class="absolute top-3 left-3 z-10 flex items-center gap-2 bg-black/60 backdrop-blur-sm border border-red-500/40 px-2.5 py-1 rounded-full">
@@ -591,6 +623,8 @@
                     syncLiveStreamView(false);
                 } else if (msg.type === 'pen-position') {
                     applyPenPosition(msg);
+                } else if (msg.type === 'overlay_card') {
+                    applyLiveCardOverlay(msg.first_card, msg.card_x, msg.card_y);
                 }
             };
         }
@@ -621,11 +655,47 @@
         let lastPenT = 0;
         let penPollBusy = false;
 
+        function applyLiveCardOverlay(cardCode, x, y) {
+            const overlay = document.getElementById('player-live-card-overlay');
+            const rankEl = document.getElementById('player-live-card-rank');
+            const rankB = document.getElementById('player-live-card-rank-b');
+            const suitEl = document.getElementById('player-live-card-suit');
+            const hudRank = document.getElementById('hud-first-card-rank');
+            if (!overlay) return;
+            if (!cardCode) {
+                overlay.classList.remove('is-visible');
+                return;
+            }
+            const parts = String(cardCode).split('_');
+            const raw = (parts[0] || '').toUpperCase();
+            const suit = (parts[1] || 'spades').toLowerCase();
+            const shortVal = raw === 'JACK' ? 'J' : (raw === 'QUEEN' ? 'Q' : (raw === 'KING' ? 'K' : (raw === 'ACE' ? 'A' : raw)));
+            const symbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
+            const isRed = (suit === 'hearts' || suit === 'diamonds');
+            if (rankEl) rankEl.textContent = shortVal;
+            if (rankB) rankB.textContent = shortVal;
+            if (suitEl) suitEl.textContent = symbols[suit] || '♠';
+            overlay.classList.add('is-visible');
+            overlay.classList.toggle('is-red', isRed);
+            overlay.classList.toggle('is-black', !isRed);
+            if (x != null && x !== '' && y != null && y !== '') {
+                const px = Number(x);
+                const py = Number(y);
+                if (isFinite(px) && isFinite(py)) {
+                    overlay.style.left = (px * 100) + '%';
+                    overlay.style.top = (py * 100) + '%';
+                }
+            }
+            if (hudRank) hudRank.textContent = shortVal;
+        }
+        window.applyLiveCardOverlay = applyLiveCardOverlay;
+
         function applyPenPosition(pos) {
             if (!playerPenMarker || !pos) return;
             const t = Number(pos.t || 0);
             if (t && t < lastPenT) return;
             if (t) lastPenT = t;
+            if (pos.first_card) applyLiveCardOverlay(pos.first_card, pos.card_x, pos.card_y);
             if (!pos.visible || pos.x == null || pos.y == null) {
                 playerPenMarker.style.display = 'none';
                 return;
@@ -652,46 +722,19 @@
         function createLowLatencyHls() {
             return new Hls({
                 enableWorker: true,
-                lowLatencyMode: true,
-                backBufferLength: 0,
-                maxBufferLength: 1,
-                maxMaxBufferLength: 2,
-                liveSyncDurationCount: 1,
-                liveMaxLatencyDurationCount: 2,
+                lowLatencyMode: false,
+                backBufferLength: 30,
+                maxBufferLength: 20,
+                maxMaxBufferLength: 40,
+                liveSyncDurationCount: 3,
+                liveMaxLatencyDurationCount: 10,
                 liveDurationInfinity: true,
-                startFragPrefetch: true,
-                maxLiveSyncPlaybackRate: 2
+                startFragPrefetch: true
             });
         }
 
         function keepHlsAtLiveEdge(hls, video) {
-            let isLive = false;
-            hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
-                if (data && data.details) isLive = !!data.details.live;
-            });
-            const snapToLive = () => {
-                if (!isLive) return;
-                try {
-                    if (video.seekable && video.seekable.length > 0) {
-                        const live = video.seekable.end(video.seekable.length - 1);
-                        const gap = live - video.currentTime;
-                        if (gap > 0.8) {
-                            video.currentTime = Math.max(0, live - 0.15);
-                            video.playbackRate = 1;
-                        } else if (gap > 0.25) {
-                            video.playbackRate = 1.5;
-                        } else {
-                            video.playbackRate = 1;
-                        }
-                    }
-                } catch (e) {}
-            };
-            hls.on(Hls.Events.MANIFEST_PARSED, snapToLive);
-            hls.on(Hls.Events.LEVEL_UPDATED, snapToLive);
-            hls.on(Hls.Events.FRAG_LOADED, snapToLive);
-            if (!video._liveEdgeIv) {
-                video._liveEdgeIv = setInterval(snapToLive, 250);
-            }
+            return;
         }
 
         function playNativeHlsAtLiveEdge(video, streamUrl) {
@@ -812,29 +855,8 @@
         }
 
         function startCctvLowLatency(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg) {
-            if (cctvMode) return;
-            cctvMode = 'starting';
-            const whepUrl = whepUrlFromHls(streamUrl);
-            if (whepUrl && window.RTCPeerConnection) {
-                startWhepPlayback(cctvVideo, whepUrl).then((pc) => {
-                    if (streamEndedByAdmin) {
-                        pc.close();
-                        return;
-                    }
-                    playerRtc = pc;
-                    cctvMode = 'webrtc';
-                    if (ytIframe) ytIframe.classList.add('hidden');
-                    if (fallbackImg) fallbackImg.classList.add('hidden');
-                    if (externalWrap) externalWrap.classList.remove('hidden');
-                    if (cctvVideo) {
-                        cctvVideo.classList.remove('hidden');
-                        keepVideoRunning(cctvVideo);
-                    }
-                }).catch(() => {
-                    if (streamEndedByAdmin) return;
-                    cctvMode = 'hls';
-                    startHlsPlayback(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
-                });
+            if (cctvMode === 'hls' && playerHls) {
+                if (cctvVideo) cctvVideo.play().catch(() => {});
                 return;
             }
             cctvMode = 'hls';
@@ -843,43 +865,51 @@
 
         function startHlsPlayback(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg) {
             if (ytIframe) ytIframe.classList.add('hidden');
-            if (fallbackImg) fallbackImg.classList.add('hidden');
             if (externalWrap) externalWrap.classList.remove('hidden');
             if (!cctvVideo) return;
+            cctvVideo.muted = true;
+            cctvVideo.setAttribute('muted', '');
+            cctvVideo.autoplay = true;
+            cctvVideo.playsInline = true;
             cctvVideo.classList.remove('hidden');
             keepVideoRunning(cctvVideo);
             const playUrl = streamUrl;
+
+            const showVideoWhenReady = () => {
+                if (cctvVideo.videoWidth > 0) {
+                    if (fallbackImg) fallbackImg.classList.add('hidden');
+                }
+            };
+            cctvVideo.addEventListener('playing', showVideoWhenReady);
+            cctvVideo.addEventListener('loadeddata', showVideoWhenReady);
+
             if (Hls.isSupported()) {
                 if (!playerHls) {
                     playerHls = createLowLatencyHls();
                     playerHls.loadSource(playUrl);
                     playerHls.attachMedia(cctvVideo);
-                    keepHlsAtLiveEdge(playerHls, cctvVideo);
                     playerHls.on(Hls.Events.MANIFEST_PARSED, () => {
                         cctvVideo.play().catch(() => {});
                     });
                     playerHls.on(Hls.Events.ERROR, function(_, data) {
                         if (streamEndedByAdmin || !data || !playerHls) return;
-                        if (!data.fatal) return;
+                        if (!data.fatal) {
+                            cctvVideo.play().catch(() => {});
+                            return;
+                        }
                         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
                             playerHls.startLoad();
                             cctvVideo.play().catch(() => {});
                         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
                             playerHls.recoverMediaError();
                             cctvVideo.play().catch(() => {});
-                        } else {
-                            const src = playUrl;
-                            playerHls.destroy();
-                            playerHls = createLowLatencyHls();
-                            playerHls.loadSource(src);
-                            playerHls.attachMedia(cctvVideo);
-                            keepHlsAtLiveEdge(playerHls, cctvVideo);
-                            cctvVideo.play().catch(() => {});
                         }
                     });
                     cctvVideo.onclick = function() {
                         cctvVideo.play().catch(() => {});
                     };
+                } else {
+                    cctvVideo.play().catch(() => {});
                 }
             } else if (cctvVideo.canPlayType('application/vnd.apple.mpegurl')) {
                 playNativeHlsAtLiveEdge(cctvVideo, playUrl);
@@ -908,10 +938,10 @@
                         if (fallbackImg) fallbackImg.classList.remove('hidden');
                     } else {
                     if (externalWrap) externalWrap.classList.remove('hidden');
-                    if (fallbackImg) fallbackImg.classList.add('hidden');
 
                     const ytMatch = /(?:youtube\.com\/(?:watch\?v=|embed\/|live\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/i.exec(streamUrl);
                     if (ytMatch) {
+                        if (fallbackImg) fallbackImg.classList.add('hidden');
                         const ytSrc = 'https://www.youtube.com/embed/' + ytMatch[1] + '?autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0';
                         if (ytIframe) {
                             if (ytIframe.src !== ytSrc) ytIframe.src = ytSrc;
@@ -922,6 +952,7 @@
                         startCctvLowLatency(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
                     } else {
                         // Direct video file/feed (MP4 / WebM)
+                        if (fallbackImg) fallbackImg.classList.add('hidden');
                         if (ytIframe) ytIframe.classList.add('hidden');
                         if (cctvVideo) {
                             cctvVideo.classList.remove('hidden');
@@ -940,6 +971,8 @@
                 streamEndedByAdmin = true;
                 window._isStreamActive = false;
                 if (playerPenMarker) playerPenMarker.style.display = 'none';
+                const cardOverlay = document.getElementById('player-live-card-overlay');
+                if (cardOverlay) cardOverlay.classList.remove('is-visible');
                 if (streamBox) streamBox.classList.add('hidden');
                 if (whiteScreen) whiteScreen.classList.remove('hidden');
                 if (externalWrap) externalWrap.classList.add('hidden');
@@ -1011,19 +1044,21 @@
             if (cctvVideo) cctvVideo.play().catch(() => {});
         });
 
-        window.addEventListener('pageshow', () => {
+        window.addEventListener('pageshow', (e) => {
             if (streamEndedByAdmin || !window._isStreamActive) return;
-            const url = @json($room->live_stream_url ?? '');
-            if (playerHls) {
-                try { playerHls.destroy(); } catch (e) {}
-                playerHls = null;
+            const cctvVideo = document.getElementById('live-cctv-stream');
+            if (cctvVideo && playerHls) {
+                cctvVideo.play().catch(() => {});
+                return;
             }
-            if (playerRtc) {
-                try { playerRtc.close(); } catch (e) {}
-                playerRtc = null;
+            if (e.persisted) {
+                cctvMode = null;
+                if (playerHls) {
+                    try { playerHls.destroy(); } catch (err) {}
+                    playerHls = null;
+                }
+                syncLiveStreamView(true, @json($room->live_stream_url ?? ''));
             }
-            cctvMode = null;
-            syncLiveStreamView(true, url);
         });
 
         (function runPenLoop() {
@@ -1032,6 +1067,9 @@
 
         @if($room->is_streaming)
             syncLiveStreamView(true, @json($room->live_stream_url ?? ''));
+        @endif
+        @if($currentRound->first_card)
+            applyLiveCardOverlay(@json($currentRound->first_card));
         @endif
     });
 </script>

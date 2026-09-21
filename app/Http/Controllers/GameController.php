@@ -269,13 +269,16 @@ class GameController extends Controller
     {
         $after = (int) $request->query('after', 0);
         $payload = \Illuminate\Support\Facades\Cache::get("room_pen_position_{$roomId}");
+        $overlay = \Illuminate\Support\Facades\Cache::get("room_card_overlay_{$roomId}");
 
         if ($after > 0) {
             $waited = 0;
             while ($waited < 800) {
                 $payload = \Illuminate\Support\Facades\Cache::get("room_pen_position_{$roomId}");
+                $overlay = \Illuminate\Support\Facades\Cache::get("room_card_overlay_{$roomId}");
                 $t = is_array($payload) ? (int) ($payload['t'] ?? 0) : 0;
-                if ($t > $after) {
+                $ot = is_array($overlay) ? (int) ($overlay['t'] ?? 0) : 0;
+                if ($t > $after || $ot > $after) {
                     break;
                 }
                 usleep(25000);
@@ -287,7 +290,13 @@ class GameController extends Controller
             'x' => is_array($payload) ? ($payload['x'] ?? null) : null,
             'y' => is_array($payload) ? ($payload['y'] ?? null) : null,
             'visible' => is_array($payload) ? (bool) ($payload['visible'] ?? false) : false,
-            't' => is_array($payload) ? (int) ($payload['t'] ?? 0) : 0,
+            't' => max(
+                is_array($payload) ? (int) ($payload['t'] ?? 0) : 0,
+                is_array($overlay) ? (int) ($overlay['t'] ?? 0) : 0
+            ),
+            'first_card' => is_array($overlay) ? ($overlay['first_card'] ?? null) : null,
+            'card_x' => is_array($overlay) ? ($overlay['x'] ?? 0.48) : null,
+            'card_y' => is_array($overlay) ? ($overlay['y'] ?? 0.58) : null,
         ]);
     }
 

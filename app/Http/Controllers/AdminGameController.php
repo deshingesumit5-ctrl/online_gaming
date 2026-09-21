@@ -104,6 +104,8 @@ class AdminGameController extends Controller
             'live_stream_url' => ['nullable', 'string', 'max:500'],
             'betting_duration' => ['nullable', 'integer', 'min:5', 'max:300'],
             'cancellation_duration' => ['nullable', 'integer', 'min:0', 'max:300'],
+            'x' => ['nullable', 'numeric', 'min:0', 'max:1'],
+            'y' => ['nullable', 'numeric', 'min:0', 'max:1'],
         ]);
 
         $room = Room::findOrFail($roomId);
@@ -165,6 +167,8 @@ class AdminGameController extends Controller
                 'started_at' => now(),
             ]);
 
+            $this->storeCardOverlay($roomId, $firstCard, $request->input('x'), $request->input('y'));
+
             if ($request->wantsJson()) {
                 return response()->json(['success' => true, 'message' => "Round #{$currentRound->round_number} started with card {$firstCard}."]);
             }
@@ -183,6 +187,8 @@ class AdminGameController extends Controller
             $currentRound->update([
                 'first_card' => $firstCard,
             ]);
+
+            $this->storeCardOverlay($roomId, $firstCard, $request->input('x'), $request->input('y'));
 
             if ($request->wantsJson()) {
                 return response()->json([
@@ -352,6 +358,17 @@ class AdminGameController extends Controller
         }
 
         return back();
+    }
+
+    private function storeCardOverlay(int $roomId, string $firstCard, $x = null, $y = null): void
+    {
+        $prev = \Illuminate\Support\Facades\Cache::get("room_card_overlay_{$roomId}");
+        \Illuminate\Support\Facades\Cache::put("room_card_overlay_{$roomId}", [
+            'first_card' => $firstCard,
+            'x' => $x !== null ? (float) $x : (float) (is_array($prev) ? ($prev['x'] ?? 0.48) : 0.48),
+            'y' => $y !== null ? (float) $y : (float) (is_array($prev) ? ($prev['y'] ?? 0.58) : 0.58),
+            't' => (int) round(microtime(true) * 1000),
+        ], 3600);
     }
 
     private function getCardDeck(): array
