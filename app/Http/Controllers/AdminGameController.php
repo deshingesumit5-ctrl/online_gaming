@@ -167,7 +167,7 @@ class AdminGameController extends Controller
                 'started_at' => now(),
             ]);
 
-            $this->storeCardOverlay($roomId, $firstCard, $request->input('x'), $request->input('y'));
+            \Illuminate\Support\Facades\Cache::forget("room_card_overlay_{$roomId}");
 
             if ($request->wantsJson()) {
                 return response()->json(['success' => true, 'message' => "Round #{$currentRound->round_number} started with card {$firstCard}."]);

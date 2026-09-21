@@ -28,30 +28,31 @@
         position: absolute;
         left: 48%;
         top: 58%;
-        width: 48px;
-        height: 70px;
+        width: 56px;
+        height: 80px;
         margin: 0;
         transform: translate(-50%, -50%);
         border-radius: 6px;
         background: #fff;
-        border: 1px solid #111;
+        border: 2px solid #111;
         box-shadow: 0 4px 12px rgba(0,0,0,0.45);
         z-index: 32;
         display: none;
         pointer-events: auto;
         cursor: grab;
-        padding: 4px 6px;
+        padding: 4px 5px;
         flex-direction: column;
         justify-content: space-between;
         font-weight: 900;
-        line-height: 1;
-        font-size: 14px;
+        line-height: 0.9;
+        font-size: 22px;
+        font-family: Arial, Helvetica, sans-serif;
         user-select: none;
     }
     #admin-live-card-overlay.is-visible { display: flex; }
     #admin-live-card-overlay.is-red { color: #dc2626; }
     #admin-live-card-overlay.is-black { color: #111; }
-    #admin-live-card-overlay .suit { text-align: center; font-size: 18px; }
+    #admin-live-card-overlay .suit { text-align: center; font-size: 26px; }
 </style>
 @endpush
 
@@ -1185,9 +1186,5 @@
         paintAdminOverlayCard(newCode);
         publishOverlayCard();
     });
-
-    if (adminOverlayCard) {
-        paintAdminOverlayCard(adminOverlayCard);
-    }
 </script>
 @endsection

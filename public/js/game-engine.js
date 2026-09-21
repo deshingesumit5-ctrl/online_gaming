@@ -135,10 +135,6 @@ class GameEngine {
             const shortVal = raw === 'JACK' ? 'J' : (raw === 'QUEEN' ? 'Q' : (raw === 'KING' ? 'K' : (raw === 'ACE' ? 'A' : raw)));
             hudRank.textContent = shortVal;
         }
-        if (typeof window.applyLiveCardOverlay === 'function') {
-            window.applyLiveCardOverlay(data.first_card, data.card_x, data.card_y);
-        }
-
         // 4. Timer Handling
         const isBettingOpen = (data.round_status === 'betting_open');
         this.updateBettingControls(isBettingOpen);

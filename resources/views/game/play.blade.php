@@ -102,26 +102,33 @@
         position: absolute;
         left: 48%;
         top: 58%;
-        width: 78px;
-        height: 112px;
+        width: 118px;
+        height: 168px;
         margin: 0;
         transform: translate(-50%, -50%);
-        border-radius: 8px;
+        border-radius: 10px;
         background: #fff;
-        border: 2px solid #111;
+        border: 3px solid #111;
         box-shadow: 0 8px 24px rgba(0,0,0,0.55);
         z-index: 24;
         display: none;
         pointer-events: none;
-        padding: 6px 8px;
+        padding: 8px 10px;
         flex-direction: column;
         justify-content: space-between;
         font-weight: 900;
-        line-height: 1;
+        line-height: 0.9;
+        font-family: Arial, Helvetica, sans-serif;
     }
     .live-card-overlay.is-visible { display: flex; }
-    .live-card-overlay .rank { font-size: 28px; }
-    .live-card-overlay .suit { font-size: 36px; text-align: center; }
+    .live-card-overlay .rank {
+        font-size: 46px;
+        font-weight: 900;
+        letter-spacing: -1px;
+        color: inherit;
+        text-shadow: 0 1px 0 #fff;
+    }
+    .live-card-overlay .suit { font-size: 58px; text-align: center; line-height: 1; }
     .live-card-overlay.is-red { color: #dc2626; }
     .live-card-overlay.is-black { color: #111; }
 
@@ -1067,9 +1074,6 @@
 
         @if($room->is_streaming)
             syncLiveStreamView(true, @json($room->live_stream_url ?? ''));
-        @endif
-        @if($currentRound->first_card)
-            applyLiveCardOverlay(@json($currentRound->first_card));
         @endif
     });
 </script>
