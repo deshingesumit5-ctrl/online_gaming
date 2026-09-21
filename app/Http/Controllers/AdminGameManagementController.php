@@ -188,18 +188,18 @@ class AdminGameManagementController extends Controller
     private function parseDenominations(?string $input): array
     {
         if (empty($input)) {
-            return [100, 500, 1000, 2000, 5000];
+            return [500, 1000, 2000, 5000];
         }
 
         $parts = explode(',', $input);
         $result = [];
         foreach ($parts as $part) {
             $num = (int) trim($part);
-            if ($num > 0) {
+            if ($num > 0 && $num !== 100) {
                 $result[] = $num;
             }
         }
 
-        return !empty($result) ? array_values(array_unique($result)) : [100, 500, 1000, 2000, 5000];
+        return !empty($result) ? array_values(array_unique($result)) : [500, 1000, 2000, 5000];
     }
 }

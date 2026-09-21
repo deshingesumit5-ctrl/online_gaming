@@ -98,7 +98,7 @@ class AdminGameController extends Controller
     public function handleAction(Request $request, int $roomId): JsonResponse|RedirectResponse
     {
         $request->validate([
-            'action' => ['required', 'in:start_round,open_betting,close_betting,declare_result,create_new_round,update_stream,update_room_timings,start_stream,end_stream'],
+            'action' => ['required', 'in:start_round,open_betting,close_betting,declare_result,create_new_round,update_stream,update_room_timings,start_stream,end_stream,update_first_card'],
             'first_card' => ['nullable', 'string'],
             'winning_side' => ['nullable', 'in:andar,bahar'],
             'live_stream_url' => ['nullable', 'string', 'max:500'],
@@ -123,6 +123,7 @@ class AdminGameController extends Controller
 
         if ($action === 'end_stream') {
             $room->update(['is_streaming' => false]);
+            \Illuminate\Support\Facades\Cache::forget("room_pen_position_{$roomId}");
             try {
                 app(\App\Services\LowLatencyStreamService::class)->stop($room);
             } catch (\Throwable $e) {
@@ -168,6 +169,29 @@ class AdminGameController extends Controller
                 return response()->json(['success' => true, 'message' => "Round #{$currentRound->round_number} started with card {$firstCard}."]);
             }
             return back()->with('success', "Round #{$currentRound->round_number} started with card {$firstCard}.");
+        }
+
+        if ($action === 'update_first_card') {
+            $firstCard = $request->first_card;
+            if (!$firstCard) {
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => 'Card value is required.'], 422);
+                }
+                return back()->with('error', 'Card value is required.');
+            }
+
+            $currentRound->update([
+                'first_card' => $firstCard,
+            ]);
+
+            if ($request->wantsJson()) {
+                return response()->json([
+                    'success' => true,
+                    'first_card' => $firstCard,
+                    'message' => 'First card updated to ' . strtoupper(str_replace('_', ' ', $firstCard)) . '.',
+                ]);
+            }
+            return back()->with('success', 'First card updated.');
         }
 
         if ($action === 'open_betting') {
@@ -355,6 +379,24 @@ class AdminGameController extends Controller
         if ($frame) {
             \Illuminate\Support\Facades\Cache::put("room_stream_frame_{$roomId}", $frame, 15);
         }
+        return response()->json(['success' => true]);
+    }
+
+    public function updatePenPosition(Request $request, int $roomId): JsonResponse
+    {
+        $request->validate([
+            'x' => ['required', 'numeric', 'min:0', 'max:1'],
+            'y' => ['required', 'numeric', 'min:0', 'max:1'],
+            'visible' => ['nullable', 'boolean'],
+        ]);
+
+        \Illuminate\Support\Facades\Cache::put("room_pen_position_{$roomId}", [
+            'x' => (float) $request->input('x'),
+            'y' => (float) $request->input('y'),
+            'visible' => $request->boolean('visible', true),
+            't' => (int) round(microtime(true) * 1000),
+        ], 30);
+
         return response()->json(['success' => true]);
     }
 }

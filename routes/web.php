@@ -82,6 +82,7 @@ Route::middleware(['auth', 'approved'])->group(function () {
     Route::get('/game/{roomId}', [GameController::class, 'play'])->name('game.play');
     Route::get('/game/{roomId}/state', [GameController::class, 'getState'])->name('game.state');
     Route::get('/game/{roomId}/stream-frame', [GameController::class, 'getStreamFrame'])->name('game.stream.frame.get');
+    Route::get('/game/{roomId}/pen-position', [GameController::class, 'getPenPosition'])->name('game.pen.position.get');
     Route::post('/game/{roomId}/bet', [GameController::class, 'placeBet'])->name('game.bet');
     Route::post('/game/bet/{betId}/cancel', [GameController::class, 'cancelBet'])->name('game.cancel.bet');
 
@@ -123,6 +124,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::get('/game-control/{roomId}', [AdminGameController::class, 'controlPanel'])->name('game.control');
     Route::post('/game-control/{roomId}/action', [AdminGameController::class, 'handleAction'])->name('game.action');
     Route::post('/game-control/{roomId}/stream-frame', [AdminGameController::class, 'uploadStreamFrame'])->name('game.stream.frame.upload');
+    Route::post('/game-control/{roomId}/pen-position', [AdminGameController::class, 'updatePenPosition'])->name('game.pen.position.update');
 
     // Game & Room Management (Specification Section 33)
     Route::get('/games', [AdminGameManagementController::class, 'index'])->name('games.index');

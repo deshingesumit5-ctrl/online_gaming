@@ -130,7 +130,7 @@
                         <div class="block md:hidden divide-y divide-slate-800/80">
                             @foreach($game->rooms as $room)
                                 @php
-                                    $denoms = $room->allowed_denominations ?: [100, 500, 1000, 2000, 5000];
+                                    $denoms = $room->allowed_denominations ?: [500, 1000, 2000, 5000];
                                 @endphp
                                 <div class="p-4 space-y-3 hover:bg-slate-800/30 transition">
                                     <div class="flex items-center justify-between gap-2">
@@ -251,7 +251,7 @@
                                             <td class="py-3.5 px-4">
                                                 <div class="flex items-center gap-1 flex-wrap">
                                                     @php
-                                                        $denoms = $room->allowed_denominations ?: [100, 500, 1000, 2000, 5000];
+                                                        $denoms = $room->allowed_denominations ?: [500, 1000, 2000, 5000];
                                                     @endphp
                                                     @foreach($denoms as $denom)
                                                         <span class="px-1.5 py-0.5 rounded bg-slate-800 text-amber-400 font-mono text-[10px] font-semibold border border-slate-700">
@@ -427,7 +427,7 @@
             </div>
             <div>
                 <label class="block text-slate-300 font-bold mb-1.5 uppercase">Betting Denominations (Comma Separated)</label>
-                <input type="text" name="allowed_denominations" value="100, 500, 1000, 2000, 5000" placeholder="100, 500, 1000, 2000, 5000" class="form-input-custom">
+                <input type="text" name="allowed_denominations" value="500, 1000, 2000, 5000" placeholder="500, 1000, 2000, 5000" class="form-input-custom">
                 <span class="text-[10px] text-slate-500 mt-1 block">Chips available for players to bet.</span>
             </div>
             <div>

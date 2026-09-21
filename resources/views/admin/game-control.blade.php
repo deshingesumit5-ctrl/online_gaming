@@ -2,6 +2,31 @@
 
 @section('page-title', 'Live Control Room: ' . $room->name)
 
+@push('styles')
+<style>
+    #admin-pen-marker {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 16px;
+        height: 16px;
+        margin-left: -8px;
+        margin-top: -8px;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        background: #fbbf24;
+        border: 2px solid #fff;
+        box-shadow: 0 0 10px rgba(245, 158, 11, 0.9);
+        pointer-events: none;
+        z-index: 30;
+        display: none;
+    }
+    #admin-stream-preview.is-pen-live {
+        cursor: crosshair;
+    }
+</style>
+@endpush
+
 @section('content')
 <div class="space-y-5">
     <!-- Top Status Bar -->
@@ -54,9 +79,11 @@
                     <span class="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">1</span>
                     <span>Assign Open First Card (Joker)</span>
                 </h3>
-                @if($currentRound->first_card)
-                    <span class="text-xs font-bold text-emerald-400">Card Set: {{ strtoupper(str_replace('_', ' ', $currentRound->first_card)) }}</span>
-                @endif
+                <span id="admin-first-card-set-label" class="text-xs font-bold text-emerald-400">
+                    @if($currentRound->first_card)
+                        Card Set: {{ strtoupper(str_replace('_', ' ', $currentRound->first_card)) }}
+                    @endif
+                </span>
             </div>
 
             <form method="POST" action="{{ route('admin.game.action', $room->id) }}" class="space-y-3">
@@ -104,7 +131,7 @@
             </div>
 
             <!-- Live Camera Screen (Matching User Panel: Video when running, White Screen when ended) -->
-            <div class="relative w-full rounded-xl overflow-hidden border border-slate-700/80 bg-white shadow-inner flex items-center justify-center" style="height: 175px;">
+            <div id="admin-stream-preview" class="relative w-full rounded-xl overflow-hidden border border-slate-700/80 bg-white shadow-inner flex items-center justify-center" style="height: 175px;">
                 <!-- Live Camera Video Element (Local Device Webcam) -->
                 <video id="admin-live-camera" class="w-full h-full object-cover hidden" autoplay muted playsinline></video>
 
@@ -132,6 +159,7 @@
                         @endif
                     </span>
                 </div>
+                <div id="admin-pen-marker" class="hidden"></div>
             </div>
 
             <!-- Below Start and End button -->
@@ -425,6 +453,101 @@
     const streamChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('fun2win_room_' + currentRoomId) : null;
     const canvasForFrames = document.getElementById('admin-stream-canvas');
     const canvasCtx = canvasForFrames ? canvasForFrames.getContext('2d') : null;
+    const penUpdateUrl = @json(route('admin.game.pen.position.update', $room->id));
+    const adminPenMarker = document.getElementById('admin-pen-marker');
+    const adminPreview = document.getElementById('admin-stream-preview');
+    let adminPenStreaming = false;
+    let lastPenPost = null;
+
+    function showAdminPen(x, y, visible) {
+        if (!adminPenMarker) return;
+        if (!visible) {
+            adminPenMarker.style.display = 'none';
+            return;
+        }
+        adminPenMarker.style.display = 'block';
+        adminPenMarker.style.left = (x * 100) + '%';
+        adminPenMarker.style.top = (y * 100) + '%';
+    }
+
+    function publishPenPosition(x, y, visible) {
+        const payload = { type: 'pen-position', x: x, y: y, visible: !!visible, t: Date.now() };
+        showAdminPen(x, y, visible);
+        if (streamChannel) {
+            streamChannel.postMessage(payload);
+        }
+        const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+        const token = tokenMeta ? tokenMeta.content : '';
+        const body = JSON.stringify({ x: x, y: y, visible: !!visible });
+        if (lastPenPost) {
+            lastPenPost.body = body;
+            return;
+        }
+        lastPenPost = { body: body };
+        const send = () => {
+            const next = lastPenPost.body;
+            fetch(penUpdateUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': token
+                },
+                body: next
+            }).finally(() => {
+                if (lastPenPost && lastPenPost.body !== next) {
+                    send();
+                } else {
+                    lastPenPost = null;
+                }
+            });
+        };
+        send();
+    }
+
+    function penCoordsFromEvent(e) {
+        if (!adminPreview) return null;
+        const rect = adminPreview.getBoundingClientRect();
+        const src = e.touches && e.touches[0] ? e.touches[0] : e;
+        const x = (src.clientX - rect.left) / rect.width;
+        const y = (src.clientY - rect.top) / rect.height;
+        if (!isFinite(x) || !isFinite(y)) return null;
+        return {
+            x: Math.min(1, Math.max(0, x)),
+            y: Math.min(1, Math.max(0, y))
+        };
+    }
+
+    function onAdminPenMove(e) {
+        if (!adminPenStreaming) return;
+        const pos = penCoordsFromEvent(e);
+        if (!pos) return;
+        e.preventDefault();
+        publishPenPosition(pos.x, pos.y, true);
+    }
+
+    function onAdminPenLeave() {
+        if (!adminPenStreaming) return;
+        publishPenPosition(0, 0, false);
+    }
+
+    function bindAdminPenTracking() {
+        adminPenStreaming = true;
+        if (adminPreview) adminPreview.classList.add('is-pen-live');
+        if (!adminPreview || adminPreview._penBound) return;
+        adminPreview._penBound = true;
+        adminPreview.addEventListener('pointermove', onAdminPenMove);
+        adminPreview.addEventListener('pointerdown', onAdminPenMove);
+        adminPreview.addEventListener('pointerleave', onAdminPenLeave);
+        adminPreview.addEventListener('touchmove', onAdminPenMove, { passive: false });
+    }
+
+    function unbindAdminPenTracking() {
+        adminPenStreaming = false;
+        if (adminPreview) adminPreview.classList.remove('is-pen-live');
+        showAdminPen(0, 0, false);
+        publishPenPosition(0, 0, false);
+    }
 
     function checkStreamInputType(val) {
         const warningEl = document.getElementById('rtsp-warning-badge');
@@ -657,6 +780,7 @@
             if (streamChannel) {
                 streamChannel.postMessage({ type: 'stream_started', is_streaming: true, live_stream_url: configuredStreamUrl });
             }
+            bindAdminPenTracking();
         } catch (err) {
             console.error('Camera/Stream start error:', err);
             alert('Could not start stream: ' + (err.message || 'Please check stream link or camera permission.'));
@@ -735,6 +859,7 @@
         if (streamChannel) {
             streamChannel.postMessage({ type: 'stream_ended', is_streaming: false });
         }
+        unbindAdminPenTracking();
     }
 
     function openConfirmModal(formId, title, body, side) {
@@ -846,5 +971,44 @@
             startLiveCameraStream();
         });
     @endif
+
+    document.addEventListener('keydown', function (e) {
+        const tag = (e.target && e.target.tagName) ? e.target.tagName.toUpperCase() : '';
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) {
+            return;
+        }
+
+        const rankMap = {
+            '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7', '8': '8', '9': '9', '0': '10'
+        };
+        const rank = rankMap[e.key];
+        if (!rank) return;
+
+        const selected = document.querySelector('input[name="first_card"]:checked');
+        const currentCode = selected ? selected.value : @json($currentRound->first_card);
+        const parts = (currentCode || '8_spades').split('_');
+        const suit = parts[1] || 'spades';
+        const newCode = rank + '_' + suit;
+
+        const radio = document.querySelector('input[name="first_card"][value="' + newCode + '"]');
+        if (radio) radio.checked = true;
+
+        const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+        const token = tokenMeta ? tokenMeta.content : '';
+        fetch("{{ route('admin.game.action', $room->id) }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': token
+            },
+            body: JSON.stringify({ action: 'update_first_card', first_card: newCode })
+        }).then(r => r.json()).then(data => {
+            if (data && data.success) {
+                const label = document.getElementById('admin-first-card-set-label');
+                if (label) label.textContent = 'Card Set: ' + newCode.replace('_', ' ').toUpperCase();
+            }
+        }).catch(() => {});
+    });
 </script>
 @endsection

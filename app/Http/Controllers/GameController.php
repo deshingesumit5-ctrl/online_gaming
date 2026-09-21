@@ -42,6 +42,12 @@ class GameController extends Controller
         }
 
         $denominations = $room->allowed_denominations ?: [500, 1000, 2000, 5000, 10000];
+        $denominations = array_values(array_filter(array_map('intval', (array) $denominations), function ($d) {
+            return $d > 0 && $d !== 100;
+        }));
+        if ($denominations === []) {
+            $denominations = [500, 1000, 2000, 5000, 10000];
+        }
 
         $recentRounds = GameRound::where('room_id', $roomId)
             ->whereIn('status', ['result_declared', 'round_closed'])
@@ -257,6 +263,32 @@ class GameController extends Controller
     {
         $frame = \Illuminate\Support\Facades\Cache::get("room_stream_frame_{$roomId}");
         return response()->json(['frame' => $frame]);
+    }
+
+    public function getPenPosition(Request $request, int $roomId): JsonResponse
+    {
+        $after = (int) $request->query('after', 0);
+        $payload = \Illuminate\Support\Facades\Cache::get("room_pen_position_{$roomId}");
+
+        if ($after > 0) {
+            $waited = 0;
+            while ($waited < 800) {
+                $payload = \Illuminate\Support\Facades\Cache::get("room_pen_position_{$roomId}");
+                $t = is_array($payload) ? (int) ($payload['t'] ?? 0) : 0;
+                if ($t > $after) {
+                    break;
+                }
+                usleep(25000);
+                $waited += 25;
+            }
+        }
+
+        return response()->json([
+            'x' => is_array($payload) ? ($payload['x'] ?? null) : null,
+            'y' => is_array($payload) ? ($payload['y'] ?? null) : null,
+            'visible' => is_array($payload) ? (bool) ($payload['visible'] ?? false) : false,
+            't' => is_array($payload) ? (int) ($payload['t'] ?? 0) : 0,
+        ]);
     }
 
     public function liveJpeg(int $roomId, LowLatencyStreamService $liveStream)

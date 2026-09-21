@@ -80,6 +80,24 @@
         overflow: hidden;
     }
 
+    #player-pen-marker {
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 22px;
+        height: 22px;
+        margin-left: -11px;
+        margin-top: -11px;
+        border-radius: 50% 50% 50% 0;
+        transform: rotate(-45deg);
+        background: #fbbf24;
+        border: 2px solid #fff;
+        box-shadow: 0 0 14px rgba(245, 158, 11, 0.9);
+        pointer-events: none;
+        z-index: 25;
+        display: none;
+    }
+
 
     @media (orientation: landscape) and (max-height: 550px) {
         .landscape-compact-bar {
@@ -164,6 +182,7 @@
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowfullscreen></iframe>
             </div>
+            <div id="player-pen-marker" aria-hidden="true"></div>
 
             <!-- Live Streaming Indicator Badge -->
             <div class="absolute top-3 left-3 z-10 flex items-center gap-2 bg-black/60 backdrop-blur-sm border border-red-500/40 px-2.5 py-1 rounded-full">
@@ -278,7 +297,7 @@
                     <!-- Right Capsule Indicator (Matching Image 4) -->
                     <div class="absolute right-0 top-0 bottom-0 w-12 sm:w-14 bg-gradient-to-r from-transparent via-black/40 to-black/80 flex items-center justify-center pointer-events-none">
                         <div class="w-8 sm:w-9 h-14 sm:h-16 rounded-xl bg-gradient-to-b from-slate-900 via-slate-800 to-red-950 border border-white/20 flex flex-col items-center justify-center text-[11px] font-bold text-white shadow-inner">
-                            <span>{{ $currentRound->first_card ? strtoupper(explode('_', $currentRound->first_card)[0]) : '4' }}</span>
+                            <span id="hud-first-card-rank">{{ $currentRound->first_card ? strtoupper(explode('_', $currentRound->first_card)[0]) : '4' }}</span>
                             <span class="text-red-400 text-xs sm:text-sm leading-none mt-0.5">★</span>
                         </div>
                     </div>
@@ -570,6 +589,8 @@
                     syncLiveStreamView(true);
                 } else if (msg.type === 'stream_ended') {
                     syncLiveStreamView(false);
+                } else if (msg.type === 'pen-position') {
+                    applyPenPosition(msg);
                 }
             };
         }
@@ -589,22 +610,57 @@
         }, 500);
 
         let playerHls = null;
+        let playerRtc = null;
         let liveJpegTimer = null;
         let cctvMode = null;
+        let streamEndedByAdmin = false;
         const liveJpegUrl = @json(route('game.live.jpeg', $room->id));
         const livePlaylistUrl = @json(route('game.live.playlist', $room->id));
+        const penPositionUrl = @json(route('game.pen.position.get', $room->id));
+        const playerPenMarker = document.getElementById('player-pen-marker');
+        let lastPenT = 0;
+        let penPollBusy = false;
+
+        function applyPenPosition(pos) {
+            if (!playerPenMarker || !pos) return;
+            const t = Number(pos.t || 0);
+            if (t && t < lastPenT) return;
+            if (t) lastPenT = t;
+            if (!pos.visible || pos.x == null || pos.y == null) {
+                playerPenMarker.style.display = 'none';
+                return;
+            }
+            playerPenMarker.style.display = 'block';
+            playerPenMarker.style.left = (Number(pos.x) * 100) + '%';
+            playerPenMarker.style.top = (Number(pos.y) * 100) + '%';
+        }
+
+        async function pollPenPosition() {
+            if (penPollBusy) return;
+            penPollBusy = true;
+            try {
+                const res = await fetch(penPositionUrl + '?after=' + lastPenT, { headers: { 'Accept': 'application/json' } });
+                if (!res.ok) return;
+                const data = await res.json();
+                applyPenPosition(data);
+            } catch (e) {
+            } finally {
+                penPollBusy = false;
+            }
+        }
 
         function createLowLatencyHls() {
             return new Hls({
                 enableWorker: true,
                 lowLatencyMode: true,
-                backBufferLength: 30,
-                maxBufferLength: 30,
-                maxMaxBufferLength: 60,
+                backBufferLength: 0,
+                maxBufferLength: 1,
+                maxMaxBufferLength: 2,
                 liveSyncDurationCount: 1,
-                liveMaxLatencyDurationCount: 4,
+                liveMaxLatencyDurationCount: 2,
                 liveDurationInfinity: true,
-                startFragPrefetch: true
+                startFragPrefetch: true,
+                maxLiveSyncPlaybackRate: 2
             });
         }
 
@@ -619,11 +675,11 @@
                     if (video.seekable && video.seekable.length > 0) {
                         const live = video.seekable.end(video.seekable.length - 1);
                         const gap = live - video.currentTime;
-                        if (gap > 2.2) {
-                            video.currentTime = Math.max(0, live - 0.35);
+                        if (gap > 0.8) {
+                            video.currentTime = Math.max(0, live - 0.15);
                             video.playbackRate = 1;
-                        } else if (gap > 0.6) {
-                            video.playbackRate = 1.75;
+                        } else if (gap > 0.25) {
+                            video.playbackRate = 1.5;
                         } else {
                             video.playbackRate = 1;
                         }
@@ -699,8 +755,88 @@
             startLiveJpegFromUrl(img, liveJpegUrl);
         }
 
+        function whepUrlFromHls(hlsUrl) {
+            try {
+                const u = new URL(hlsUrl);
+                let path = u.pathname.replace(/\/index\.m3u8$/i, '').replace(/\.m3u8$/i, '');
+                if (!path || path === '/') path = '/';
+                return u.origin + path.replace(/\/$/, '') + '/whep';
+            } catch (e) {
+                return null;
+            }
+        }
+
+        async function startWhepPlayback(video, whepUrl) {
+            const pc = new RTCPeerConnection({ iceServers: [] });
+            pc.addTransceiver('video', { direction: 'recvonly' });
+            pc.addTransceiver('audio', { direction: 'recvonly' });
+            pc.ontrack = (ev) => {
+                if (ev.streams && ev.streams[0]) {
+                    video.srcObject = ev.streams[0];
+                    video.play().catch(() => {});
+                }
+            };
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 1500);
+            try {
+                const res = await fetch(whepUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/sdp' },
+                    body: pc.localDescription.sdp,
+                    signal: ctrl.signal
+                });
+                if (!res.ok) {
+                    pc.close();
+                    throw new Error('whep ' + res.status);
+                }
+                const answer = await res.text();
+                await pc.setRemoteDescription({ type: 'answer', sdp: answer });
+                return pc;
+            } finally {
+                clearTimeout(timer);
+            }
+        }
+
+        function keepVideoRunning(video) {
+            if (!video || video._keepAliveBound) return;
+            video._keepAliveBound = true;
+            const resume = () => {
+                if (streamEndedByAdmin) return;
+                video.play().catch(() => {});
+            };
+            ['pause', 'ended', 'stalled', 'waiting', 'suspend'].forEach((evt) => {
+                video.addEventListener(evt, resume);
+            });
+        }
+
         function startCctvLowLatency(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg) {
             if (cctvMode) return;
+            cctvMode = 'starting';
+            const whepUrl = whepUrlFromHls(streamUrl);
+            if (whepUrl && window.RTCPeerConnection) {
+                startWhepPlayback(cctvVideo, whepUrl).then((pc) => {
+                    if (streamEndedByAdmin) {
+                        pc.close();
+                        return;
+                    }
+                    playerRtc = pc;
+                    cctvMode = 'webrtc';
+                    if (ytIframe) ytIframe.classList.add('hidden');
+                    if (fallbackImg) fallbackImg.classList.add('hidden');
+                    if (externalWrap) externalWrap.classList.remove('hidden');
+                    if (cctvVideo) {
+                        cctvVideo.classList.remove('hidden');
+                        keepVideoRunning(cctvVideo);
+                    }
+                }).catch(() => {
+                    if (streamEndedByAdmin) return;
+                    cctvMode = 'hls';
+                    startHlsPlayback(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
+                });
+                return;
+            }
             cctvMode = 'hls';
             startHlsPlayback(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
         }
@@ -711,6 +847,7 @@
             if (externalWrap) externalWrap.classList.remove('hidden');
             if (!cctvVideo) return;
             cctvVideo.classList.remove('hidden');
+            keepVideoRunning(cctvVideo);
             const playUrl = streamUrl;
             if (Hls.isSupported()) {
                 if (!playerHls) {
@@ -722,11 +859,22 @@
                         cctvVideo.play().catch(() => {});
                     });
                     playerHls.on(Hls.Events.ERROR, function(_, data) {
-                        if (!data || !data.fatal || !playerHls) return;
+                        if (streamEndedByAdmin || !data || !playerHls) return;
+                        if (!data.fatal) return;
                         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
                             playerHls.startLoad();
+                            cctvVideo.play().catch(() => {});
                         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
                             playerHls.recoverMediaError();
+                            cctvVideo.play().catch(() => {});
+                        } else {
+                            const src = playUrl;
+                            playerHls.destroy();
+                            playerHls = createLowLatencyHls();
+                            playerHls.loadSource(src);
+                            playerHls.attachMedia(cctvVideo);
+                            keepHlsAtLiveEdge(playerHls, cctvVideo);
+                            cctvVideo.play().catch(() => {});
                         }
                     });
                     cctvVideo.onclick = function() {
@@ -739,7 +887,6 @@
         }
 
         function syncLiveStreamView(isStreaming, externalUrl) {
-            window._isStreamActive = !!isStreaming;
             const streamBox = document.getElementById('player-live-stream-box');
             const whiteScreen = document.getElementById('player-stream-white-screen');
             const externalWrap = document.getElementById('player-external-stream-wrap');
@@ -750,6 +897,8 @@
             const streamUrl = (externalUrl || @json($room->live_stream_url ?? ''))?.trim();
 
             if (isStreaming) {
+                streamEndedByAdmin = false;
+                window._isStreamActive = true;
                 if (streamBox) streamBox.classList.remove('hidden');
                 if (whiteScreen) whiteScreen.classList.add('hidden');
 
@@ -776,6 +925,7 @@
                         if (ytIframe) ytIframe.classList.add('hidden');
                         if (cctvVideo) {
                             cctvVideo.classList.remove('hidden');
+                            keepVideoRunning(cctvVideo);
                             if (cctvVideo.src !== streamUrl) cctvVideo.src = streamUrl;
                             cctvVideo.play().catch(() => {});
                         }
@@ -787,9 +937,16 @@
                     if (fallbackImg) fallbackImg.classList.remove('hidden');
                 }
             } else {
+                streamEndedByAdmin = true;
+                window._isStreamActive = false;
+                if (playerPenMarker) playerPenMarker.style.display = 'none';
                 if (streamBox) streamBox.classList.add('hidden');
                 if (whiteScreen) whiteScreen.classList.remove('hidden');
                 if (externalWrap) externalWrap.classList.add('hidden');
+                if (playerRtc) {
+                    try { playerRtc.close(); } catch (e) {}
+                    playerRtc = null;
+                }
                 if (playerHls) {
                     playerHls.destroy();
                     playerHls = null;
@@ -802,6 +959,7 @@
                 cctvMode = null;
                 if (cctvVideo) {
                     cctvVideo.pause();
+                    cctvVideo.srcObject = null;
                     cctvVideo.removeAttribute('src');
                     cctvVideo.load();
                 }
@@ -846,6 +1004,20 @@
         document.getElementById('squareAlertModal')?.addEventListener('click', function(e) {
             if (e.target === this) closeSquareAlertModal();
         });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden || streamEndedByAdmin) return;
+            const cctvVideo = document.getElementById('live-cctv-stream');
+            if (cctvVideo) cctvVideo.play().catch(() => {});
+        });
+
+        (function runPenLoop() {
+            pollPenPosition().finally(() => setTimeout(runPenLoop, 20));
+        })();
+
+        @if($room->is_streaming)
+            syncLiveStreamView(true, @json($room->live_stream_url ?? ''));
+        @endif
     });
 </script>
 @endpush

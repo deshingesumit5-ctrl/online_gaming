@@ -129,6 +129,12 @@ class GameEngine {
 
         // 3. First Card Render
         this.renderFirstCard(data.first_card);
+        const hudRank = document.getElementById('hud-first-card-rank');
+        if (hudRank && data.first_card) {
+            const raw = String(data.first_card).split('_')[0].toUpperCase();
+            const shortVal = raw === 'JACK' ? 'J' : (raw === 'QUEEN' ? 'Q' : (raw === 'KING' ? 'K' : (raw === 'ACE' ? 'A' : raw)));
+            hudRank.textContent = shortVal;
+        }
 
         // 4. Timer Handling
         const isBettingOpen = (data.round_status === 'betting_open');
