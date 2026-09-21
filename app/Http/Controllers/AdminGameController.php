@@ -98,7 +98,7 @@ class AdminGameController extends Controller
     public function handleAction(Request $request, int $roomId): JsonResponse|RedirectResponse
     {
         $request->validate([
-            'action' => ['required', 'in:start_round,open_betting,close_betting,declare_result,create_new_round,update_stream,update_room_timings,start_stream,end_stream,update_first_card'],
+            'action' => ['required', 'in:start_round,open_betting,close_betting,declare_result,create_new_round,update_stream,update_room_timings,start_stream,end_stream,update_first_card,hide_card_overlay'],
             'first_card' => ['nullable', 'string'],
             'winning_side' => ['nullable', 'in:andar,bahar'],
             'live_stream_url' => ['nullable', 'string', 'max:500'],
@@ -174,6 +174,14 @@ class AdminGameController extends Controller
                 return response()->json(['success' => true, 'message' => "Round #{$currentRound->round_number} started with card {$firstCard}."]);
             }
             return back()->with('success', "Round #{$currentRound->round_number} started with card {$firstCard}.");
+        }
+
+        if ($action === 'hide_card_overlay') {
+            $this->hideCardOverlay($roomId);
+            if ($request->wantsJson()) {
+                return response()->json(['success' => true, 'message' => 'Card overlay removed from live camera.']);
+            }
+            return back()->with('success', 'Card overlay removed from live camera.');
         }
 
         if ($action === 'update_first_card') {
@@ -361,11 +369,25 @@ class AdminGameController extends Controller
         return back();
     }
 
+    private function hideCardOverlay(int $roomId): void
+    {
+        $prev = \Illuminate\Support\Facades\Cache::get("room_card_overlay_{$roomId}");
+        \Illuminate\Support\Facades\Cache::put("room_card_overlay_{$roomId}", [
+            'first_card' => null,
+            'hidden' => true,
+            'x' => (float) (is_array($prev) ? ($prev['x'] ?? 0.48) : 0.48),
+            'y' => (float) (is_array($prev) ? ($prev['y'] ?? 0.58) : 0.58),
+            'scale' => (float) (is_array($prev) ? ($prev['scale'] ?? 1) : 1),
+            't' => (int) round(microtime(true) * 1000),
+        ], 3600);
+    }
+
     private function storeCardOverlay(int $roomId, string $firstCard, $x = null, $y = null, $scale = null): void
     {
         $prev = \Illuminate\Support\Facades\Cache::get("room_card_overlay_{$roomId}");
         \Illuminate\Support\Facades\Cache::put("room_card_overlay_{$roomId}", [
             'first_card' => $firstCard,
+            'hidden' => false,
             'x' => $x !== null ? (float) $x : (float) (is_array($prev) ? ($prev['x'] ?? 0.48) : 0.48),
             'y' => $y !== null ? (float) $y : (float) (is_array($prev) ? ($prev['y'] ?? 0.58) : 0.58),
             'scale' => $scale !== null ? (float) $scale : (float) (is_array($prev) ? ($prev['scale'] ?? 1) : 1),

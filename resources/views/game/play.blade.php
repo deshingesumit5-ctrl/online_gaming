@@ -158,6 +158,22 @@
     .live-card-overlay .card-pip-panel[data-pips="3"] .suit { width: 100%; font-size: 32px; }
     .live-card-overlay.is-red { color: #dc2626; }
     .live-card-overlay.is-black { color: #dc2626; }
+    .live-card-overlay .card-index,
+    .live-card-overlay .card-pip-panel { display: none; }
+    .live-card-overlay {
+        padding: 0;
+        overflow: hidden;
+        background: transparent;
+        border: 0;
+    }
+    .live-card-overlay .card-photo {
+        width: 100%;
+        height: 100%;
+        object-fit: fill;
+        display: block;
+        pointer-events: none;
+        border-radius: 10px;
+    }
 
 
     @media (orientation: landscape) and (max-height: 550px) {
@@ -245,6 +261,7 @@
             </div>
             <div id="player-pen-marker" aria-hidden="true"></div>
             <div id="player-live-card-overlay" class="live-card-overlay" aria-hidden="true">
+                <img class="card-photo" src="{{ asset('images/overlay-9-hearts.jpg') }}" alt="9 of Hearts">
                 <div class="card-index">
                     <div class="rank" id="player-live-card-rank"></div>
                     <div class="index-suit" id="player-live-card-index-suit"></div>
@@ -666,7 +683,11 @@
                 } else if (msg.type === 'pen-position') {
                     applyPenPosition(msg);
                 } else if (msg.type === 'overlay_card') {
-                    applyLiveCardOverlay(msg.first_card, msg.card_x, msg.card_y, msg.card_scale);
+                    if (msg.card_hidden || !msg.first_card) {
+                        applyLiveCardOverlay(null);
+                    } else {
+                        applyLiveCardOverlay(msg.first_card, msg.card_x, msg.card_y, msg.card_scale);
+                    }
                 }
             };
         }
@@ -763,7 +784,8 @@
             const t = Number(pos.t || 0);
             if (t && t < lastPenT) return;
             if (t) lastPenT = t;
-            if (pos.first_card) applyLiveCardOverlay(pos.first_card, pos.card_x, pos.card_y, pos.card_scale);
+            if (pos.card_hidden) applyLiveCardOverlay(null);
+            else if (pos.first_card) applyLiveCardOverlay(pos.first_card, pos.card_x, pos.card_y, pos.card_scale);
             if (!pos.visible || pos.x == null || pos.y == null) {
                 playerPenMarker.style.display = 'none';
                 return;

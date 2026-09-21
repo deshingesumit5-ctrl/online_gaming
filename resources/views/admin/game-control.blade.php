@@ -80,7 +80,23 @@
     #admin-live-card-overlay .suit { text-align: center; font-size: 11px; color: #dc2626; line-height: 1; width: 46%; }
     #admin-live-card-overlay .card-pip-panel[data-pips="1"] .suit,
     #admin-live-card-overlay .card-pip-panel[data-pips="2"] .suit,
-    #admin-live-card-overlay .card-pip-panel[data-pips="3"] .suit { width: 100%; font-size: 14px; }</style>
+    #admin-live-card-overlay .card-pip-panel[data-pips="3"] .suit { width: 100%; font-size: 14px; }
+    #admin-live-card-overlay .card-index,
+    #admin-live-card-overlay .card-pip-panel { display: none; }
+    #admin-live-card-overlay {
+        padding: 0;
+        overflow: hidden;
+        background: transparent;
+        border: 0;
+    }
+    #admin-live-card-overlay .card-photo {
+        width: 100%;
+        height: 100%;
+        object-fit: fill;
+        display: block;
+        pointer-events: none;
+        border-radius: 6px;
+    }</style>
 @endpush
 
 @section('content')
@@ -218,6 +234,7 @@
                 </div>
                 <div id="admin-pen-marker" class="hidden"></div>
                 <div id="admin-live-card-overlay">
+                    <img class="card-photo" src="{{ asset('images/overlay-9-hearts.jpg') }}" alt="9 of Hearts">
                     <div class="card-index">
                         <div class="rank" id="admin-live-card-rank"></div>
                         <div class="index-suit" id="admin-live-card-index-suit"></div>
@@ -245,6 +262,7 @@
             <div class="flex items-center gap-2 mt-2">
                 <button type="button" id="btn-overlay-card-smaller" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider border border-slate-700 cursor-pointer">− Size</button>
                 <button type="button" id="btn-overlay-card-larger" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider border border-slate-700 cursor-pointer">+ Size</button>
+                <button type="button" id="btn-overlay-card-delete" class="px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white text-[10px] font-black uppercase tracking-wider border border-red-500 cursor-pointer">Delete</button>
             </div>
         </div>
 
@@ -1115,6 +1133,7 @@
     let adminOverlayX = 0.48;
     let adminOverlayY = 0.58;
     let adminOverlayScale = 1;
+    let adminOverlayVisible = false;
 
     function overlayPipCount(raw) {
         if (raw === '10') return 10;
@@ -1168,11 +1187,39 @@
         overlay.classList.add('is-visible');
         overlay.classList.add('is-red');
         overlay.classList.remove('is-black');
+        adminOverlayVisible = true;
         applyAdminOverlayBox(overlay);
     }
 
+    function hideAdminOverlayCard() {
+        const overlay = document.getElementById('admin-live-card-overlay');
+        if (overlay) overlay.classList.remove('is-visible');
+        adminOverlayVisible = false;
+        if (streamChannel) {
+            streamChannel.postMessage({
+                type: 'overlay_card',
+                first_card: null,
+                card_hidden: true,
+                t: Date.now()
+            });
+        }
+        const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+        const token = tokenMeta ? tokenMeta.content : '';
+        fetch("{{ route('admin.game.action', $room->id) }}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json',
+                'X-CSRF-TOKEN': token
+            },
+            body: JSON.stringify({
+                action: 'hide_card_overlay'
+            })
+        }).catch(() => {});
+    }
+
     function publishOverlayCard() {
-        if (!adminOverlayCard) return;
+        if (!adminOverlayVisible || !adminOverlayCard) return;
         if (streamChannel) {
             streamChannel.postMessage({
                 type: 'overlay_card',
@@ -1277,6 +1324,12 @@
             const overlay = document.getElementById('admin-live-card-overlay');
             if (overlay) applyAdminOverlayBox(overlay);
             publishOverlayCard();
+        });
+    }
+    const btnDelete = document.getElementById('btn-overlay-card-delete');
+    if (btnDelete) {
+        btnDelete.addEventListener('click', function () {
+            hideAdminOverlayCard();
         });
     }
 </script>
