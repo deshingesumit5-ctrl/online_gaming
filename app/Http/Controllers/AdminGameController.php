@@ -106,6 +106,7 @@ class AdminGameController extends Controller
             'cancellation_duration' => ['nullable', 'integer', 'min:0', 'max:300'],
             'x' => ['nullable', 'numeric', 'min:0', 'max:1'],
             'y' => ['nullable', 'numeric', 'min:0', 'max:1'],
+            'scale' => ['nullable', 'numeric', 'min:0.4', 'max:3'],
         ]);
 
         $room = Room::findOrFail($roomId);
@@ -188,7 +189,7 @@ class AdminGameController extends Controller
                 'first_card' => $firstCard,
             ]);
 
-            $this->storeCardOverlay($roomId, $firstCard, $request->input('x'), $request->input('y'));
+            $this->storeCardOverlay($roomId, $firstCard, $request->input('x'), $request->input('y'), $request->input('scale'));
 
             if ($request->wantsJson()) {
                 return response()->json([
@@ -360,13 +361,14 @@ class AdminGameController extends Controller
         return back();
     }
 
-    private function storeCardOverlay(int $roomId, string $firstCard, $x = null, $y = null): void
+    private function storeCardOverlay(int $roomId, string $firstCard, $x = null, $y = null, $scale = null): void
     {
         $prev = \Illuminate\Support\Facades\Cache::get("room_card_overlay_{$roomId}");
         \Illuminate\Support\Facades\Cache::put("room_card_overlay_{$roomId}", [
             'first_card' => $firstCard,
             'x' => $x !== null ? (float) $x : (float) (is_array($prev) ? ($prev['x'] ?? 0.48) : 0.48),
             'y' => $y !== null ? (float) $y : (float) (is_array($prev) ? ($prev['y'] ?? 0.58) : 0.58),
+            'scale' => $scale !== null ? (float) $scale : (float) (is_array($prev) ? ($prev['scale'] ?? 1) : 1),
             't' => (int) round(microtime(true) * 1000),
         ], 3600);
     }

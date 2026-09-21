@@ -40,20 +40,47 @@
         display: none;
         pointer-events: auto;
         cursor: grab;
-        padding: 4px 5px;
+        padding: 3px 4px;
         flex-direction: column;
         justify-content: space-between;
         font-weight: 900;
         line-height: 0.9;
-        font-size: 22px;
+        font-size: 14px;
         font-family: Arial, Helvetica, sans-serif;
         user-select: none;
+        color: #dc2626;
     }
     #admin-live-card-overlay.is-visible { display: flex; }
     #admin-live-card-overlay.is-red { color: #dc2626; }
-    #admin-live-card-overlay.is-black { color: #111; }
-    #admin-live-card-overlay .suit { text-align: center; font-size: 26px; }
-</style>
+    #admin-live-card-overlay.is-black { color: #dc2626; }
+    #admin-live-card-overlay .card-index {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        line-height: 0.85;
+        font-size: 11px;
+        font-weight: 900;
+        color: #dc2626;
+    }
+    #admin-live-card-overlay .card-index-br { transform: rotate(180deg); }
+    #admin-live-card-overlay .card-index .index-suit { font-size: 8px; line-height: 1; }
+    #admin-live-card-overlay .card-pip-panel {
+        flex: 1;
+        margin: 1px 6px;
+        background: #f4e8a4;
+        border: 1px solid #222;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        align-content: space-evenly;
+        overflow: hidden;
+        padding: 1px 2px;
+    }
+    #admin-live-card-overlay .suit { text-align: center; font-size: 11px; color: #dc2626; line-height: 1; width: 46%; }
+    #admin-live-card-overlay .card-pip-panel[data-pips="1"] .suit,
+    #admin-live-card-overlay .card-pip-panel[data-pips="2"] .suit,
+    #admin-live-card-overlay .card-pip-panel[data-pips="3"] .suit { width: 100%; font-size: 14px; }</style>
 @endpush
 
 @section('content')
@@ -191,8 +218,17 @@
                 </div>
                 <div id="admin-pen-marker" class="hidden"></div>
                 <div id="admin-live-card-overlay">
-                    <div class="rank" id="admin-live-card-rank"></div>
-                    <div class="suit" id="admin-live-card-suit"></div>
+                    <div class="card-index">
+                        <div class="rank" id="admin-live-card-rank"></div>
+                        <div class="index-suit" id="admin-live-card-index-suit"></div>
+                    </div>
+                    <div class="card-pip-panel" id="admin-live-card-pips">
+                        <div class="suit" id="admin-live-card-suit"></div>
+                    </div>
+                    <div class="card-index card-index-br">
+                        <div class="rank" id="admin-live-card-rank-b"></div>
+                        <div class="index-suit" id="admin-live-card-index-suit-b"></div>
+                    </div>
                 </div>
             </div>
 
@@ -206,6 +242,10 @@
                 </button>
             </div>
             <p class="text-[10px] text-slate-500 mt-2">Press 2–9 or 0 on this page to put that card on the live table video. Drag it over the real card so it covers it for all players.</p>
+            <div class="flex items-center gap-2 mt-2">
+                <button type="button" id="btn-overlay-card-smaller" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider border border-slate-700 cursor-pointer">− Size</button>
+                <button type="button" id="btn-overlay-card-larger" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider border border-slate-700 cursor-pointer">+ Size</button>
+            </div>
         </div>
 
         <!-- STEP 3: Betting Window Control -->
@@ -1074,28 +1114,61 @@
     let adminOverlayCard = @json($currentRound->first_card);
     let adminOverlayX = 0.48;
     let adminOverlayY = 0.58;
+    let adminOverlayScale = 1;
 
-    function paintAdminOverlayCard(code, x, y) {
+    function overlayPipCount(raw) {
+        if (raw === '10') return 10;
+        const n = parseInt(raw, 10);
+        if (n >= 2 && n <= 9) return n;
+        return 1;
+    }
+
+    function fillOverlayPips(panel, symbol, count, firstId) {
+        if (!panel) return;
+        panel.innerHTML = '';
+        panel.setAttribute('data-pips', String(count));
+        for (let i = 0; i < count; i++) {
+            const d = document.createElement('div');
+            d.className = 'suit';
+            if (i === 0 && firstId) d.id = firstId;
+            d.textContent = symbol;
+            panel.appendChild(d);
+        }
+    }
+
+    function applyAdminOverlayBox(overlay) {
+        overlay.style.left = (adminOverlayX * 100) + '%';
+        overlay.style.top = (adminOverlayY * 100) + '%';
+        overlay.style.transform = 'translate(-50%, -50%) scale(' + adminOverlayScale + ')';
+    }
+
+    function paintAdminOverlayCard(code, x, y, scale) {
         const overlay = document.getElementById('admin-live-card-overlay');
         const rankEl = document.getElementById('admin-live-card-rank');
-        const suitEl = document.getElementById('admin-live-card-suit');
+        const rankB = document.getElementById('admin-live-card-rank-b');
+        const indexSuit = document.getElementById('admin-live-card-index-suit');
+        const indexSuitB = document.getElementById('admin-live-card-index-suit-b');
+        const pips = document.getElementById('admin-live-card-pips');
         if (!overlay || !code) return;
         adminOverlayCard = code;
         if (x != null) adminOverlayX = Number(x);
         if (y != null) adminOverlayY = Number(y);
+        if (scale != null && isFinite(Number(scale))) adminOverlayScale = Number(scale);
         const parts = String(code).split('_');
         const raw = (parts[0] || '').toUpperCase();
         const suit = (parts[1] || 'spades').toLowerCase();
         const shortVal = raw === 'JACK' ? 'J' : (raw === 'QUEEN' ? 'Q' : (raw === 'KING' ? 'K' : (raw === 'ACE' ? 'A' : raw)));
         const symbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
-        const isRed = (suit === 'hearts' || suit === 'diamonds');
+        const symbol = symbols[suit] || '♠';
         if (rankEl) rankEl.textContent = shortVal;
-        if (suitEl) suitEl.textContent = symbols[suit] || '♠';
+        if (rankB) rankB.textContent = shortVal;
+        if (indexSuit) indexSuit.textContent = symbol;
+        if (indexSuitB) indexSuitB.textContent = symbol;
+        fillOverlayPips(pips, symbol, overlayPipCount(raw), 'admin-live-card-suit');
         overlay.classList.add('is-visible');
-        overlay.classList.toggle('is-red', isRed);
-        overlay.classList.toggle('is-black', !isRed);
-        overlay.style.left = (adminOverlayX * 100) + '%';
-        overlay.style.top = (adminOverlayY * 100) + '%';
+        overlay.classList.add('is-red');
+        overlay.classList.remove('is-black');
+        applyAdminOverlayBox(overlay);
     }
 
     function publishOverlayCard() {
@@ -1106,6 +1179,7 @@
                 first_card: adminOverlayCard,
                 card_x: adminOverlayX,
                 card_y: adminOverlayY,
+                card_scale: adminOverlayScale,
                 t: Date.now()
             });
         }
@@ -1122,7 +1196,8 @@
                 action: 'update_first_card',
                 first_card: adminOverlayCard,
                 x: adminOverlayX,
-                y: adminOverlayY
+                y: adminOverlayY,
+                scale: adminOverlayScale
             })
         }).then(r => r.json()).then(data => {
             if (data && data.success) {
@@ -1150,8 +1225,7 @@
             const rect = adminPreview.getBoundingClientRect();
             adminOverlayX = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
             adminOverlayY = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
-            overlay.style.left = (adminOverlayX * 100) + '%';
-            overlay.style.top = (adminOverlayY * 100) + '%';
+            applyAdminOverlayBox(overlay);
         });
         overlay.addEventListener('pointerup', function (e) {
             if (!dragging) return;
@@ -1186,5 +1260,24 @@
         paintAdminOverlayCard(newCode);
         publishOverlayCard();
     });
+
+    const btnSmaller = document.getElementById('btn-overlay-card-smaller');
+    const btnLarger = document.getElementById('btn-overlay-card-larger');
+    if (btnSmaller) {
+        btnSmaller.addEventListener('click', function () {
+            adminOverlayScale = Math.max(0.5, Math.round((adminOverlayScale - 0.1) * 10) / 10);
+            const overlay = document.getElementById('admin-live-card-overlay');
+            if (overlay) applyAdminOverlayBox(overlay);
+            publishOverlayCard();
+        });
+    }
+    if (btnLarger) {
+        btnLarger.addEventListener('click', function () {
+            adminOverlayScale = Math.min(2.5, Math.round((adminOverlayScale + 0.1) * 10) / 10);
+            const overlay = document.getElementById('admin-live-card-overlay');
+            if (overlay) applyAdminOverlayBox(overlay);
+            publishOverlayCard();
+        });
+    }
 </script>
 @endsection

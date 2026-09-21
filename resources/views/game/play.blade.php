@@ -113,24 +113,51 @@
         z-index: 24;
         display: none;
         pointer-events: none;
-        padding: 8px 10px;
+        padding: 6px 8px;
         flex-direction: column;
         justify-content: space-between;
         font-weight: 900;
         line-height: 0.9;
         font-family: Arial, Helvetica, sans-serif;
+        color: #dc2626;
     }
     .live-card-overlay.is-visible { display: flex; }
+    .live-card-overlay .card-index {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        line-height: 0.85;
+        font-weight: 900;
+        color: #dc2626;
+    }
     .live-card-overlay .rank {
-        font-size: 46px;
+        font-size: 22px;
         font-weight: 900;
         letter-spacing: -1px;
         color: inherit;
         text-shadow: 0 1px 0 #fff;
     }
-    .live-card-overlay .suit { font-size: 58px; text-align: center; line-height: 1; }
+    .live-card-overlay .card-index .index-suit { font-size: 14px; line-height: 1; }
+    .live-card-overlay .card-index-br { transform: rotate(180deg); }
+    .live-card-overlay .card-pip-panel {
+        flex: 1;
+        margin: 2px 12px;
+        background: #f4e8a4;
+        border: 1.5px solid #222;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: center;
+        align-content: space-evenly;
+        overflow: hidden;
+        padding: 3px 4px;
+    }
+    .live-card-overlay .suit { font-size: 22px; text-align: center; line-height: 1; color: #dc2626; width: 46%; }
+    .live-card-overlay .card-pip-panel[data-pips="1"] .suit,
+    .live-card-overlay .card-pip-panel[data-pips="2"] .suit,
+    .live-card-overlay .card-pip-panel[data-pips="3"] .suit { width: 100%; font-size: 32px; }
     .live-card-overlay.is-red { color: #dc2626; }
-    .live-card-overlay.is-black { color: #111; }
+    .live-card-overlay.is-black { color: #dc2626; }
 
 
     @media (orientation: landscape) and (max-height: 550px) {
@@ -218,9 +245,17 @@
             </div>
             <div id="player-pen-marker" aria-hidden="true"></div>
             <div id="player-live-card-overlay" class="live-card-overlay" aria-hidden="true">
-                <div class="rank" id="player-live-card-rank"></div>
-                <div class="suit" id="player-live-card-suit"></div>
-                <div class="rank" style="transform:rotate(180deg)" id="player-live-card-rank-b"></div>
+                <div class="card-index">
+                    <div class="rank" id="player-live-card-rank"></div>
+                    <div class="index-suit" id="player-live-card-index-suit"></div>
+                </div>
+                <div class="card-pip-panel" id="player-live-card-pips">
+                    <div class="suit" id="player-live-card-suit"></div>
+                </div>
+                <div class="card-index card-index-br">
+                    <div class="rank" id="player-live-card-rank-b"></div>
+                    <div class="index-suit" id="player-live-card-index-suit-b"></div>
+                </div>
             </div>
 
             <!-- Live Streaming Indicator Badge -->
@@ -631,7 +666,7 @@
                 } else if (msg.type === 'pen-position') {
                     applyPenPosition(msg);
                 } else if (msg.type === 'overlay_card') {
-                    applyLiveCardOverlay(msg.first_card, msg.card_x, msg.card_y);
+                    applyLiveCardOverlay(msg.first_card, msg.card_x, msg.card_y, msg.card_scale);
                 }
             };
         }
@@ -662,11 +697,33 @@
         let lastPenT = 0;
         let penPollBusy = false;
 
-        function applyLiveCardOverlay(cardCode, x, y) {
+        function overlayPipCount(raw) {
+            if (raw === '10') return 10;
+            const n = parseInt(raw, 10);
+            if (n >= 2 && n <= 9) return n;
+            return 1;
+        }
+
+        function fillOverlayPips(panel, symbol, count, firstId) {
+            if (!panel) return;
+            panel.innerHTML = '';
+            panel.setAttribute('data-pips', String(count));
+            for (let i = 0; i < count; i++) {
+                const d = document.createElement('div');
+                d.className = 'suit';
+                if (i === 0 && firstId) d.id = firstId;
+                d.textContent = symbol;
+                panel.appendChild(d);
+            }
+        }
+
+        function applyLiveCardOverlay(cardCode, x, y, scale) {
             const overlay = document.getElementById('player-live-card-overlay');
             const rankEl = document.getElementById('player-live-card-rank');
             const rankB = document.getElementById('player-live-card-rank-b');
-            const suitEl = document.getElementById('player-live-card-suit');
+            const indexSuit = document.getElementById('player-live-card-index-suit');
+            const indexSuitB = document.getElementById('player-live-card-index-suit-b');
+            const pips = document.getElementById('player-live-card-pips');
             const hudRank = document.getElementById('hud-first-card-rank');
             if (!overlay) return;
             if (!cardCode) {
@@ -678,13 +735,15 @@
             const suit = (parts[1] || 'spades').toLowerCase();
             const shortVal = raw === 'JACK' ? 'J' : (raw === 'QUEEN' ? 'Q' : (raw === 'KING' ? 'K' : (raw === 'ACE' ? 'A' : raw)));
             const symbols = { spades: '♠', hearts: '♥', diamonds: '♦', clubs: '♣' };
-            const isRed = (suit === 'hearts' || suit === 'diamonds');
+            const symbol = symbols[suit] || '♠';
             if (rankEl) rankEl.textContent = shortVal;
             if (rankB) rankB.textContent = shortVal;
-            if (suitEl) suitEl.textContent = symbols[suit] || '♠';
+            if (indexSuit) indexSuit.textContent = symbol;
+            if (indexSuitB) indexSuitB.textContent = symbol;
+            fillOverlayPips(pips, symbol, overlayPipCount(raw), 'player-live-card-suit');
             overlay.classList.add('is-visible');
-            overlay.classList.toggle('is-red', isRed);
-            overlay.classList.toggle('is-black', !isRed);
+            overlay.classList.add('is-red');
+            overlay.classList.remove('is-black');
             if (x != null && x !== '' && y != null && y !== '') {
                 const px = Number(x);
                 const py = Number(y);
@@ -693,6 +752,8 @@
                     overlay.style.top = (py * 100) + '%';
                 }
             }
+            const sc = (scale != null && scale !== '') ? Number(scale) : NaN;
+            overlay.style.transform = 'translate(-50%, -50%) scale(' + (isFinite(sc) ? sc : 1) + ')';
             if (hudRank) hudRank.textContent = shortVal;
         }
         window.applyLiveCardOverlay = applyLiveCardOverlay;
@@ -702,7 +763,7 @@
             const t = Number(pos.t || 0);
             if (t && t < lastPenT) return;
             if (t) lastPenT = t;
-            if (pos.first_card) applyLiveCardOverlay(pos.first_card, pos.card_x, pos.card_y);
+            if (pos.first_card) applyLiveCardOverlay(pos.first_card, pos.card_x, pos.card_y, pos.card_scale);
             if (!pos.visible || pos.x == null || pos.y == null) {
                 playerPenMarker.style.display = 'none';
                 return;
