@@ -566,18 +566,22 @@
     const liveJpegUrl = @json(route('game.live.jpeg', $room->id));
     const livePlaylistUrl = @json(route('game.live.playlist', $room->id));
 
-    function createLowLatencyHls(lowLatencyMode) {
+    function createLowLatencyHls() {
         return new Hls({
             enableWorker: true,
-            lowLatencyMode: lowLatencyMode !== false,
-            backBufferLength: 0,
-            maxBufferLength: 8,
-            maxMaxBufferLength: 16,
+            lowLatencyMode: false,
+            backBufferLength: 30,
+            maxBufferLength: 20,
+            maxMaxBufferLength: 40,
             liveSyncDurationCount: 3,
             liveMaxLatencyDurationCount: 10,
             liveDurationInfinity: true,
             startFragPrefetch: true
         });
+    }
+
+    function isAdminVideoPlaying(video) {
+        return !!(video && adminHls && video.readyState >= 2 && !video.paused && video.videoWidth > 0);
     }
 
     function stopAdminHls() {
@@ -592,107 +596,67 @@
         }
     }
 
-    function attachAdminHls(video, playUrl, allowLowLatency) {
+    function attachAdminHls(video, playUrl) {
         if (!video || !playUrl || !adminWantsLive) return;
-        stopAdminHls();
+        if (isAdminVideoPlaying(video)) {
+            video.play().catch(() => {});
+            return;
+        }
+        if (adminHls) {
+            video.play().catch(() => {});
+            return;
+        }
         video.classList.remove('hidden');
         video.muted = true;
+        video.setAttribute('muted', '');
         video.autoplay = true;
         video.playsInline = true;
+        video.setAttribute('playsinline', '');
         if (!Hls.isSupported()) {
             if (video.canPlayType('application/vnd.apple.mpegurl')) {
                 playNativeHlsAtLiveEdge(video, playUrl);
             }
             return;
         }
-        const useLl = allowLowLatency !== false;
-        adminHls = createLowLatencyHls(useLl);
+        adminHls = createLowLatencyHls();
         adminHls.loadSource(playUrl);
         adminHls.attachMedia(video);
-        keepHlsAtLiveEdge(adminHls, video);
         adminHls.on(Hls.Events.MANIFEST_PARSED, () => {
             video.play().catch(() => {});
         });
         adminHls.on(Hls.Events.ERROR, function(_, data) {
-            if (!adminWantsLive || !data) return;
+            if (!adminWantsLive || !data || !adminHls) return;
             if (!data.fatal) {
                 video.play().catch(() => {});
                 return;
             }
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                if (useLl) {
-                    attachAdminHls(video, playUrl, false);
-                    return;
-                }
-                if (adminHls) adminHls.startLoad();
+                adminHls.startLoad();
                 video.play().catch(() => {});
                 return;
             }
-            if (data.type === Hls.ErrorTypes.MEDIA_ERROR && adminHls) {
+            if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
                 adminHls.recoverMediaError();
                 video.play().catch(() => {});
-                return;
             }
-            setTimeout(() => {
-                if (adminWantsLive) attachAdminHls(video, playUrl, false);
-            }, 800);
         });
         video.onclick = function() {
             video.play().catch(() => {});
         };
     }
 
-    function startAdminHlsWatchdog(video, playUrl) {
+    function startAdminHlsWatchdog(video) {
         if (adminHlsWatchdog) clearInterval(adminHlsWatchdog);
-        let stuck = 0;
-        let lastTime = 0;
         adminHlsWatchdog = setInterval(() => {
-            if (!adminWantsLive) return;
-            if (!video) return;
-            video.play().catch(() => {});
-            const t = video.currentTime || 0;
-            const playing = video.readyState >= 2 && !video.paused && Math.abs(t - lastTime) > 0.01;
-            lastTime = t;
-            if (playing) {
-                stuck = 0;
-                return;
-            }
-            stuck += 1;
-            if (stuck >= 2) {
-                stuck = 0;
-                attachAdminHls(video, playUrl, false);
+            if (!adminWantsLive || !video) return;
+            if (video.paused || video.ended) {
+                video.play().catch(() => {});
             }
         }, 2000);
     }
 
     function keepHlsAtLiveEdge(hls, video) {
-        let isLive = false;
-        hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
-            if (data && data.details) isLive = !!data.details.live;
-        });
-        const snapToLive = () => {
-            if (!isLive) return;
-            try {
-                if (video.seekable && video.seekable.length > 0) {
-                    const live = video.seekable.end(video.seekable.length - 1);
-                    const gap = live - video.currentTime;
-                    if (gap > 2.2) {
-                        video.currentTime = Math.max(0, live - 0.35);
-                        video.playbackRate = 1;
-                    } else if (gap > 0.6) {
-                        video.playbackRate = 1.75;
-                    } else {
-                        video.playbackRate = 1;
-                    }
-                }
-            } catch (e) {}
-        };
-        hls.on(Hls.Events.MANIFEST_PARSED, snapToLive);
-        hls.on(Hls.Events.LEVEL_UPDATED, snapToLive);
-        hls.on(Hls.Events.FRAG_LOADED, snapToLive);
-        if (!video._liveEdgeIv) {
-            video._liveEdgeIv = setInterval(snapToLive, 250);
-        }
+        return;
     }
 
     function playNativeHlsAtLiveEdge(video, streamUrl) {
@@ -726,6 +690,12 @@
     }
 
     async function startLiveCameraStream() {
+        const existingVideo = document.getElementById('admin-cctv-video');
+        if (adminHls && existingVideo) {
+            adminWantsLive = true;
+            existingVideo.play().catch(() => {});
+            return;
+        }
         if (adminStreamStarting) return;
         adminStreamStarting = true;
         adminWantsLive = true;
@@ -756,8 +726,8 @@
                     if (cctvJpg) cctvJpg.classList.add('hidden');
                     if (cctvVideo) {
                         cctvVideo.classList.remove('hidden');
-                        attachAdminHls(cctvVideo, parsed.streamUrl, true);
-                        startAdminHlsWatchdog(cctvVideo, parsed.streamUrl);
+                        attachAdminHls(cctvVideo, parsed.streamUrl);
+                        startAdminHlsWatchdog(cctvVideo);
                     }
                     window._adminJpegProbe = function() {};
                 } else {
@@ -1045,7 +1015,7 @@
     function resumeAdminLiveStream() {
         if (!adminWantsLive) return;
         const video = document.getElementById('admin-cctv-video');
-        if (video && adminHls && video.readyState >= 2 && !video.paused) {
+        if (adminHls && video) {
             video.play().catch(() => {});
             return;
         }
@@ -1057,9 +1027,13 @@
     } else {
         resumeAdminLiveStream();
     }
-    window.addEventListener('pageshow', resumeAdminLiveStream);
+    window.addEventListener('pageshow', function (e) {
+        if (e.persisted) resumeAdminLiveStream();
+    });
     document.addEventListener('visibilitychange', function () {
-        if (!document.hidden) resumeAdminLiveStream();
+        if (document.hidden || !adminWantsLive) return;
+        const video = document.getElementById('admin-cctv-video');
+        if (video) video.play().catch(() => {});
     });
 
     document.addEventListener('keydown', function (e) {
