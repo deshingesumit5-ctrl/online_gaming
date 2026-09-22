@@ -827,6 +827,60 @@
             }
         }
 
+        let lastLiveOverlayLayout = { x: 0.48, y: 0.58, scale: 1 };
+        const OVERLAY_BASE_VIDEO_FRAC = 0.085;
+
+        function overlayMediaSize(media) {
+            if (!media) return { mw: 0, mh: 0 };
+            if (media.videoWidth) return { mw: media.videoWidth, mh: media.videoHeight };
+            if (media.naturalWidth) return { mw: media.naturalWidth, mh: media.naturalHeight };
+            return { mw: 0, mh: 0 };
+        }
+
+        function playerOverlayMedia() {
+            const v = document.getElementById('live-cctv-stream');
+            if (v && v.videoWidth > 0 && !v.classList.contains('hidden')) return v;
+            const img = document.getElementById('player-live-camera-img');
+            if (img && img.naturalWidth > 0 && !img.classList.contains('hidden')) return img;
+            return v || img;
+        }
+
+        function overlayCoverMetrics(container, media) {
+            const cw = Math.max(1, container.clientWidth);
+            const ch = Math.max(1, container.clientHeight);
+            const sz = overlayMediaSize(media);
+            const mw = sz.mw || 16;
+            const mh = sz.mh || 9;
+            const coverScale = Math.max(cw / mw, ch / mh);
+            const displayW = mw * coverScale;
+            const displayH = mh * coverScale;
+            return {
+                coverScale,
+                displayW,
+                displayH,
+                offsetX: (cw - displayW) / 2,
+                offsetY: (ch - displayH) / 2,
+                mw,
+                mh
+            };
+        }
+
+        function layoutPlayerOverlayCard(overlay, x, y, scale) {
+            const box = document.getElementById('player-live-stream-box');
+            if (!overlay || !box) return;
+            const sc = (scale != null && scale !== '' && isFinite(Number(scale))) ? Number(scale) : 1;
+            const px = (x != null && x !== '' && isFinite(Number(x))) ? Number(x) : 0.48;
+            const py = (y != null && y !== '' && isFinite(Number(y))) ? Number(y) : 0.58;
+            lastLiveOverlayLayout = { x: px, y: py, scale: sc };
+            const metrics = overlayCoverMetrics(box, playerOverlayMedia());
+            const widthPx = metrics.mw * metrics.coverScale * OVERLAY_BASE_VIDEO_FRAC * sc;
+            overlay.style.width = widthPx + 'px';
+            overlay.style.height = (widthPx * 168 / 118) + 'px';
+            overlay.style.left = (metrics.offsetX + px * metrics.displayW) + 'px';
+            overlay.style.top = (metrics.offsetY + py * metrics.displayH) + 'px';
+            overlay.style.transform = 'translate(-50%, -50%)';
+        }
+
         function applyLiveCardOverlay(cardCode, x, y, scale) {
             const overlay = document.getElementById('player-live-card-overlay');
             const rankEl = document.getElementById('player-live-card-rank');
@@ -864,19 +918,29 @@
             overlay.classList.add('is-visible');
             overlay.classList.add('is-red');
             overlay.classList.remove('is-black');
-            if (x != null && x !== '' && y != null && y !== '') {
-                const px = Number(x);
-                const py = Number(y);
-                if (isFinite(px) && isFinite(py)) {
-                    overlay.style.left = (px * 100) + '%';
-                    overlay.style.top = (py * 100) + '%';
-                }
-            }
-            const sc = (scale != null && scale !== '') ? Number(scale) : NaN;
-            overlay.style.transform = 'translate(-50%, -50%) scale(' + (isFinite(sc) ? sc : 1) + ')';
+            layoutPlayerOverlayCard(overlay, x, y, scale);
             if (hudRank) hudRank.textContent = shortVal;
         }
         window.applyLiveCardOverlay = applyLiveCardOverlay;
+
+        const playerStreamBox = document.getElementById('player-live-stream-box');
+        if (playerStreamBox && typeof ResizeObserver !== 'undefined') {
+            new ResizeObserver(function () {
+                const overlay = document.getElementById('player-live-card-overlay');
+                if (overlay && overlay.classList.contains('is-visible')) {
+                    layoutPlayerOverlayCard(overlay, lastLiveOverlayLayout.x, lastLiveOverlayLayout.y, lastLiveOverlayLayout.scale);
+                }
+            }).observe(playerStreamBox);
+        }
+        const playerCctvVideo = document.getElementById('live-cctv-stream');
+        if (playerCctvVideo) {
+            playerCctvVideo.addEventListener('loadedmetadata', function () {
+                const overlay = document.getElementById('player-live-card-overlay');
+                if (overlay && overlay.classList.contains('is-visible')) {
+                    layoutPlayerOverlayCard(overlay, lastLiveOverlayLayout.x, lastLiveOverlayLayout.y, lastLiveOverlayLayout.scale);
+                }
+            });
+        }
 
         function applyPenPosition(pos) {
             if (!playerPenMarker || !pos) return;

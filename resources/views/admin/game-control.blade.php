@@ -1136,6 +1136,55 @@
     let adminOverlayY = 0.58;
     let adminOverlayScale = 1;
     let adminOverlayVisible = false;
+    const OVERLAY_BASE_VIDEO_FRAC = 0.085;
+
+    function overlayMediaSize(media) {
+        if (!media) return { mw: 0, mh: 0 };
+        if (media.videoWidth) return { mw: media.videoWidth, mh: media.videoHeight };
+        if (media.naturalWidth) return { mw: media.naturalWidth, mh: media.naturalHeight };
+        return { mw: 0, mh: 0 };
+    }
+
+    function adminOverlayMedia() {
+        const cctv = document.getElementById('admin-cctv-video');
+        if (cctv && cctv.videoWidth > 0 && !cctv.classList.contains('hidden')) return cctv;
+        const cam = document.getElementById('admin-live-camera');
+        if (cam && cam.videoWidth > 0 && !cam.classList.contains('hidden')) return cam;
+        const jpg = document.getElementById('admin-cctv-live-jpg');
+        if (jpg && jpg.naturalWidth > 0 && !jpg.classList.contains('hidden')) return jpg;
+        return cctv || cam || jpg;
+    }
+
+    function overlayCoverMetrics(container, media) {
+        const cw = Math.max(1, container.clientWidth);
+        const ch = Math.max(1, container.clientHeight);
+        const sz = overlayMediaSize(media);
+        const mw = sz.mw || 16;
+        const mh = sz.mh || 9;
+        const coverScale = Math.max(cw / mw, ch / mh);
+        const displayW = mw * coverScale;
+        const displayH = mh * coverScale;
+        return {
+            coverScale,
+            displayW,
+            displayH,
+            offsetX: (cw - displayW) / 2,
+            offsetY: (ch - displayH) / 2,
+            mw,
+            mh
+        };
+    }
+
+    function applyAdminOverlayBox(overlay) {
+        if (!overlay || !adminPreview) return;
+        const metrics = overlayCoverMetrics(adminPreview, adminOverlayMedia());
+        const widthPx = metrics.mw * metrics.coverScale * OVERLAY_BASE_VIDEO_FRAC * adminOverlayScale;
+        overlay.style.width = widthPx + 'px';
+        overlay.style.height = (widthPx * 168 / 118) + 'px';
+        overlay.style.left = (metrics.offsetX + adminOverlayX * metrics.displayW) + 'px';
+        overlay.style.top = (metrics.offsetY + adminOverlayY * metrics.displayH) + 'px';
+        overlay.style.transform = 'translate(-50%, -50%)';
+    }
 
     function overlayPipCount(raw) {
         if (raw === '10') return 10;
@@ -1155,12 +1204,6 @@
             d.textContent = symbol;
             panel.appendChild(d);
         }
-    }
-
-    function applyAdminOverlayBox(overlay) {
-        overlay.style.left = (adminOverlayX * 100) + '%';
-        overlay.style.top = (adminOverlayY * 100) + '%';
-        overlay.style.transform = 'translate(-50%, -50%) scale(' + adminOverlayScale + ')';
     }
 
     function paintAdminOverlayCard(code, x, y, scale) {
@@ -1272,8 +1315,9 @@
             e.preventDefault();
             e.stopPropagation();
             const rect = adminPreview.getBoundingClientRect();
-            adminOverlayX = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
-            adminOverlayY = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+            const metrics = overlayCoverMetrics(adminPreview, adminOverlayMedia());
+            adminOverlayX = Math.min(1, Math.max(0, (e.clientX - rect.left - metrics.offsetX) / metrics.displayW));
+            adminOverlayY = Math.min(1, Math.max(0, (e.clientY - rect.top - metrics.offsetY) / metrics.displayH));
             applyAdminOverlayBox(overlay);
         });
         overlay.addEventListener('pointerup', function (e) {
@@ -1332,6 +1376,20 @@
     if (btnDelete) {
         btnDelete.addEventListener('click', function () {
             hideAdminOverlayCard();
+        });
+    }
+
+    if (adminPreview && typeof ResizeObserver !== 'undefined') {
+        new ResizeObserver(function () {
+            const overlay = document.getElementById('admin-live-card-overlay');
+            if (overlay && overlay.classList.contains('is-visible')) applyAdminOverlayBox(overlay);
+        }).observe(adminPreview);
+    }
+    const adminCctvVideo = document.getElementById('admin-cctv-video');
+    if (adminCctvVideo) {
+        adminCctvVideo.addEventListener('loadedmetadata', function () {
+            const overlay = document.getElementById('admin-live-card-overlay');
+            if (overlay && overlay.classList.contains('is-visible')) applyAdminOverlayBox(overlay);
         });
     }
 </script>
