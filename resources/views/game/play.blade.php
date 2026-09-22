@@ -409,7 +409,7 @@
 
             <!-- External / CCTV Live Stream Player Container -->
             <div id="player-external-stream-wrap" class="hidden absolute inset-0 bg-black">
-                <video id="live-cctv-stream" class="w-full h-full object-cover hidden" autoplay muted playsinline></video>
+                <video id="live-cctv-stream" class="w-full h-full object-cover hidden" autoplay muted playsinline disablepictureinpicture></video>
                 <iframe id="live-youtube-stream" class="w-full h-full border-0 hidden pointer-events-auto"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowfullscreen></iframe>
@@ -1327,7 +1327,10 @@
             const py = (y != null && y !== '' && isFinite(Number(y))) ? Number(y) : 0.58;
             lastLiveOverlayLayout = { x: px, y: py, scale: sc };
             const metrics = overlayCoverMetrics(box, playerOverlayMedia());
-            const widthPx = metrics.mw * metrics.coverScale * OVERLAY_BASE_VIDEO_FRAC * sc;
+            // On mobile only, increase card size by 1 admin unit (0.1 scale)
+            const isMobileView = window.innerWidth <= 1024;
+            const effectiveSc = isMobileView ? (sc + 0.1) : sc;
+            const widthPx = metrics.mw * metrics.coverScale * OVERLAY_BASE_VIDEO_FRAC * effectiveSc;
             overlay.style.width = widthPx + 'px';
             overlay.style.height = (widthPx * 168 / 118) + 'px';
             overlay.style.left = (metrics.offsetX + px * metrics.displayW) + 'px';
@@ -1777,10 +1780,41 @@
         });
 
         document.addEventListener('visibilitychange', () => {
-            if (document.hidden || streamEndedByAdmin) return;
+            if (document.hidden) {
+                // On mobile: stop the stream when user goes to home screen (prevent background PiP)
+                const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+                if (isMobile) {
+                    const cctvVideoHide = document.getElementById('live-cctv-stream');
+                    // Exit PiP if active
+                    if (document.pictureInPictureElement) {
+                        document.exitPictureInPicture().catch(() => {});
+                    }
+                    // Pause and detach stream on mobile when hidden to prevent mini-screen
+                    if (cctvVideoHide && !streamEndedByAdmin) {
+                        cctvVideoHide.pause();
+                    }
+                }
+                return;
+            }
+            // Page became visible again — resume stream on all devices
+            if (streamEndedByAdmin) return;
             const cctvVideo = document.getElementById('live-cctv-stream');
             if (cctvVideo) cctvVideo.play().catch(() => {});
         });
+
+        // Prevent PiP from being triggered on mobile via enterpictureinpicture
+        (function disableMobilePiP() {
+            const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+            if (!isMobile) return;
+            const vid = document.getElementById('live-cctv-stream');
+            if (!vid) return;
+            vid.addEventListener('enterpictureinpicture', function (e) {
+                e.preventDefault();
+                if (document.pictureInPictureElement) {
+                    document.exitPictureInPicture().catch(() => {});
+                }
+            });
+        })();
 
         window.addEventListener('pageshow', (e) => {
             if (streamEndedByAdmin || !window._isStreamActive) return;
