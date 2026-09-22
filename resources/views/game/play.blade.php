@@ -102,11 +102,13 @@
         position: absolute;
         left: 48%;
         top: 58%;
-        width: 118px;
-        height: 168px;
+        width: 8.5%;
+        height: auto;
+        aspect-ratio: 118 / 168;
+        flex: none;
         margin: 0;
         transform: translate(-50%, -50%);
-        border-radius: 10px;
+        border-radius: 8%;
         background: #fff;
         border: 3px solid #111;
         box-shadow: 0 8px 24px rgba(0,0,0,0.55);
@@ -172,7 +174,7 @@
         object-fit: fill;
         display: block;
         pointer-events: none;
-        border-radius: 10px;
+        border-radius: 8%;
     }
 
 

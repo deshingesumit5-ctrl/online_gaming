@@ -28,11 +28,13 @@
         position: absolute;
         left: 48%;
         top: 58%;
-        width: 56px;
-        height: 80px;
+        width: 8.5%;
+        height: auto;
+        aspect-ratio: 56 / 80;
+        flex: none;
         margin: 0;
         transform: translate(-50%, -50%);
-        border-radius: 6px;
+        border-radius: 8%;
         background: #fff;
         border: 2px solid #111;
         box-shadow: 0 4px 12px rgba(0,0,0,0.45);
@@ -95,7 +97,7 @@
         object-fit: fill;
         display: block;
         pointer-events: none;
-        border-radius: 6px;
+        border-radius: 8%;
     }</style>
 @endpush
 
