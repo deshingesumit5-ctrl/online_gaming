@@ -13,7 +13,10 @@ use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class AdminGameController extends Controller
@@ -22,24 +25,100 @@ class AdminGameController extends Controller
     {
     }
 
+    public static function ensureSchema(): void
+    {
+        try {
+            if (!Schema::hasTable('betting_windows') || 
+                !Schema::hasTable('audit_logs') || 
+                !Schema::hasColumn('game_rounds', 'payout_mode') ||
+                !Schema::hasColumn('bets', 'betting_window_id')) {
+                
+                try {
+                    Artisan::call('migrate', ['--force' => true]);
+                } catch (\Throwable $e) {
+                    Log::warning('Artisan migrate call in ensureSchema: ' . $e->getMessage());
+                }
+
+                if (!Schema::hasTable('betting_windows')) {
+                    Schema::create('betting_windows', function (\Illuminate\Database\Schema\Blueprint $table) {
+                        $table->id();
+                        $table->foreignId('game_round_id')->constrained('game_rounds')->cascadeOnDelete();
+                        $table->unsignedInteger('window_number')->default(1);
+                        $table->string('status', 20)->default('open');
+                        $table->timestamp('started_at')->nullable();
+                        $table->timestamp('ended_at')->nullable();
+                        $table->timestamps();
+                    });
+                }
+
+                if (!Schema::hasTable('audit_logs')) {
+                    Schema::create('audit_logs', function (\Illuminate\Database\Schema\Blueprint $table) {
+                        $table->id();
+                        $table->foreignId('admin_id')->nullable()->constrained('users')->nullOnDelete();
+                        $table->foreignId('room_id')->nullable()->constrained('rooms')->nullOnDelete();
+                        $table->foreignId('game_round_id')->nullable()->constrained('game_rounds')->nullOnDelete();
+                        $table->string('action', 80);
+                        $table->text('previous_state')->nullable();
+                        $table->text('new_state')->nullable();
+                        $table->timestamps();
+                    });
+                }
+
+                Schema::table('game_rounds', function (\Illuminate\Database\Schema\Blueprint $table) {
+                    if (!Schema::hasColumn('game_rounds', 'payout_mode')) {
+                        $table->unsignedTinyInteger('payout_mode')->nullable()->after('winning_side');
+                    }
+                    if (!Schema::hasColumn('game_rounds', 'first_card_matched')) {
+                        $table->boolean('first_card_matched')->nullable()->after('payout_mode');
+                    }
+                    if (!Schema::hasColumn('game_rounds', 'payout_locked')) {
+                        $table->boolean('payout_locked')->default(false)->after('first_card_matched');
+                    }
+                });
+
+                Schema::table('bets', function (\Illuminate\Database\Schema\Blueprint $table) {
+                    if (!Schema::hasColumn('bets', 'betting_window_id')) {
+                        $table->foreignId('betting_window_id')->nullable()->after('game_round_id');
+                    }
+                    if (!Schema::hasColumn('bets', 'cancelled_at')) {
+                        $table->timestamp('cancelled_at')->nullable()->after('status');
+                    }
+                    if (!Schema::hasColumn('bets', 'profit_amount')) {
+                        $table->decimal('profit_amount', 12, 2)->default(0)->after('payout_amount');
+                    }
+                });
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Schema self-healing notice: ' . $e->getMessage());
+        }
+    }
+
     public function roomsList(): View
     {
+        self::ensureSchema();
+
         $rooms = Room::with(['game'])
             ->withCount(['gameRounds'])
             ->orderBy('id', 'asc')
             ->get();
 
         foreach ($rooms as $room) {
-            $latestRound = GameRound::where('room_id', $room->id)->latest()->first();
-            $room->latest_round = $latestRound;
-            if ($latestRound) {
-                $room->active_bets_count = Bet::where('game_round_id', $latestRound->id)
-                    ->where('status', '!=', 'cancelled')
-                    ->count();
-                $room->active_bets_pool = Bet::where('game_round_id', $latestRound->id)
-                    ->where('status', '!=', 'cancelled')
-                    ->sum('amount');
-            } else {
+            try {
+                $latestRound = GameRound::where('room_id', $room->id)->latest('id')->first();
+                $room->latest_round = $latestRound;
+                if ($latestRound) {
+                    $room->active_bets_count = Bet::where('game_round_id', $latestRound->id)
+                        ->where('status', '!=', 'cancelled')
+                        ->count();
+                    $room->active_bets_pool = Bet::where('game_round_id', $latestRound->id)
+                        ->where('status', '!=', 'cancelled')
+                        ->sum('amount');
+                } else {
+                    $room->active_bets_count = 0;
+                    $room->active_bets_pool = 0;
+                }
+            } catch (\Throwable $e) {
+                $room->latest_round = null;
                 $room->active_bets_count = 0;
                 $room->active_bets_pool = 0;
             }
@@ -50,9 +129,11 @@ class AdminGameController extends Controller
 
     public function controlPanel(int $roomId): View
     {
+        self::ensureSchema();
+
         $room = Room::with(['game'])->findOrFail($roomId);
         $allRooms = Room::all(['id', 'name', 'status']);
-        $currentRound = GameRound::where('room_id', $roomId)->latest()->first();
+        $currentRound = GameRound::where('room_id', $roomId)->latest('id')->first();
 
         if (!$currentRound) {
             $currentRound = GameRound::create([
@@ -66,7 +147,7 @@ class AdminGameController extends Controller
         $activeBets = Bet::with('user')
             ->where('game_round_id', $currentRound->id)
             ->where('status', '!=', 'cancelled')
-            ->latest()
+            ->latest('id')
             ->get();
 
         $andarBets = $activeBets->where('selection', 'andar');
@@ -81,12 +162,26 @@ class AdminGameController extends Controller
             ->take(8)
             ->get();
 
-        $bettingWindows = $currentRound->bettingWindows()->orderBy('window_number')->get();
-        $currentWindow = $currentRound->currentBettingWindow();
-        $auditLogs = \App\Models\AuditLog::where('game_round_id', $currentRound->id)
-            ->latest('id')
-            ->take(12)
-            ->get();
+        try {
+            $bettingWindows = $currentRound->bettingWindows()->orderBy('window_number')->get();
+        } catch (\Throwable $e) {
+            $bettingWindows = collect();
+        }
+
+        try {
+            $currentWindow = $currentRound->currentBettingWindow();
+        } catch (\Throwable $e) {
+            $currentWindow = null;
+        }
+
+        try {
+            $auditLogs = \App\Models\AuditLog::where('game_round_id', $currentRound->id)
+                ->latest('id')
+                ->take(12)
+                ->get();
+        } catch (\Throwable $e) {
+            $auditLogs = collect();
+        }
 
         $sessionWinners = Bet::where('game_round_id', $currentRound->id)->where('status', 'won')->count();
         $sessionLosers = Bet::where('game_round_id', $currentRound->id)->where('status', 'lost')->count();
@@ -116,6 +211,8 @@ class AdminGameController extends Controller
 
     public function handleAction(Request $request, int $roomId): JsonResponse|RedirectResponse
     {
+        self::ensureSchema();
+
         $request->validate([
             'action' => ['required', 'in:start_round,open_betting,close_betting,declare_result,create_new_round,update_stream,update_room_timings,start_stream,end_stream,update_first_card,hide_card_overlay,confirm_first_card'],
             'first_card' => ['nullable', 'string'],

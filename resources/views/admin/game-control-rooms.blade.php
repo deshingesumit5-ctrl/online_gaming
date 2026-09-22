@@ -32,7 +32,12 @@
             @forelse($rooms as $room)
                 @php
                     $round = $room->latest_round;
-                    $window = $round ? $round->currentBettingWindow() : null;
+                    $window = null;
+                    try {
+                        $window = $round ? $round->currentBettingWindow() : null;
+                    } catch (\Throwable $e) {
+                        $window = null;
+                    }
                     
                     // Possible Table Statuses: Not Started, Ready, Live, Betting Open, Betting Closed, Result Pending, Completed, Offline
                     if ($room->status !== 'live') {
@@ -244,5 +249,4 @@
             </table>
         </div>
     </div>
-</div>
 @endsection

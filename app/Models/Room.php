@@ -59,12 +59,17 @@ class Room extends Model
 
     public function getActiveUsersCountAttribute(): int
     {
-        $latestRoundId = $this->currentRound?->id ?? $this->gameRounds()->latest()->value('id');
-        if (!$latestRoundId) {
+        try {
+            $latestRoundId = $this->currentRound?->id ?? $this->gameRounds()->latest('id')->value('id');
+            if (!$latestRoundId) {
+                return 0;
+            }
+            return (int) \App\Models\Bet::where('game_round_id', $latestRoundId)
+                ->where('status', '!=', 'cancelled')
+                ->distinct('user_id')
+                ->count('user_id');
+        } catch (\Throwable $e) {
             return 0;
         }
-        return (int) \App\Models\Bet::where('game_round_id', $latestRoundId)
-            ->distinct('user_id')
-            ->count('user_id');
     }
 }

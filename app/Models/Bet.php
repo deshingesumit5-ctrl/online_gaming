@@ -56,7 +56,7 @@ class Bet extends Model
         $cancellationDuration = $this->round?->room?->cancellation_duration ?? 30;
         $secondsSinceCreation = now()->diffInSeconds($this->created_at);
 
-        return $secondsSinceCreation <= $cancellationDuration && $this->round->isBettingOpen();
+        return $secondsSinceCreation <= $cancellationDuration && ($this->round?->isBettingOpen() ?? false);
     }
 
     public function remainingCancelSeconds(): int
