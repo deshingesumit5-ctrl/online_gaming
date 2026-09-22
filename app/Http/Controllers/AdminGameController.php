@@ -106,7 +106,7 @@ class AdminGameController extends Controller
             'cancellation_duration' => ['nullable', 'integer', 'min:0', 'max:300'],
             'x' => ['nullable', 'numeric', 'min:0', 'max:1'],
             'y' => ['nullable', 'numeric', 'min:0', 'max:1'],
-            'scale' => ['nullable', 'numeric', 'min:0.4', 'max:3'],
+            'scale' => ['nullable', 'numeric', 'min:0.2', 'max:3'],
         ]);
 
         $room = Room::findOrFail($roomId);

@@ -1312,7 +1312,7 @@
     const btnLarger = document.getElementById('btn-overlay-card-larger');
     if (btnSmaller) {
         btnSmaller.addEventListener('click', function () {
-            adminOverlayScale = Math.max(0.5, Math.round((adminOverlayScale - 0.1) * 10) / 10);
+            adminOverlayScale = Math.max(0.2, Math.round((adminOverlayScale - 0.1) * 10) / 10);
             const overlay = document.getElementById('admin-live-card-overlay');
             if (overlay) applyAdminOverlayBox(overlay);
             publishOverlayCard();
