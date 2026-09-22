@@ -389,8 +389,18 @@ class GameEngine {
         }).join('');
     }
 
-    async placeBet(selection) {
+    async placeBet(selection, options = {}) {
         try {
+            const bodyPayload = {
+                selection: selection,
+            };
+            if (selection === 'both') {
+                bodyPayload.andar_amount = options.andar_amount;
+                bodyPayload.bahar_amount = options.bahar_amount;
+            } else {
+                bodyPayload.amount = options.amount || this.selectedChip;
+            }
+
             const res = await fetch(this.betUrl, {
                 method: 'POST',
                 headers: {
@@ -398,16 +408,13 @@ class GameEngine {
                     'X-CSRF-TOKEN': this.csrfToken,
                     'Accept': 'application/json',
                 },
-                body: JSON.stringify({
-                    selection: selection,
-                    amount: this.selectedChip,
-                })
+                body: JSON.stringify(bodyPayload)
             });
 
             const data = await res.json();
             if (!res.ok || !data.success) {
                 window.showToast(data.message || 'Failed to place bet.', 'error');
-                return;
+                return false;
             }
 
             window.showToast(data.message, 'success');
@@ -415,9 +422,11 @@ class GameEngine {
                 window.onBetPlacedSuccess(data);
             }
             this.fetchState();
+            return true;
         } catch (err) {
             console.error('Bet error:', err);
             window.showToast('Network error while placing bet.', 'error');
+            return false;
         }
     }
 

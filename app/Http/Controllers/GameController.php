@@ -160,7 +160,6 @@ class GameController extends Controller
     {
         $user = Auth::user();
         $validated = $request->validated();
-        $amount = (float) $validated['amount'];
         $selection = $validated['selection'];
 
         $room = Room::findOrFail($roomId);
@@ -172,6 +171,103 @@ class GameController extends Controller
                 'message' => 'Betting is currently closed for this round.',
             ], 422);
         }
+
+        if ($selection === 'both') {
+            $andarAmount = (float) $validated['andar_amount'];
+            $baharAmount = (float) $validated['bahar_amount'];
+            $totalAmount = $andarAmount + $baharAmount;
+
+            if ($andarAmount < 500 || $baharAmount < 500) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Minimum betting amount is 500 points for each side.',
+                ], 422);
+            }
+
+            try {
+                $result = DB::transaction(function () use ($user, $andarAmount, $baharAmount, $totalAmount, $currentRound, $room, $roomId) {
+                    $sessionTotal = $currentRound->userSessionBetTotal($user->id);
+                    if (($sessionTotal + $totalAmount) > GameRound::SESSION_BET_LIMIT) {
+                        throw new Exception('Session betting limit exceeded. Maximum cumulative limit is 10,00,000 Points across Andar + Bahar.');
+                    }
+
+                    $window = $currentRound->bettingWindows()->where('status', 'open')->latest('id')->first();
+
+                    $betAndar = Bet::create([
+                        'game_round_id' => $currentRound->id,
+                        'betting_window_id' => $window?->id,
+                        'user_id' => $user->id,
+                        'selection' => 'andar',
+                        'amount' => $andarAmount,
+                        'status' => 'active',
+                        'payout_amount' => 0,
+                        'profit_amount' => 0,
+                    ]);
+
+                    $betBahar = Bet::create([
+                        'game_round_id' => $currentRound->id,
+                        'betting_window_id' => $window?->id,
+                        'user_id' => $user->id,
+                        'selection' => 'bahar',
+                        'amount' => $baharAmount,
+                        'status' => 'active',
+                        'payout_amount' => 0,
+                        'profit_amount' => 0,
+                    ]);
+
+                    // Deduct points via WalletService
+                    $transaction = $this->walletService->deductPoints(
+                        user: $user,
+                        amount: (int) $totalAmount,
+                        remarks: "Placed bet on BOTH: {$andarAmount} on ANDAR & {$baharAmount} on BAHAR (Round #{$currentRound->round_number})",
+                        referenceType: Bet::class,
+                        referenceId: $betAndar->id
+                    );
+
+                    // Send notification to User
+                    try {
+                        app(\App\Services\NotificationService::class)->sendToUser(
+                            user: $user,
+                            type: 'bet_confirmation',
+                            title: 'Bet Confirmation',
+                            message: "You placed bet on Both: " . number_format($andarAmount) . " on ANDAR and " . number_format($baharAmount) . " on BAHAR (Round #{$currentRound->round_number}).",
+                            link: route('dashboard')
+                        );
+                    } catch (\Throwable $e) {
+                    }
+
+                    // Send notification to Admin
+                    try {
+                        app(\App\Services\NotificationService::class)->sendToAdmin(
+                            type: 'bet_confirmation',
+                            title: 'User Placed Bet on Both',
+                            message: "User {$user->username} placed bet on Both: " . number_format($andarAmount) . " on ANDAR and " . number_format($baharAmount) . " on BAHAR (Total " . number_format($totalAmount) . " pts) in Round #{$currentRound->round_number}.",
+                            link: route('admin.game.control', ['roomId' => $roomId])
+                        );
+                    } catch (\Throwable $e) {
+                    }
+
+                    return [
+                        'success' => true,
+                        'bet' => $betAndar,
+                        'bet_andar' => $betAndar,
+                        'bet_bahar' => $betBahar,
+                        'wallet_balance' => $transaction->balance_after,
+                        'cancel_duration' => $room->cancellation_duration,
+                        'message' => "Bet placed on Both: " . number_format($andarAmount) . " on ANDAR and " . number_format($baharAmount) . " on BAHAR successfully!",
+                    ];
+                });
+
+                return response()->json($result);
+            } catch (Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $e->getMessage(),
+                ], 422);
+            }
+        }
+
+        $amount = (float) $validated['amount'];
 
         // Deduct points using WalletService and record Bet inside transaction
         if ($amount < 500) {

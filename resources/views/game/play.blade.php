@@ -275,12 +275,78 @@
             font-size: 12px !important;
         }
     }
+
+    /* Mobile Portrait Lock / Rotate Screen Overlay (Matching Image 3) */
+    #device-rotate-overlay {
+        display: none;
+    }
+    @media screen and (orientation: portrait) and (max-width: 1024px) {
+        #device-rotate-overlay {
+            display: flex !important;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 999999;
+            background-color: #000000;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 24px;
+            user-select: none;
+        }
+        #game-main-viewport {
+            overflow: hidden !important;
+            height: 100vh !important;
+        }
+    }
+    .hud-andar-bahar-box #btn-bet-both {
+        transition: all 0.2s ease;
+    }
 </style>
 @endpush
 
 @section('content')
-<div id="game-main-viewport" class="w-full h-full max-w-none mx-auto flex flex-col justify-between overflow-hidden relative select-none game-viewport" style="background: #000;">
+<!-- ============================================================== -->
+<!-- MOBILE ROTATE DEVICE OVERLAY (Matches Image 3 Exactly)         -->
+<!-- Appears only in mobile portrait mode; blocks vertical screen   -->
+<!-- ============================================================== -->
+<div id="device-rotate-overlay" class="flex flex-col items-center justify-center bg-black text-white select-none">
+    <div class="relative w-28 h-28 sm:w-32 sm:h-32 flex items-center justify-center mb-6">
+        <svg class="w-full h-full text-slate-500" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <!-- Phone in portrait orientation -->
+            <rect x="22" y="16" width="34" height="56" rx="6" stroke="#475569" stroke-width="3" fill="none" />
+            <line x1="34" y1="22" x2="44" y2="22" stroke="#475569" stroke-width="2.5" stroke-linecap="round" />
+            <circle cx="39" cy="65" r="2" fill="#475569" />
 
+            <!-- Phone in landscape orientation -->
+            <rect x="32" y="44" width="56" height="34" rx="6" stroke="#64748b" stroke-width="3" fill="#090d16" />
+            <line x1="38" y1="61" x2="38" y2="71" stroke="#64748b" stroke-width="2.5" stroke-linecap="round" />
+            <circle cx="81" cy="61" r="2" fill="#64748b" />
+
+            <!-- Curved Rotation Arrow -->
+            <path d="M 60 22 C 72 24, 82 34, 84 46" stroke="#38bdf8" stroke-width="3" stroke-linecap="round" fill="none" />
+            <polygon points="84,49 80,42 88,42" fill="#38bdf8" />
+        </svg>
+    </div>
+
+    <h2 class="text-xl sm:text-2xl font-black text-white tracking-wide mb-2 font-sans">
+        Please Rotate Your Device
+    </h2>
+    <p class="text-slate-400 text-xs sm:text-sm font-medium max-w-xs text-center leading-relaxed">
+        This application works best in landscape mode.
+    </p>
+
+    <button type="button" onclick="requestFullScreenIfLandscape()" class="mt-6 px-4 py-2 rounded-xl bg-slate-900 border border-slate-700 text-slate-300 text-xs font-bold hover:text-white transition">
+        Tap to enable Fullscreen
+    </button>
+</div>
+
+<div id="game-main-viewport" class="w-full h-full max-w-none mx-auto flex flex-col justify-between overflow-hidden relative select-none game-viewport" style="background: #000;">
 
     <!-- Top Bar (PDF Page 17: Fun2Win Logo, Wallet Points, Notifications, Profile, Close) -->
     <div class="relative z-30 px-2 sm:px-5 py-2 flex items-center justify-between text-white bg-black/60 backdrop-blur-md border-b border-white/10 shrink-0 gap-2">
@@ -491,6 +557,23 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- ⚡ BOTH Button (Below ANDAR and BAHAR) -->
+                <div class="mt-1 sm:mt-1.5 w-full">
+                    <div id="btn-bet-both" onclick="openBothBetModal()"
+                         class="w-full rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 bg-gradient-to-r from-[#181a22] via-[#242b3d] to-[#7f1d1d] hover:brightness-110 border-2 border-amber-400/80 shadow-lg flex items-center justify-between cursor-pointer transition active:scale-[0.98] select-none group">
+                        <div class="flex items-center gap-1.5 sm:gap-2">
+                            <span class="text-xs sm:text-sm font-black font-royal tracking-wider text-amber-300 group-hover:text-amber-200">
+                                ⚡ BOTH
+                            </span>
+                            <span class="text-[9px] sm:text-[10px] text-slate-300 font-bold hidden xs:inline">(Andar + Bahar)</span>
+                        </div>
+                        <div class="flex items-center gap-1.5 sm:gap-2">
+                            <span id="both-bet-badge" class="text-[10px] sm:text-xs font-black text-amber-300"></span>
+                            <span class="px-2 py-0.5 rounded bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow">SET BET</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -582,6 +665,88 @@
             </button>
         </div>
     </div>
+
+    {{-- Place Bet on Both Modal Dialog --}}
+    <div id="bothBetModal" class="fixed inset-0 z-50 flex items-center justify-center hidden p-3" style="background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);">
+        <div class="relative w-full max-w-[420px] rounded-3xl bg-gradient-to-b from-[#181c24] to-[#0b0e14] border-2 border-amber-400 shadow-2xl p-4 sm:p-5 text-white flex flex-col gap-3 max-h-[95vh] overflow-y-auto">
+            <!-- Header with title & close button -->
+            <div class="flex items-center justify-between border-b border-white/10 pb-2">
+                <div class="flex items-center gap-2">
+                    <span class="text-amber-400 text-lg">⚡</span>
+                    <h3 class="text-xs sm:text-sm font-black font-royal uppercase tracking-wider text-amber-300">Place Bet on Both</h3>
+                </div>
+                <button type="button" onclick="closeBothBetModal()" class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-xs font-bold transition">✕</button>
+            </div>
+
+            <!-- ANDAR Section -->
+            <div class="bg-black/60 border border-slate-700/80 rounded-2xl p-2.5 sm:p-3">
+                <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-xs sm:text-sm font-black font-royal tracking-widest text-indigo-300 flex items-center gap-1.5">
+                        <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> ANDAR BET
+                    </span>
+                    <span id="both-modal-andar-display" class="text-xs sm:text-sm font-black text-amber-300">500 pts</span>
+                </div>
+                <!-- Quick Chips for Andar -->
+                <div class="flex items-center justify-between gap-1 mb-2">
+                    <button type="button" onclick="setBothSideAmount('andar', 500)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-indigo-950 border border-white/15 text-[10px] sm:text-xs font-black">500</button>
+                    <button type="button" onclick="setBothSideAmount('andar', 1000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-indigo-950 border border-white/15 text-[10px] sm:text-xs font-black">1k</button>
+                    <button type="button" onclick="setBothSideAmount('andar', 2000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-indigo-950 border border-white/15 text-[10px] sm:text-xs font-black">2k</button>
+                    <button type="button" onclick="setBothSideAmount('andar', 5000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-indigo-950 border border-white/15 text-[10px] sm:text-xs font-black">5k</button>
+                    <button type="button" onclick="setBothSideAmount('andar', 10000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-indigo-950 border border-white/15 text-[10px] sm:text-xs font-black">10k</button>
+                </div>
+                <!-- Manual Input for Andar -->
+                <div class="flex items-center gap-2">
+                    <label class="text-[10px] text-slate-400 font-bold shrink-0">Manual Amt:</label>
+                    <input type="number" id="both-andar-manual" min="500" max="1000000" step="100" placeholder="e.g. 500" value="500"
+                           oninput="onBothManualInput('andar', this.value)"
+                           class="w-full px-2 py-1 rounded-lg bg-black/90 border border-slate-600 focus:border-amber-400 text-xs font-black text-white text-center">
+                </div>
+            </div>
+
+            <!-- BAHAR Section -->
+            <div class="bg-black/60 border border-red-900/60 rounded-2xl p-2.5 sm:p-3">
+                <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-xs sm:text-sm font-black font-royal tracking-widest text-red-400 flex items-center gap-1.5">
+                        <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span> BAHAR BET
+                    </span>
+                    <span id="both-modal-bahar-display" class="text-xs sm:text-sm font-black text-amber-300">1,000 pts</span>
+                </div>
+                <!-- Quick Chips for Bahar -->
+                <div class="flex items-center justify-between gap-1 mb-2">
+                    <button type="button" onclick="setBothSideAmount('bahar', 500)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-red-950 border border-white/15 text-[10px] sm:text-xs font-black">500</button>
+                    <button type="button" onclick="setBothSideAmount('bahar', 1000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-red-950 border border-white/15 text-[10px] sm:text-xs font-black">1k</button>
+                    <button type="button" onclick="setBothSideAmount('bahar', 2000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-red-950 border border-white/15 text-[10px] sm:text-xs font-black">2k</button>
+                    <button type="button" onclick="setBothSideAmount('bahar', 5000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-red-950 border border-white/15 text-[10px] sm:text-xs font-black">5k</button>
+                    <button type="button" onclick="setBothSideAmount('bahar', 10000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-red-950 border border-white/15 text-[10px] sm:text-xs font-black">10k</button>
+                </div>
+                <!-- Manual Input for Bahar -->
+                <div class="flex items-center gap-2">
+                    <label class="text-[10px] text-slate-400 font-bold shrink-0">Manual Amt:</label>
+                    <input type="number" id="both-bahar-manual" min="500" max="1000000" step="100" placeholder="e.g. 1000" value="1000"
+                           oninput="onBothManualInput('bahar', this.value)"
+                           class="w-full px-2 py-1 rounded-lg bg-black/90 border border-slate-600 focus:border-amber-400 text-xs font-black text-white text-center">
+                </div>
+            </div>
+
+            <!-- Total Summary Bar -->
+            <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs sm:text-sm font-bold">
+                <span class="text-slate-300">Total Points:</span>
+                <span id="both-modal-total-display" class="text-sm sm:text-base font-black text-amber-300">1,500 pts</span>
+            </div>
+
+            <!-- Actions -->
+            <div class="grid grid-cols-2 gap-2 pt-1">
+                <button type="button" onclick="closeBothBetModal()"
+                        class="py-2.5 rounded-xl font-black text-xs uppercase tracking-wider text-white bg-slate-800 hover:bg-slate-700 transition border border-white/15">
+                    CANCEL
+                </button>
+                <button type="button" id="btn-both-modal-confirm" onclick="submitBothBet()"
+                        class="py-2.5 rounded-xl font-black text-xs uppercase tracking-wider text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:brightness-110 transition shadow-lg shadow-amber-500/40">
+                    PLACE BET ON BOTH
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 @endsection
 
@@ -592,6 +757,106 @@
     let activeSelectedChip = {{ $denominations[0] ?? 500 }};
     let activeSelectedSide = null;
     let gameEngineInstance = null;
+    let activeBothAndar = 500;
+    let activeBothBahar = 1000;
+
+    function openBothBetModal() {
+        selectBetSide('both');
+        updateBothModalDisplays();
+        document.getElementById('bothBetModal')?.classList.remove('hidden');
+    }
+
+    function closeBothBetModal() {
+        document.getElementById('bothBetModal')?.classList.add('hidden');
+    }
+
+    function setBothSideAmount(side, val) {
+        const parsed = parseInt(val, 10);
+        if (isNaN(parsed) || parsed < 500) return;
+        if (side === 'andar') {
+            activeBothAndar = parsed;
+            const input = document.getElementById('both-andar-manual');
+            if (input) input.value = parsed;
+        } else if (side === 'bahar') {
+            activeBothBahar = parsed;
+            const input = document.getElementById('both-bahar-manual');
+            if (input) input.value = parsed;
+        }
+        updateBothModalDisplays();
+        syncBothHudBadges();
+    }
+
+    function onBothManualInput(side, val) {
+        const parsed = parseInt(val, 10);
+        if (side === 'andar') {
+            activeBothAndar = isNaN(parsed) ? 0 : parsed;
+        } else if (side === 'bahar') {
+            activeBothBahar = isNaN(parsed) ? 0 : parsed;
+        }
+        updateBothModalDisplays();
+        syncBothHudBadges();
+    }
+
+    function updateBothModalDisplays() {
+        const andarDisp = document.getElementById('both-modal-andar-display');
+        const baharDisp = document.getElementById('both-modal-bahar-display');
+        const totalDisp = document.getElementById('both-modal-total-display');
+        if (andarDisp) andarDisp.textContent = `${activeBothAndar.toLocaleString()} pts`;
+        if (baharDisp) baharDisp.textContent = `${activeBothBahar.toLocaleString()} pts`;
+        if (totalDisp) totalDisp.textContent = `${(activeBothAndar + activeBothBahar).toLocaleString()} pts`;
+    }
+
+    function syncBothHudBadges() {
+        if (activeSelectedSide === 'both') {
+            const andarBadge = document.getElementById('andar-bet-badge');
+            const baharBadge = document.getElementById('bahar-bet-badge');
+            const bothBadge = document.getElementById('both-bet-badge');
+            if (andarBadge) andarBadge.textContent = `${activeBothAndar.toLocaleString()} pts`;
+            if (baharBadge) baharBadge.textContent = `${activeBothBahar.toLocaleString()} pts`;
+            if (bothBadge) bothBadge.textContent = `${(activeBothAndar + activeBothBahar).toLocaleString()} pts`;
+            document.getElementById('status-first-bet').textContent = `${activeBothAndar.toLocaleString()} pts`;
+            document.getElementById('status-second-bet').textContent = `${activeBothBahar.toLocaleString()} pts`;
+        }
+    }
+
+    async function submitBothBet() {
+        if (activeBothAndar < 500 || activeBothBahar < 500) {
+            showSquareBanner('Minimum Bet', 'Minimum betting amount is 500 points for each side.');
+            return;
+        }
+
+        const totalAmount = activeBothAndar + activeBothBahar;
+        const totalEl = document.getElementById('sum-total');
+        const currentSessionTotal = totalEl ? parseInt(totalEl.textContent.replace(/,/g, '') || '0', 10) : 0;
+        if ((currentSessionTotal + totalAmount) > 1000000) {
+            showSquareBanner('Session Limit Exceeded', 'Session betting limit exceeded. Maximum cumulative limit is 10,00,000 Points across Andar + Bahar.');
+            return;
+        }
+
+        closeBothBetModal();
+
+        if (gameEngineInstance) {
+            const placeBtn = document.getElementById('btn-hud-place-bet');
+            const modalBtn = document.getElementById('btn-both-modal-confirm');
+            if (placeBtn) {
+                placeBtn.disabled = true;
+                placeBtn.dataset.originalText = placeBtn.textContent;
+                placeBtn.textContent = 'PLACING...';
+            }
+            if (modalBtn) modalBtn.disabled = true;
+
+            await gameEngineInstance.placeBet('both', {
+                andar_amount: activeBothAndar,
+                bahar_amount: activeBothBahar
+            });
+
+            if (placeBtn) {
+                placeBtn.disabled = false;
+                placeBtn.textContent = placeBtn.dataset.originalText || 'PLACE BET';
+            }
+            if (modalBtn) modalBtn.disabled = false;
+        }
+    }
 
     function selectPokerChip(val, el) {
         activeSelectedChip = parseInt(val, 10);
@@ -600,7 +865,7 @@
         const manual = document.getElementById('manual-bet-amount');
         if (manual) manual.value = '';
 
-        if (activeSelectedSide) {
+        if (activeSelectedSide && activeSelectedSide !== 'both') {
             updateSideBadge(activeSelectedSide, activeSelectedChip);
         }
     }
@@ -609,6 +874,19 @@
         activeSelectedSide = side;
         const andarBox = document.getElementById('btn-bet-andar');
         const baharBox = document.getElementById('btn-bet-bahar');
+        const bothBox = document.getElementById('btn-bet-both');
+
+        if (side === 'both') {
+            bothBox?.classList.add('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
+            andarBox.classList.add('ring-2', 'ring-amber-400');
+            baharBox.classList.add('ring-2', 'ring-amber-400');
+            syncBothHudBadges();
+            return;
+        }
+
+        bothBox?.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
+        const bothBadge = document.getElementById('both-bet-badge');
+        if (bothBadge) bothBadge.textContent = '';
 
         if (side === 'andar') {
             andarBox.classList.add('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
@@ -631,7 +909,7 @@
         if (side === 'andar') {
             andarBadge.textContent = `${amount.toLocaleString()} pts`;
             baharBadge.textContent = '';
-        } else {
+        } else if (side === 'bahar') {
             baharBadge.textContent = `${amount.toLocaleString()} pts`;
             andarBadge.textContent = '';
         }
@@ -641,10 +919,14 @@
         activeSelectedSide = null;
         const andarBox = document.getElementById('btn-bet-andar');
         const baharBox = document.getElementById('btn-bet-bahar');
+        const bothBox = document.getElementById('btn-bet-both');
         andarBox.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
         baharBox.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
+        bothBox?.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
         document.getElementById('andar-bet-badge').textContent = '';
         document.getElementById('bahar-bet-badge').textContent = '';
+        const bothBadge = document.getElementById('both-bet-badge');
+        if (bothBadge) bothBadge.textContent = '';
         document.getElementById('status-first-bet').textContent = '0 pts';
         document.getElementById('status-second-bet').textContent = '0 pts';
     }
@@ -661,9 +943,15 @@
 
     async function handleConfirmBet() {
         if (!activeSelectedSide) {
-            showSquareBanner('Selection Required', 'Please select ANDAR or BAHAR before placing your bet.');
+            showSquareBanner('Selection Required', 'Please select ANDAR, BAHAR, or BOTH before placing your bet.');
             return;
         }
+
+        if (activeSelectedSide === 'both') {
+            await submitBothBet();
+            return;
+        }
+
         const manual = document.getElementById('manual-bet-amount');
         if (manual && manual.value !== '') {
             const typed = parseInt(manual.value, 10);
@@ -695,6 +983,35 @@
                 placeBtn.textContent = placeBtn.dataset.originalText || 'PLACE BET';
             }
         }
+    }
+
+    // Orientation checking & Fullscreen trigger (Matching Image 3)
+    function checkOrientationAndPrompt() {
+        const isPortrait = window.matchMedia('(orientation: portrait)').matches;
+        const isMobile = window.innerWidth <= 1024;
+        const overlay = document.getElementById('device-rotate-overlay');
+        if (overlay) {
+            if (isPortrait && isMobile) {
+                overlay.style.setProperty('display', 'flex', 'important');
+            } else {
+                overlay.style.setProperty('display', 'none', 'important');
+            }
+        }
+    }
+    window.addEventListener('resize', checkOrientationAndPrompt);
+    window.addEventListener('orientationchange', checkOrientationAndPrompt);
+    window.addEventListener('load', checkOrientationAndPrompt);
+    document.addEventListener('DOMContentLoaded', checkOrientationAndPrompt);
+
+    function requestFullScreenIfLandscape() {
+        try {
+            if (!document.fullscreenElement) {
+                const docEl = document.documentElement;
+                if (docEl.requestFullscreen) docEl.requestFullscreen();
+                else if (docEl.webkitRequestFullscreen) docEl.webkitRequestFullscreen();
+                else if (docEl.msRequestFullscreen) docEl.msRequestFullscreen();
+            }
+        } catch (e) {}
     }
 
     const roomCancelDuration = {{ (int) $room->cancellation_duration }};
