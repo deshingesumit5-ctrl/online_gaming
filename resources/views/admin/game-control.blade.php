@@ -269,7 +269,8 @@
                         <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700" title="Webcam will be used">
                             📷 WEBCAM
                         </span>
-                             <span id="admin-stream-status-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider {{ $room->is_streaming ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-800 text-slate-400 border border-slate-700' }}">
+                    @endif
+                    <span id="admin-stream-status-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider {{ $room->is_streaming ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-800 text-slate-400 border border-slate-700' }}">
                         {{ $room->is_streaming ? '🔴 LIVE STREAMING' : '⚪ STREAM OFFLINE' }}
                     </span>
                     <button type="button" onclick="toggleAdminStreamFullscreen()" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer" title="Toggle Fullscreen">
