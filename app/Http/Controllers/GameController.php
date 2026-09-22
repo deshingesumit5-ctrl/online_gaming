@@ -79,6 +79,10 @@ class GameController extends Controller
         // Auto-close betting window if timer expired
         if ($currentRound->status === 'betting_open' && $currentRound->betting_ends_at && now()->greaterThan($currentRound->betting_ends_at)) {
             $currentRound->update(['status' => 'betting_closed']);
+            $openWindow = $currentRound->bettingWindows()->where('status', 'open')->latest('id')->first();
+            if ($openWindow) {
+                $openWindow->update(['status' => 'closed', 'ended_at' => now()]);
+            }
         }
 
         $userBets = Bet::where('game_round_id', $currentRound->id)
@@ -96,10 +100,18 @@ class GameController extends Controller
                     'amount' => (float) $bet->amount,
                     'status' => $bet->status,
                     'payout_amount' => (float) $bet->payout_amount,
+                    'profit_amount' => (float) $bet->profit_amount,
                     'can_cancel' => $canCancel,
                     'remaining_cancel_seconds' => $remainingCancel,
                 ];
             });
+
+        $sessionAndar = (float) Bet::where('game_round_id', $currentRound->id)->where('user_id', $user->id)->where('selection', 'andar')->where('status', '!=', 'cancelled')->sum('amount');
+        $sessionBahar = (float) Bet::where('game_round_id', $currentRound->id)->where('user_id', $user->id)->where('selection', 'bahar')->where('status', '!=', 'cancelled')->sum('amount');
+        $sessionTotal = $sessionAndar + $sessionBahar;
+        $sessionLimit = GameRound::SESSION_BET_LIMIT;
+
+        $currentWindow = $currentRound->currentBettingWindow();
 
         // Calculate total bets on Andar vs Bahar in this round for live odds visualization
         $totalAndar = (float) Bet::where('game_round_id', $currentRound->id)->where('selection', 'andar')->where('status', '!=', 'cancelled')->sum('amount');
@@ -117,19 +129,30 @@ class GameController extends Controller
         return response()->json([
             'round_id' => $currentRound->id,
             'round_number' => $currentRound->round_number,
+            'session_id' => $currentRound->id,
             'round_status' => $currentRound->status,
             'first_card' => $currentRound->first_card,
             'winning_side' => $currentRound->winning_side,
+            'payout_mode' => $currentRound->payout_mode,
+            'payout_label' => $currentRound->payoutLabel(),
+            'payout_locked' => (bool) $currentRound->payout_locked,
+            'betting_window_number' => $currentWindow?->window_number,
             'remaining_seconds' => $currentRound->remainingBettingSeconds(),
             'betting_duration' => $room->betting_duration,
             'cancellation_duration' => (int) $room->cancellation_duration,
             'user_bets' => $userBets,
             'total_andar' => $totalAndar,
             'total_bahar' => $totalBahar,
+            'session_andar' => $sessionAndar,
+            'session_bahar' => $sessionBahar,
+            'session_total' => $sessionTotal,
+            'session_limit' => $sessionLimit,
+            'session_remaining' => max(0, $sessionLimit - $sessionTotal),
             'wallet_balance' => (float) $freshUser->wallet_balance,
             'recent_history' => $recentRounds,
             'is_streaming' => (bool) $room->is_streaming,
             'live_stream_url' => $room->live_stream_url,
+            'active_users' => (int) $room->active_users_count,
         ]);
     }
 
@@ -151,16 +174,31 @@ class GameController extends Controller
         }
 
         // Deduct points using WalletService and record Bet inside transaction
+        if ($amount < 500) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Minimum betting amount is 500 points.',
+            ], 422);
+        }
+
         try {
             $result = DB::transaction(function () use ($user, $amount, $selection, $currentRound, $room) {
-                // Create Bet first
+                $sessionTotal = $currentRound->userSessionBetTotal($user->id);
+                if (($sessionTotal + $amount) > GameRound::SESSION_BET_LIMIT) {
+                    throw new Exception('Session betting limit exceeded. Maximum cumulative limit is 10,00,000 Points across Andar + Bahar.');
+                }
+
+                $window = $currentRound->bettingWindows()->where('status', 'open')->latest('id')->first();
+
                 $bet = Bet::create([
                     'game_round_id' => $currentRound->id,
+                    'betting_window_id' => $window?->id,
                     'user_id' => $user->id,
                     'selection' => $selection,
                     'amount' => $amount,
                     'status' => 'active',
                     'payout_amount' => 0,
+                    'profit_amount' => 0,
                 ]);
 
                 // Deduct points via WalletService
@@ -232,6 +270,7 @@ class GameController extends Controller
 
                 $amount = (int) $bet->amount;
                 $bet->status = 'cancelled';
+                $bet->cancelled_at = now();
                 $bet->save();
 
                 // Refund points using WalletService

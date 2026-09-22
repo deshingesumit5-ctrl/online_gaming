@@ -3,10 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\Bet;
+use App\Models\BettingWindow;
 use App\Models\GameRound;
 use App\Models\Room;
 use App\Models\User;
 use App\Models\WalletTransaction;
+use App\Services\AuditLogService;
 use App\Services\WalletService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -79,6 +81,17 @@ class AdminGameController extends Controller
             ->take(8)
             ->get();
 
+        $bettingWindows = $currentRound->bettingWindows()->orderBy('window_number')->get();
+        $currentWindow = $currentRound->currentBettingWindow();
+        $auditLogs = \App\Models\AuditLog::where('game_round_id', $currentRound->id)
+            ->latest('id')
+            ->take(12)
+            ->get();
+
+        $sessionWinners = Bet::where('game_round_id', $currentRound->id)->where('status', 'won')->count();
+        $sessionLosers = Bet::where('game_round_id', $currentRound->id)->where('status', 'lost')->count();
+        $sessionProcessed = (float) Bet::where('game_round_id', $currentRound->id)->whereIn('status', ['won', 'lost'])->sum('amount');
+
         $cardDeck = $this->getCardDeck();
 
         return view('admin.game-control', compact(
@@ -91,16 +104,23 @@ class AdminGameController extends Controller
             'totalAndarAmount',
             'totalBaharAmount',
             'recentRounds',
-            'cardDeck'
+            'cardDeck',
+            'bettingWindows',
+            'currentWindow',
+            'auditLogs',
+            'sessionWinners',
+            'sessionLosers',
+            'sessionProcessed'
         ));
     }
 
     public function handleAction(Request $request, int $roomId): JsonResponse|RedirectResponse
     {
         $request->validate([
-            'action' => ['required', 'in:start_round,open_betting,close_betting,declare_result,create_new_round,update_stream,update_room_timings,start_stream,end_stream,update_first_card,hide_card_overlay'],
+            'action' => ['required', 'in:start_round,open_betting,close_betting,declare_result,create_new_round,update_stream,update_room_timings,start_stream,end_stream,update_first_card,hide_card_overlay,confirm_first_card'],
             'first_card' => ['nullable', 'string'],
             'winning_side' => ['nullable', 'in:andar,bahar'],
+            'first_card_matched' => ['nullable', 'boolean'],
             'live_stream_url' => ['nullable', 'string', 'max:500'],
             'betting_duration' => ['nullable', 'integer', 'min:5', 'max:300'],
             'cancellation_duration' => ['nullable', 'integer', 'min:0', 'max:300'],
@@ -165,8 +185,10 @@ class AdminGameController extends Controller
             $currentRound->update([
                 'first_card' => $firstCard,
                 'status' => 'open',
-                'started_at' => now(),
+                'started_at' => $currentRound->started_at ?: now(),
             ]);
+
+            AuditLogService::record('Session Started', $currentRound, null, 'open', $roomId);
 
             \Illuminate\Support\Facades\Cache::forget("room_card_overlay_{$roomId}");
 
@@ -209,12 +231,69 @@ class AdminGameController extends Controller
             return back()->with('success', 'First card updated.');
         }
 
+        if ($action === 'confirm_first_card') {
+            if ($currentRound->payout_locked) {
+                $msg = 'Payout mode is already locked for this session.';
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => $msg], 422);
+                }
+                return back()->with('error', $msg);
+            }
+
+            $matched = filter_var($request->input('first_card_matched'), FILTER_VALIDATE_BOOLEAN);
+            $mode = $matched ? 25 : 100;
+            $prev = $currentRound->payoutLabel();
+            $currentRound->update([
+                'first_card_matched' => $matched,
+                'payout_mode' => $mode,
+                'payout_locked' => true,
+            ]);
+            AuditLogService::record(
+                $matched ? 'First Card Matched' : 'First Card Not Matched',
+                $currentRound,
+                $prev,
+                $mode . '% profit locked',
+                $roomId
+            );
+
+            $msg = $matched
+                ? 'First card matched. Session payout locked at 25% profit.'
+                : 'First card not matched. Session payout locked at 100% profit.';
+            if ($request->wantsJson()) {
+                return response()->json(['success' => true, 'payout_mode' => $mode, 'message' => $msg]);
+            }
+            return back()->with('success', $msg);
+        }
+
         if ($action === 'open_betting') {
-            $duration = $room->betting_duration ?: 30;
+            if (in_array($currentRound->status, ['result_declared', 'round_closed'], true)) {
+                $msg = 'This session is completed. Start the next session before opening betting.';
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => $msg], 422);
+                }
+                return back()->with('error', $msg);
+            }
+
+            $duration = $room->betting_duration ?: 10;
+            $openWindow = $currentRound->bettingWindows()->where('status', 'open')->latest('id')->first();
+            if ($openWindow) {
+                $openWindow->update(['status' => 'closed', 'ended_at' => now()]);
+            }
+            $nextNumber = ((int) $currentRound->bettingWindows()->max('window_number')) + 1;
+            $window = BettingWindow::create([
+                'game_round_id' => $currentRound->id,
+                'window_number' => max(1, $nextNumber),
+                'status' => 'open',
+                'started_at' => now(),
+            ]);
+
             $currentRound->update([
                 'status' => 'betting_open',
                 'betting_ends_at' => now()->addSeconds($duration),
+                'started_at' => $currentRound->started_at ?: now(),
             ]);
+
+            AuditLogService::record('Betting Open', $currentRound, 'closed', 'window #' . $window->window_number . ' open', $roomId);
 
             // Dispatch real dynamic notification to all players
             try {
@@ -237,9 +316,14 @@ class AdminGameController extends Controller
         }
 
         if ($action === 'close_betting') {
+            $openWindow = $currentRound->bettingWindows()->where('status', 'open')->latest('id')->first();
+            if ($openWindow) {
+                $openWindow->update(['status' => 'closed', 'ended_at' => now()]);
+            }
             $currentRound->update([
                 'status' => 'betting_closed',
             ]);
+            AuditLogService::record('Betting Closed', $currentRound, 'betting_open', 'betting_closed', $roomId);
 
             if ($request->wantsJson()) {
                 return response()->json(['success' => true, 'message' => 'Betting closed.']);
@@ -259,13 +343,26 @@ class AdminGameController extends Controller
 
             if ($currentRound->status === 'result_declared' || $currentRound->status === 'round_closed') {
                 if ($request->wantsJson()) {
-                    return response()->json(['success' => false, 'message' => 'Result has already been declared for this round.'], 422);
+                    return response()->json(['success' => false, 'message' => 'Result has already been declared for this session.'], 422);
                 }
-                return back()->with('error', 'Result has already been declared for this round.');
+                return back()->with('error', 'Result has already been declared for this session.');
+            }
+
+            if (!$currentRound->payout_locked || !$currentRound->payout_mode) {
+                $msg = 'Confirm first card condition (25% or 100%) before declaring the result.';
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => $msg], 422);
+                }
+                return back()->with('error', $msg);
+            }
+
+            $openWindow = $currentRound->bettingWindows()->where('status', 'open')->latest('id')->first();
+            if ($openWindow) {
+                $openWindow->update(['status' => 'closed', 'ended_at' => now()]);
             }
 
             // Run Settlement Engine
-            DB::transaction(function () use ($currentRound, $winningSide) {
+            DB::transaction(function () use ($currentRound, $winningSide, $roomId) {
                 $currentRound->update([
                     'status' => 'result_declared',
                     'winning_side' => $winningSide,
@@ -279,41 +376,40 @@ class AdminGameController extends Controller
 
                 foreach ($bets as $bet) {
                     if ($bet->selection === $winningSide) {
-                        // 1:1 Return (Original Bet + Equal Winning Profit = 2x Bet Amount)
-                        $payout = (int) round((float) $bet->amount * 2);
+                        $stake = (float) $bet->amount;
+                        $payout = $currentRound->totalReturnForBet($stake);
+                        $profit = $currentRound->profitForBet($stake);
                         $bet->status = 'won';
                         $bet->payout_amount = $payout;
+                        $bet->profit_amount = $profit;
                         $bet->save();
 
-                        // Credit Player Wallet using WalletService
                         $player = User::findOrFail($bet->user_id);
                         $this->walletService->addWinnings(
                             user: $player,
                             amount: $payout,
-                            remarks: "Won " . strtoupper($winningSide) . " in Round #{$currentRound->round_number} (1:1 payout on {$bet->amount} pts)",
+                            remarks: "Won " . strtoupper($winningSide) . " session #{$currentRound->round_number} ({$currentRound->payout_mode}% profit on {$bet->amount} pts)",
                             referenceType: Bet::class,
                             referenceId: $bet->id,
                             performedByAdminId: auth()->id()
                         );
 
-                        // Send Game Result won notification
                         try {
                             app(\App\Services\NotificationService::class)->sendToUser(
                                 user: $player,
                                 type: 'game_result',
                                 title: 'Game Result',
-                                message: strtoupper($winningSide) . " WON. You won " . number_format($payout) . " points.",
+                                message: strtoupper($winningSide) . " WON. You won " . number_format($profit) . " points profit. Total return " . number_format($payout) . " points.",
                                 link: route('dashboard')
                             );
                         } catch (\Throwable $e) {
                         }
                     } else {
-                        // Lost bet
                         $bet->status = 'lost';
                         $bet->payout_amount = 0.00;
+                        $bet->profit_amount = 0.00;
                         $bet->save();
 
-                        // Send Game Result notification
                         try {
                             app(\App\Services\NotificationService::class)->sendToUser(
                                 user: $bet->user_id,
@@ -327,12 +423,15 @@ class AdminGameController extends Controller
                     }
                 }
 
-                // Notify admin of result declaration
+                AuditLogService::record('Result Declared – ' . strtoupper($winningSide), $currentRound, 'active', $winningSide . ' / ' . $currentRound->payout_mode . '%', $roomId);
+                AuditLogService::record('Payout Processed', $currentRound, null, 'wallets updated', $roomId);
+                AuditLogService::record('Session Completed', $currentRound, 'active', 'result_declared', $roomId);
+
                 try {
                     app(\App\Services\NotificationService::class)->sendToAdmin(
                         type: 'admin_game_result',
                         title: 'Game Result Settled',
-                        message: "Round #{$currentRound->round_number} settled: " . strtoupper($winningSide) . " WON.",
+                        message: "Session #{$currentRound->round_number} settled: " . strtoupper($winningSide) . " WON ({$currentRound->payout_mode}%).",
                         link: route('admin.game.control.index')
                     );
                 } catch (\Throwable $e) {
@@ -356,14 +455,19 @@ class AdminGameController extends Controller
             }
 
             $newRoundNumber = $currentRound->round_number + 1;
-            GameRound::create([
+            $newRound = GameRound::create([
                 'room_id' => $roomId,
                 'round_number' => $newRoundNumber,
                 'status' => 'open',
                 'first_card' => null,
+                'payout_mode' => null,
+                'first_card_matched' => null,
+                'payout_locked' => false,
+                'winning_side' => 'none',
             ]);
+            AuditLogService::record('Start Next Session', $newRound, 'completed', 'open', $roomId);
 
-            return back()->with('success', "New Round #{$newRoundNumber} created and ready.");
+            return back()->with('success', "New Session #{$newRoundNumber} started. Payout condition reset.");
         }
 
         return back();

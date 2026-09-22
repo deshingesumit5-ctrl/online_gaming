@@ -28,54 +28,120 @@
 
     <!-- Rooms Grid Directly Shown -->
     <div class="w-full my-4">
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6 max-w-6xl mx-auto">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 max-w-7xl mx-auto">
             @forelse($rooms as $room)
-                <div class="flex flex-col items-center">
-                    {{-- Room Card with White Border & Dealer Thumbnail --}}
-                    <a href="{{ route('admin.game.control', $room->id) }}" class="casino-room-card block w-full aspect-[4/3] rounded-xl border-2 border-white overflow-hidden shadow-2xl group cursor-pointer relative" title="Enter Operator Panel: {{ $room->name }}">
-                        <img src="{{ asset('images/room-thumb.jpg') }}" alt="{{ $room->name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
-                        <div class="absolute inset-0 bg-black/40 group-hover:bg-black/20 transition flex items-center justify-center p-2">
-                            <span class="px-3 py-1 rounded-md bg-black/70 border border-white/30 text-white font-black text-xs sm:text-sm tracking-wider uppercase text-center shadow-lg font-royal">
-                                {{ $room->name }}
+                @php
+                    $round = $room->latest_round;
+                    $window = $round ? $round->currentBettingWindow() : null;
+                    
+                    // Possible Table Statuses: Not Started, Ready, Live, Betting Open, Betting Closed, Result Pending, Completed, Offline
+                    if ($room->status !== 'live') {
+                        $tableStatus = 'Offline';
+                        $statusColor = 'bg-red-950 text-red-400 border-red-800';
+                    } elseif (!$round) {
+                        $tableStatus = 'Not Started';
+                        $statusColor = 'bg-slate-800 text-slate-300 border-slate-700';
+                    } elseif ($round->status === 'betting_open') {
+                        $tableStatus = 'Betting Open';
+                        $statusColor = 'bg-emerald-950 text-emerald-400 border-emerald-700 animate-pulse';
+                    } elseif ($round->status === 'betting_closed') {
+                        $tableStatus = 'Betting Closed';
+                        $statusColor = 'bg-amber-950 text-amber-400 border-amber-800';
+                    } elseif ($round->status === 'result_declared' || $round->status === 'round_closed') {
+                        $tableStatus = 'Completed';
+                        $statusColor = 'bg-slate-800 text-slate-300 border-slate-700';
+                    } elseif ($round->status === 'result_pending') {
+                        $tableStatus = 'Result Pending';
+                        $statusColor = 'bg-amber-900 text-amber-300 border-amber-600';
+                    } elseif ($round->first_card) {
+                        $tableStatus = 'Live';
+                        $statusColor = 'bg-emerald-900 text-emerald-300 border-emerald-600';
+                    } else {
+                        $tableStatus = 'Ready';
+                        $statusColor = 'bg-blue-950 text-blue-300 border-blue-800';
+                    }
+
+                    $videoStatus = $room->is_streaming ? 'Live Video Online' : 'Video Offline';
+                    $videoColor = $room->is_streaming ? 'text-emerald-400' : 'text-slate-400';
+                @endphp
+                <div class="glass-panel p-4 flex flex-col justify-between border-slate-800 hover:border-amber-500/50 transition duration-300 shadow-xl rounded-2xl">
+                    <div>
+                        {{-- Top Badges: Status & Video --}}
+                        <div class="flex items-center justify-between gap-2 mb-3">
+                            <span class="px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border {{ $statusColor }}">
+                                {{ $tableStatus }}
+                            </span>
+                            <span class="text-[10px] font-bold flex items-center gap-1 {{ $videoColor }}">
+                                <span class="w-2 h-2 rounded-full {{ $room->is_streaming ? 'bg-emerald-400 animate-ping' : 'bg-slate-500' }}"></span>
+                                {{ $videoStatus }}
                             </span>
                         </div>
-                    </a>
 
-                    {{-- Status & Metadata (Online/Offline, Users, Opening/Closing Hours) --}}
-                    <div class="w-full text-center mt-2.5">
-                        @if($room->status === 'live')
-                            <div class="inline-flex items-center justify-center gap-1.5 text-emerald-400 font-black text-xs sm:text-sm">
-                                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse"></span>
-                                <span>Online</span>
+                        {{-- Table Thumbnail & Title --}}
+                        <a href="{{ route('admin.game.control', $room->id) }}" class="casino-room-card block w-full aspect-[16/10] rounded-xl border border-white/20 overflow-hidden shadow-lg group cursor-pointer relative mb-3">
+                            <img src="{{ asset('images/room-thumb.jpg') }}" alt="{{ $room->name }}" class="w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                            <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent flex flex-col justify-end p-2.5">
+                                <span class="text-white font-black text-xs sm:text-sm font-royal drop-shadow">
+                                    {{ $room->name }} (#{{ $room->id }})
+                                </span>
+                                <span class="text-[10px] text-amber-300 font-semibold">
+                                    {{ $room->game->name ?? 'Fun2Win Game' }}
+                                </span>
                             </div>
-                            <div class="text-[10px] sm:text-xs text-slate-300 mt-1 font-medium space-y-0.5">
-                                <div>Users: {{ $room->active_users_count }}</div>
-                                <div>Opening: {{ $room->opening_time ?? '11:15 AM' }}</div>
-                                <div>Closing: {{ $room->closing_time ?? '10:00 PM' }}</div>
-                            </div>
-                        @else
-                            <div class="inline-flex items-center justify-center gap-1.5 text-red-500 font-black text-xs sm:text-sm">
-                                <span class="w-2.5 h-2.5 rounded-full bg-red-500 shadow-[0_0_8px_#ef4444]"></span>
-                                <span>Offline</span>
-                            </div>
-                            <div class="text-[10px] sm:text-xs text-slate-400 mt-1 font-medium space-y-0.5">
-                                <div>Users: 0</div>
-                                <div>Opening: {{ $room->opening_time ?? '11:15 AM' }}</div>
-                                <div>Closing: {{ $room->closing_time ?? '10:00 PM' }}</div>
-                            </div>
-                        @endif
+                        </a>
 
-                        {{-- Admin Quick Control Button --}}
-                        <div class="mt-2">
-                            <a href="{{ route('admin.game.control', $room->id) }}" class="inline-block px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black uppercase rounded-lg shadow transition active:scale-95">
-                                🎮 Control Room
-                            </a>
+                        {{-- Required Specifications (PDF Pages 2 & 3) --}}
+                        <div class="space-y-1.5 text-xs text-slate-300 py-1 border-t border-b border-slate-800/80 my-2">
+                            <div class="flex items-center justify-between">
+                                <span class="text-slate-400">Current Session:</span>
+                                <strong class="text-white font-mono">
+                                    {{ $round ? ('#' . $round->round_number) : 'None' }}
+                                </strong>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-slate-400">Session ID:</span>
+                                <strong class="text-amber-300 font-mono">
+                                    {{ $round ? $round->id : '-' }}
+                                </strong>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-slate-400">Active Users:</span>
+                                <strong class="text-slate-200">
+                                    👥 {{ $room->active_users_count ?? 0 }}
+                                </strong>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-slate-400">Betting Status:</span>
+                                <strong class="{{ ($round && $round->status === 'betting_open') ? 'text-emerald-400 font-black' : 'text-amber-400 font-bold' }}">
+                                    {{ ($round && $round->status === 'betting_open') ? 'OPEN' : 'CLOSED' }}
+                                </strong>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-slate-400">Betting Window:</span>
+                                <strong class="text-slate-300">
+                                    {{ $window ? ('#' . $window->window_number . ' (' . strtoupper($window->status) . ')') : '-' }}
+                                </strong>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-slate-400">Current Pool:</span>
+                                <strong class="text-white font-mono">
+                                    {{ number_format($room->active_bets_pool ?? 0) }} pts
+                                </strong>
+                            </div>
                         </div>
+                    </div>
+
+                    {{-- Control Room Button --}}
+                    <div class="pt-2">
+                        <a href="{{ route('admin.game.control', $room->id) }}" class="w-full py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs uppercase tracking-wider rounded-xl shadow-lg transition flex items-center justify-center gap-1.5 active:scale-95">
+                            <span>🎮</span>
+                            <span>Enter Control Room</span>
+                        </a>
                     </div>
                 </div>
             @empty
-                <div class="col-span-full py-10 text-center text-slate-500 text-xs">
-                    No game rooms found.
+                <div class="col-span-full py-12 text-center text-slate-500 text-xs glass-panel">
+                    No gaming tables found.
                 </div>
             @endforelse
         </div>

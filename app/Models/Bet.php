@@ -12,11 +12,14 @@ class Bet extends Model
 
     protected $fillable = [
         'game_round_id',
+        'betting_window_id',
         'user_id',
         'selection',
         'amount',
         'status',
         'payout_amount',
+        'profit_amount',
+        'cancelled_at',
     ];
 
     protected function casts(): array
@@ -24,6 +27,8 @@ class Bet extends Model
         return [
             'amount' => 'decimal:2',
             'payout_amount' => 'decimal:2',
+            'profit_amount' => 'decimal:2',
+            'cancelled_at' => 'datetime',
         ];
     }
 
@@ -35,6 +40,11 @@ class Bet extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function bettingWindow(): BelongsTo
+    {
+        return $this->belongsTo(BettingWindow::class);
     }
 
     public function isCancellable(): bool

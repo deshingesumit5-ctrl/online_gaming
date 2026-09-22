@@ -81,21 +81,10 @@
     }
 
     #player-pen-marker {
-        position: absolute;
-        left: 0;
-        top: 0;
-        width: 22px;
-        height: 22px;
-        margin-left: -11px;
-        margin-top: -11px;
-        border-radius: 50% 50% 50% 0;
-        transform: rotate(-45deg);
-        background: #fbbf24;
-        border: 2px solid #fff;
-        box-shadow: 0 0 14px rgba(245, 158, 11, 0.9);
-        pointer-events: none;
-        z-index: 25;
-        display: none;
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+        opacity: 0 !important;
     }
 
     .live-card-overlay {
@@ -178,46 +167,112 @@
     }
 
 
-    @media (max-width: 1023px), (orientation: landscape) and (max-height: 700px) {
-        .game-viewport .felt-surface {
-            position: absolute;
-            inset: 0;
-            flex: none;
-            z-index: 0;
+    /* Black Side Panels & Image 2 Layout */
+    .panel-black-sidebar {
+        width: clamp(120px, 17vw, 210px);
+        background: #000000;
+    }
+    .panel-left {
+        left: 0;
+        top: 0;
+        bottom: 0;
+    }
+    .panel-right {
+        right: 0;
+        top: 0;
+        bottom: 0;
+    }
+    .vertical-bead-card {
+        background: radial-gradient(circle at 50% 25%, #2a080e 0%, #150306 100%);
+    }
+    .center-hud-anchor {
+        left: clamp(120px, 17vw, 210px);
+        right: clamp(120px, 17vw, 210px);
+    }
+
+    @media (max-width: 639px) {
+        .panel-black-sidebar {
+            width: clamp(94px, 19vw, 130px);
+            padding: 4px !important;
         }
-        .game-hud-bar {
-            background: transparent !important;
-            border-top-color: transparent !important;
-            backdrop-filter: none !important;
-            -webkit-backdrop-filter: none !important;
+        .center-hud-anchor {
+            left: clamp(94px, 19vw, 130px);
+            right: clamp(94px, 19vw, 130px);
+        }
+        .poker-chip {
+            width: 30px !important;
+            height: 30px !important;
+            font-size: 8.5px !important;
+        }
+        .btn-hud-action {
+            padding: 3px 5px !important;
+            font-size: 9px !important;
+        }
+        .vertical-bead-card {
+            padding: 4px 6px !important;
+            max-width: 90px !important;
+        }
+        .vertical-bead-card .bead-b-circle,
+        .vertical-bead-card .bead-a-circle {
+            width: 13px !important;
+            height: 13px !important;
+            font-size: 7.5px !important;
+        }
+        .vertical-bead-card .bead-dot {
+            width: 2.5px !important;
+            height: 2.5px !important;
+        }
+        .hud-andar-bahar-box {
+            max-width: 240px !important;
+            margin-bottom: 2px !important;
+        }
+        .hud-andar-bahar-box #btn-bet-andar,
+        .hud-andar-bahar-box #btn-bet-bahar {
+            padding: 4px 8px !important;
+            font-size: 11px !important;
         }
     }
 
     @media (orientation: landscape) and (max-height: 550px) {
-        .landscape-compact-bar {
-            padding-top: 3px !important;
-            padding-bottom: 3px !important;
+        .panel-black-sidebar {
+            width: clamp(110px, 17vw, 155px);
+            padding: 4px 6px !important;
         }
-        .landscape-compact-hud {
-            padding: 4px 10px !important;
-            gap: 8px !important;
+        .center-hud-anchor {
+            left: clamp(110px, 17vw, 155px);
+            right: clamp(110px, 17vw, 155px);
         }
-        .landscape-compact-hud .poker-chip {
+        .poker-chip {
             width: 32px !important;
             height: 32px !important;
             font-size: 9px !important;
         }
-        .landscape-compact-hud .btn-hud-action {
-            padding: 4px 12px !important;
-            font-size: 11px !important;
+        .btn-hud-action {
+            padding: 4px 6px !important;
+            font-size: 10px !important;
+        }
+        .vertical-bead-card {
+            padding: 3px 5px !important;
+            max-width: 95px !important;
+        }
+        .vertical-bead-card .bead-b-circle,
+        .vertical-bead-card .bead-a-circle {
+            width: 14px !important;
+            height: 14px !important;
+            font-size: 8px !important;
+        }
+        .vertical-bead-card .bead-dot {
+            width: 3px !important;
+            height: 3px !important;
         }
         .hud-andar-bahar-box {
-            width: 250px !important;
+            max-width: 260px !important;
+            margin-bottom: 2px !important;
         }
         .hud-andar-bahar-box #btn-bet-andar,
         .hud-andar-bahar-box #btn-bet-bahar {
-            padding: 6px 12px !important;
-            font-size: 13px !important;
+            padding: 4px 10px !important;
+            font-size: 12px !important;
         }
     }
 </style>
@@ -227,41 +282,58 @@
 <div id="game-main-viewport" class="w-full h-full max-w-none mx-auto flex flex-col justify-between overflow-hidden relative select-none game-viewport" style="background: #000;">
 
 
-    <!-- Top Bar (Matching Image 4: ← TABLE 1 : MIN BET 500, Center (✕) Close, Right Action Icons) -->
-    <div class="relative z-30 px-3 sm:px-5 py-2.5 flex items-center justify-between text-white bg-black/50 backdrop-blur-md border-b border-white/10 shrink-0">
-        <!-- Left: Back Navigation & Table Title -->
-        <div class="flex items-center gap-3 font-royal">
-            <a href="{{ route('dashboard', ['tab' => 'lobby']) }}" class="text-white hover:text-amber-400 transition text-base font-bold flex items-center gap-1.5" title="Back to Lobby">
+    <!-- Top Bar (PDF Page 17: Fun2Win Logo, Wallet Points, Notifications, Profile, Close) -->
+    <div class="relative z-30 px-2 sm:px-5 py-2 flex items-center justify-between text-white bg-black/60 backdrop-blur-md border-b border-white/10 shrink-0 gap-2">
+        <!-- Left: Back Navigation & Table Title & Logo -->
+        <div class="flex items-center gap-2 sm:gap-3 font-royal min-w-0">
+            <a href="{{ route('dashboard', ['tab' => 'lobby']) }}" class="text-white hover:text-amber-400 transition text-sm sm:text-base font-bold flex items-center gap-1 shrink-0" title="Back to Lobby">
                 <span>&larr;</span>
             </a>
-            <h1 class="text-xs sm:text-sm md:text-base font-black tracking-wider uppercase">
-                {{ strtoupper($room->name) }} : MIN BET {{ $denominations[0] ?? 500 }}
+            <img src="{{ asset('images/logo.png') }}" alt="Fun 2 Win" class="w-6 h-6 sm:w-7 sm:h-7 object-contain rounded shrink-0">
+            <h1 class="text-xs sm:text-sm font-black tracking-wider uppercase truncate">
+                {{ strtoupper($room->name) }}
             </h1>
+            <span id="session-id-display" class="text-[10px] sm:text-xs text-amber-300 font-mono hidden md:inline">Session #{{ $currentRound->round_number }}</span>
+            <span id="round-status-badge" class="px-2 py-0.5 text-[9px] sm:text-[10px] font-bold rounded-full bg-slate-700 text-slate-200 shrink-0">{{ strtoupper(str_replace('_', ' ', $currentRound->status)) }}</span>
         </div>
 
-        <!-- Center: (✕) Circular Close Button (Matching Image 4) -->
-        <div>
-            <a href="{{ route('dashboard', ['tab' => 'lobby']) }}" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 hover:bg-black/90 border border-white/25 text-white flex items-center justify-center text-xs sm:text-sm font-bold transition hover:scale-110 active:scale-95 shadow-lg" title="Close / Return to Lobby">
+        <!-- Right: Wallet Points, Notifications, Profile, Refresh, Sound, Fullscreen, Close (PDF Page 17) -->
+        <div class="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <!-- Wallet Points Display (Page 17) -->
+            <div class="px-2 sm:px-3 py-1 rounded-lg bg-black/80 border border-amber-400/50 text-[10px] sm:text-xs font-black text-amber-300 flex items-center gap-1 shadow-sm">
+                <span class="text-[9px] text-slate-400 font-bold hidden xs:inline">PTS:</span>
+                <span class="user-wallet-balance">{{ number_format($user->wallet_balance, 0) }}</span>
+            </div>
+
+            <!-- Notifications (Page 17) -->
+            <a href="{{ route('dashboard', ['tab' => 'notifications']) }}" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 text-white flex items-center justify-center text-xs transition active:scale-95" title="Notifications">
+                🔔
+            </a>
+
+            <!-- Profile (Page 17) -->
+            <a href="{{ route('profile') }}" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 text-white flex items-center justify-center text-xs transition active:scale-95 font-bold" title="Profile">
+                👤
+            </a>
+
+            <button type="button" id="btn-refresh-state" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 text-white flex items-center justify-center text-xs transition active:scale-95 hidden sm:flex" title="Refresh Live State">
+                ↻
+            </button>
+            <button type="button" id="btn-toggle-sound" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 text-white flex items-center justify-center text-xs transition active:scale-95 hidden sm:flex" title="Toggle Sound">
+                🔊
+            </button>
+            <button type="button" id="btn-toggle-fullscreen" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 text-white flex items-center justify-center text-xs transition active:scale-95" title="Fullscreen">
+                ⛶
+            </button>
+
+            <!-- Close Button (✕) -->
+            <a href="{{ route('dashboard', ['tab' => 'lobby']) }}" class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-red-950/80 hover:bg-red-800 border border-red-500/40 text-white flex items-center justify-center text-xs sm:text-sm font-black transition hover:scale-105 active:scale-95 shadow-lg ml-1" title="Close / Return to Lobby">
                 ✕
             </a>
         </div>
-
-        <!-- Right: 3 Round Icon Buttons (History/Refresh, Sound, Fullscreen) -->
-        <div class="flex items-center gap-2">
-            <button type="button" id="btn-refresh-state" class="w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 text-white flex items-center justify-center text-xs transition active:scale-95" title="Refresh Live State">
-                ↻
-            </button>
-            <button type="button" id="btn-toggle-sound" class="w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 text-white flex items-center justify-center text-xs transition active:scale-95" title="Toggle Sound">
-                🔊
-            </button>
-            <button type="button" id="btn-toggle-fullscreen" class="w-7 h-7 rounded-full bg-black/60 hover:bg-black/80 border border-white/20 text-white flex items-center justify-center text-xs transition active:scale-95" title="Fullscreen">
-                ⛶
-            </button>
-        </div>
     </div>
 
-    <!-- Main Live Table Surface (Matching Image 4 Dealer Table Camera Stream) -->
-    <div id="player-felt-surface" class="felt-surface relative flex-grow min-h-0 flex items-center justify-center overflow-hidden"
+    <!-- Main Live Table Surface with Black Side Panels (Matching Image 2 Exactly) -->
+    <div id="player-felt-surface" class="felt-surface relative flex-grow min-h-0 w-full overflow-hidden bg-black"
          style="background: {{ $room->is_streaming ? '#000' : '#1e1a17 url(\'' . asset('images/live-table-bg.jpg') . '\') center center / cover no-repeat' }};">
         
         <!-- Live Stream Video / Camera Broadcast Container (Overlaid when stream is active) -->
@@ -276,7 +348,8 @@
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowfullscreen></iframe>
             </div>
-            <div id="player-pen-marker" aria-hidden="true"></div>
+            <!-- Yellow pen marker hidden from users -->
+            <div id="player-pen-marker" aria-hidden="true" style="display: none !important;"></div>
             <div id="player-live-card-overlay" class="live-card-overlay" aria-hidden="true">
                 <img class="card-photo" src="{{ asset('images/overlay-9-hearts.jpg') }}" alt="9 of Hearts">
                 <div class="card-index">
@@ -294,10 +367,13 @@
             <div id="player-live-wait-cover" class="absolute inset-0 z-40 bg-black {{ $room->is_streaming ? '' : 'hidden' }}"></div>
 
             <!-- Live Streaming Indicator Badge -->
-            <div class="absolute top-3 left-3 z-10 flex items-center gap-2 bg-black/60 backdrop-blur-sm border border-red-500/40 px-2.5 py-1 rounded-full">
+            <div class="absolute top-2.5 left-[clamp(120px,18vw,220px)] ml-2 sm:ml-3 z-10 flex items-center gap-1.5 sm:gap-2 bg-black/70 backdrop-blur-sm border border-red-500/40 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-[10px]">
                 <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
-                <span class="text-[10px] font-black uppercase tracking-wider text-red-400">LIVE DEALER</span>
+                <span class="font-black uppercase tracking-wider text-red-400">LIVE DEALER</span>
+                <span class="text-slate-500">&bull;</span>
+                <span class="font-bold text-slate-200">👥 <span id="player-count-display">{{ $room->active_users_count ?? 1 }}</span> Players</span>
             </div>
+            <div id="player-game-status-banner" class="absolute top-11 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-lg bg-black/70 border border-white/15 text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-300 text-center max-w-[80%]"></div>
         </div>
 
         <!-- Joker First Card Slot Overlaid on Felt (Hidden / Clean) -->
@@ -308,26 +384,22 @@
             <span id="first-card-suit-bottom">♣</span>
         </div>
 
-    </div>
-
-    <!-- Bottom Casino Cockpit HUD Bar (Matching Image 4 Overlaid HUD) -->
-    <div class="game-hud-bar relative z-30 p-2 sm:p-3.5 bg-black/90 backdrop-blur-md border-t border-white/15 text-white shrink-0">
-        <div class="flex flex-col landscape:flex-row lg:flex-row items-center justify-between gap-2.5 sm:gap-4 landscape-compact-hud">
-            
-            <!-- LEFT SECTION: Chips, Undo + Place Bet, Balance + First Bet / Second Bet -->
-            <div class="flex flex-col gap-2 w-full lg:w-auto landscape:w-auto">
-                
-                <!-- Chips Row -->
-                <div class="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-                    @php
-                        $chipColorClasses = [
-                            500   => 'chip-green',
-                            1000  => 'chip-silver',
-                            2000  => 'chip-purple',
-                            5000  => 'chip-pink',
-                            10000 => 'chip-gold',
-                        ];
-                    @endphp
+        <!-- ============================================================== -->
+        <!-- 1. LEFT BLACK SCREEN PANEL (Matching Image 2 Exactly)          -->
+        <!-- ============================================================== -->
+        <div id="panel-left-black" class="panel-black-sidebar panel-left absolute left-0 top-0 bottom-0 z-20 flex flex-col justify-between p-2 sm:p-3 bg-black select-none border-r border-white/10 shadow-2xl">
+            <!-- Upper Section: Poker Chips Vertically Stacked -->
+            <div class="flex flex-col items-center justify-center flex-1 my-auto py-1 sm:py-2 gap-2 sm:gap-3">
+                @php
+                    $chipColorClasses = [
+                        500   => 'chip-green',
+                        1000  => 'chip-silver',
+                        2000  => 'chip-purple',
+                        5000  => 'chip-pink',
+                        10000 => 'chip-gold',
+                    ];
+                @endphp
+                <div class="flex flex-col items-center gap-1.5 sm:gap-2.5">
                     @foreach($denominations as $idx => $denom)
                         @php
                             $label = $denom >= 1000 ? ($denom / 1000) . 'k' : $denom;
@@ -338,53 +410,61 @@
                             <span>{{ $label }}</span>
                         </div>
                     @endforeach
+                    <input type="number" id="manual-bet-amount" min="500" max="1000000" step="1" placeholder="Amt" class="w-16 sm:w-20 px-1.5 py-0.5 sm:py-1 rounded-lg bg-black/80 border border-white/20 text-[10px] sm:text-[11px] font-bold text-white text-center mt-0.5 sm:mt-1" title="Enter 500 or more points">
                 </div>
+            </div>
 
-                <!-- Action Buttons: Undo & Place Bet (and Cancel Bet) -->
-                <div class="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+            <!-- Lower Section: Action Buttons & Balance (Matching Image 2) -->
+            <div class="flex flex-col gap-1.5 sm:gap-2 shrink-0 pt-1">
+                <!-- Action Buttons: UNDO & PLACE BET -->
+                <div class="grid grid-cols-2 gap-1 sm:gap-1.5">
                     <button type="button" id="btn-hud-undo" onclick="handleUndoBet()"
-                            class="btn-hud-action px-4 sm:px-6 py-1.5 sm:py-2 rounded-lg bg-[#991b1b] hover:bg-[#b91c1c] active:scale-95 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition shadow-md cursor-pointer">
+                            class="btn-hud-action py-1.5 sm:py-2 px-1 rounded-lg bg-[#991b1b] hover:bg-[#b91c1c] active:scale-95 text-white font-black text-[10px] sm:text-xs uppercase tracking-wider transition shadow-md cursor-pointer text-center">
                         UNDO
                     </button>
 
                     <button type="button" id="btn-hud-place-bet" onclick="handleConfirmBet()"
-                            class="btn-hud-action px-5 sm:px-8 py-1.5 sm:py-2 rounded-lg bg-[#16a34a] hover:bg-[#22c55e] active:scale-95 text-white font-black text-xs sm:text-sm uppercase tracking-wider transition shadow-md shadow-emerald-700/40 cursor-pointer">
+                            class="btn-hud-action py-1.5 sm:py-2 px-1 rounded-lg bg-[#16a34a] hover:bg-[#22c55e] active:scale-95 text-white font-black text-[10px] sm:text-xs uppercase tracking-wider transition shadow-md shadow-emerald-700/40 cursor-pointer text-center">
                         PLACE BET
                     </button>
-
-                    <button type="button" id="btn-hud-cancel-bet" onclick="handleCancelActiveBet()"
-                            class="btn-hud-action hidden px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg bg-red-700 hover:bg-red-600 border border-red-500 text-white font-black text-xs uppercase tracking-wider transition active:scale-95 shadow-lg shadow-red-700/50 flex items-center gap-1.5 animate-pulse">
-                        <span>↩ CANCEL</span>
-                        <span id="cancel-timer-countdown" class="px-1.5 py-0.5 rounded-full bg-black/60 text-[10px] font-bold text-amber-300">{{ $room->cancellation_duration }}s</span>
-                    </button>
                 </div>
 
-                <!-- Readouts: Balance on left, First Bet & Second Bet stacked on right -->
-                <div class="flex items-center gap-3 sm:gap-4 pt-0.5">
-                    <!-- Balance -->
-                    <div class="px-3 sm:px-3.5 py-1 sm:py-1.5 rounded-lg bg-black/80 border border-white/20 text-xs sm:text-sm font-bold shrink-0">
-                        <span class="text-slate-300">BALANCE: <strong class="text-white font-black">₹<span class="user-wallet-balance">{{ number_format($user->wallet_balance, 0) }}</span></strong></span>
-                    </div>
+                <button type="button" id="btn-hud-cancel-bet" onclick="handleCancelActiveBet()"
+                        class="btn-hud-action hidden py-1.5 px-2 rounded-lg bg-red-700 hover:bg-red-600 border border-red-500 text-white font-black text-[10px] sm:text-xs uppercase tracking-wider transition active:scale-95 shadow-lg shadow-red-700/50 flex items-center justify-center gap-1 animate-pulse">
+                    <span>↩ CANCEL</span>
+                    <span id="cancel-timer-countdown" class="px-1 py-0.5 rounded-full bg-black/60 text-[9px] font-bold text-amber-300">{{ $room->cancellation_duration }}s</span>
+                </button>
 
-                    <!-- Stacked First Bet & Second Bet -->
-                    <div class="flex flex-col text-[10px] sm:text-xs font-bold leading-tight space-y-0.5 sm:space-y-1">
-                        <div class="text-slate-300">
-                            FIRST BET: <strong class="text-white font-black" id="status-first-bet">₹0</strong>
-                        </div>
-                        <div class="text-slate-300">
-                            SECOND BET: <strong class="text-white font-black" id="status-second-bet">₹0</strong>
-                        </div>
+                <!-- Balance Display Card (Matching Image 2 Rounded Box) -->
+                <div class="p-1.5 sm:p-2 rounded-xl bg-black/90 border border-white/20 text-[10px] sm:text-xs font-bold leading-tight shadow-md">
+                    <div class="text-slate-300 truncate">
+                        BALANCE: <strong class="text-white font-black"><span class="user-wallet-balance">{{ number_format($user->wallet_balance, 0) }}</span></strong>
                     </div>
+                    <div class="flex items-center justify-between text-[9px] sm:text-[10px] text-slate-400 mt-0.5 pt-0.5 border-t border-white/10">
+                        <span>1ST: <strong class="text-white" id="status-first-bet">0</strong></span>
+                        <span>2ND: <strong class="text-white" id="status-second-bet">0</strong></span>
+                    </div>
+                </div>
+
+                <div id="session-bet-summary" class="hidden text-[8px] sm:text-[9px] font-medium text-slate-400 leading-tight space-y-0.5">
+                    <div>Session Andar: <strong class="text-white" id="sum-andar">0</strong> pts</div>
+                    <div>Session Bahar: <strong class="text-white" id="sum-bahar">0</strong> pts</div>
+                    <div>Total: <strong class="text-amber-300" id="sum-total">0</strong> / <span id="sum-limit">10,00,000</span> pts</div>
+                    <div>Remaining: <strong class="text-emerald-300" id="sum-remaining">10,00,000</strong> pts</div>
                 </div>
             </div>
+        </div>
 
-            <!-- CENTER SECTION: ANDAR (Black) / BAHAR (Red) (Big Buttons, Matching Image 4) -->
-            <div class="relative flex items-center justify-center w-full sm:w-80 md:w-96 lg:w-[400px] landscape:w-[260px] sm:landscape:w-[320px] hud-andar-bahar-box shrink-0 my-1 lg:my-0">
+        <!-- ============================================================== -->
+        <!-- 2. CENTER TABLE AREA: ANDAR / BAHAR BOX (Matching Image 2)     -->
+        <!-- ============================================================== -->
+        <div class="center-hud-anchor absolute bottom-2 sm:bottom-4 z-20 pointer-events-none flex justify-center items-center px-2">
+            <div class="relative w-full max-w-[280px] sm:max-w-[340px] md:max-w-[380px] hud-andar-bahar-box pointer-events-auto">
                 <div class="w-full rounded-2xl overflow-hidden border-2 border-slate-700 bg-black shadow-2xl relative">
-                    <!-- ANDAR Area (Black Bar, Big Button) -->
+                    <!-- ANDAR Area (Black Bar) -->
                     <div id="btn-bet-andar" onclick="selectBetSide('andar')"
-                         class="px-5 py-3 sm:py-3.5 md:py-4 bg-[#181a22] border-b border-slate-700/80 flex items-center justify-between cursor-pointer hover:bg-slate-800 transition group select-none">
-                        <span class="text-sm sm:text-base md:text-lg font-black font-royal tracking-widest text-white group-hover:text-indigo-300">
+                         class="px-4 sm:px-5 py-2.5 sm:py-3.5 bg-[#181a22] border-b border-slate-700/80 flex items-center justify-between cursor-pointer hover:bg-slate-800 transition group select-none">
+                        <span class="text-xs sm:text-sm md:text-base font-black font-royal tracking-widest text-white group-hover:text-indigo-300">
                             ANDAR
                         </span>
                         <div class="flex items-center gap-2 pr-10">
@@ -392,10 +472,10 @@
                         </div>
                     </div>
 
-                    <!-- BAHAR Area (Red Bar, Big Button) -->
+                    <!-- BAHAR Area (Red Bar) -->
                     <div id="btn-bet-bahar" onclick="selectBetSide('bahar')"
-                         class="px-5 py-3 sm:py-3.5 md:py-4 bg-[#dc2626] flex items-center justify-between cursor-pointer hover:bg-red-700 transition group select-none">
-                        <span class="text-sm sm:text-base md:text-lg font-black font-royal tracking-widest text-white group-hover:text-red-100">
+                         class="px-4 sm:px-5 py-2.5 sm:py-3.5 bg-[#dc2626] flex items-center justify-between cursor-pointer hover:bg-red-700 transition group select-none">
+                        <span class="text-xs sm:text-sm md:text-base font-black font-royal tracking-widest text-white group-hover:text-red-100">
                             BAHAR
                         </span>
                         <div class="flex items-center gap-2 pr-10">
@@ -403,27 +483,31 @@
                         </div>
                     </div>
 
-                    <!-- Right Capsule Indicator (Matching Image 4) -->
-                    <div class="absolute right-0 top-0 bottom-0 w-12 sm:w-14 bg-gradient-to-r from-transparent via-black/40 to-black/80 flex items-center justify-center pointer-events-none">
-                        <div class="w-8 sm:w-9 h-14 sm:h-16 rounded-xl bg-gradient-to-b from-slate-900 via-slate-800 to-red-950 border border-white/20 flex flex-col items-center justify-center text-[11px] font-bold text-white shadow-inner">
+                    <!-- Right Capsule Indicator (Matching Image 2) -->
+                    <div class="absolute right-0 top-0 bottom-0 w-11 sm:w-13 bg-gradient-to-r from-transparent via-black/40 to-black/80 flex items-center justify-center pointer-events-none">
+                        <div class="w-7 sm:w-8 md:w-9 h-12 sm:h-14 md:h-15 rounded-xl bg-gradient-to-b from-slate-900 via-slate-800 to-red-950 border border-white/20 flex flex-col items-center justify-center text-[10px] sm:text-[11px] font-bold text-white shadow-inner">
                             <span id="hud-first-card-rank">{{ $currentRound->first_card ? strtoupper(explode('_', $currentRound->first_card)[0]) : '4' }}</span>
                             <span class="text-red-400 text-xs sm:text-sm leading-none mt-0.5">★</span>
                         </div>
                     </div>
                 </div>
             </div>
+        </div>
 
-            <!-- RIGHT SECTION: Red Timer Bar, Bead Road Matrix, Limits (Matching Image 4) -->
-            <div class="flex flex-col justify-between w-full sm:w-64 md:w-72 landscape:w-52 sm:landscape:w-64 shrink-0 space-y-1 sm:space-y-1.5">
-                <!-- Red Countdown Timer Bar (Matching Image 4) -->
-                <div class="w-full bg-slate-900 h-2 rounded-full overflow-hidden border border-white/10">
-                    <div id="hud-timer-bar" class="h-full bg-red-600 transition-all duration-1000 ease-linear shadow-[0_0_8px_#dc2626]" style="width: 100%;"></div>
-                </div>
+        <!-- ============================================================== -->
+        <!-- 3. RIGHT BLACK SCREEN PANEL (Matching Image 2 Exactly)         -->
+        <!-- ============================================================== -->
+        <div id="panel-right-black" class="panel-black-sidebar panel-right absolute right-0 top-0 bottom-0 z-20 flex flex-col justify-between items-center p-2 sm:p-3 bg-black select-none border-l border-white/10 shadow-2xl">
+            <!-- Countdown Timer Bar at Top of Right Panel -->
+            <div class="w-full max-w-[120px] sm:max-w-[140px] bg-slate-900 h-1.5 sm:h-2 rounded-full overflow-hidden border border-white/10 shrink-0 mb-1 sm:mb-2">
+                <div id="hud-timer-bar" class="h-full bg-red-600 transition-all duration-1000 ease-linear shadow-[0_0_8px_#dc2626]" style="width: 100%;"></div>
+            </div>
 
-                <!-- Bead Road Grid Matrix (Matching Image 4) -->
-                <div class="bg-black/60 p-2 rounded-xl border border-white/10">
-                    <!-- Row 1 of beads & dots -->
-                    <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none">
+            <!-- Vertical Bead Road Scorecard Card (Matching Image 2) -->
+            <div class="vertical-bead-card flex-1 flex flex-col items-center justify-center my-auto p-1.5 sm:p-2.5 rounded-2xl sm:rounded-3xl border-2 border-red-900/60 shadow-xl bg-gradient-to-b from-[#28080e] via-[#1a0509] to-[#120306] w-full max-w-[105px] sm:max-w-[120px]">
+                <div class="flex items-start justify-center gap-1.5 sm:gap-2.5 py-1">
+                    <!-- Column 1: Bead circles B and A -->
+                    <div class="flex flex-col items-center gap-1 sm:gap-1.5">
                         <div class="bead-b-circle shrink-0">B</div>
                         <div class="bead-b-circle shrink-0">B</div>
                         <div class="bead-a-circle shrink-0">A</div>
@@ -431,21 +515,9 @@
                         <div class="bead-b-circle shrink-0">B</div>
                         <div class="bead-a-circle shrink-0">A</div>
                         <div class="bead-b-circle shrink-0">B</div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
                     </div>
-                    <!-- Row 2 of beads & dots -->
-                    <div class="flex items-center gap-1.5 overflow-x-auto py-0.5 scrollbar-none mt-1.5">
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
+                    <!-- Column 2: Dots -->
+                    <div class="flex flex-col items-center gap-2 sm:gap-2.5 py-1">
                         <div class="bead-dot shrink-0"></div>
                         <div class="bead-dot shrink-0"></div>
                         <div class="bead-dot shrink-0"></div>
@@ -454,17 +526,27 @@
                         <div class="bead-dot shrink-0"></div>
                         <div class="bead-dot shrink-0"></div>
                     </div>
-                </div>
-
-                <!-- Limits Display (Matching Image 4) -->
-                <div class="text-right">
-                    <span class="text-[10px] text-slate-400 font-medium">
-                        Bet: 0/500,000
-                    </span>
+                    <!-- Column 3: Dots -->
+                    <div class="flex flex-col items-center gap-2 sm:gap-2.5 py-1">
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                        <div class="bead-dot shrink-0"></div>
+                    </div>
                 </div>
             </div>
 
+            <!-- Limits Display at Bottom of Right Panel -->
+            <div class="text-center shrink-0 pt-1">
+                <span class="text-[9px] sm:text-[10px] text-slate-400 font-medium">
+                    Bet: 0/500,000
+                </span>
+            </div>
         </div>
+
     </div>
 
     {{-- Custom Square Alert/Warning Banner Modal Centered in Middle of Screen --}}
@@ -515,6 +597,8 @@
         activeSelectedChip = parseInt(val, 10);
         document.querySelectorAll('.poker-chip').forEach(c => c.classList.remove('selected'));
         if (el) el.classList.add('selected');
+        const manual = document.getElementById('manual-bet-amount');
+        if (manual) manual.value = '';
 
         if (activeSelectedSide) {
             updateSideBadge(activeSelectedSide, activeSelectedChip);
@@ -529,13 +613,13 @@
         if (side === 'andar') {
             andarBox.classList.add('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
             baharBox.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
-            document.getElementById('status-first-bet').textContent = `₹${activeSelectedChip.toLocaleString()}`;
-            document.getElementById('status-second-bet').textContent = `₹0`;
+            document.getElementById('status-first-bet').textContent = `${activeSelectedChip.toLocaleString()} pts`;
+            document.getElementById('status-second-bet').textContent = `0 pts`;
         } else {
             baharBox.classList.add('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
             andarBox.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
-            document.getElementById('status-second-bet').textContent = `₹${activeSelectedChip.toLocaleString()}`;
-            document.getElementById('status-first-bet').textContent = `₹0`;
+            document.getElementById('status-second-bet').textContent = `${activeSelectedChip.toLocaleString()} pts`;
+            document.getElementById('status-first-bet').textContent = `0 pts`;
         }
 
         updateSideBadge(side, activeSelectedChip);
@@ -545,10 +629,10 @@
         const andarBadge = document.getElementById('andar-bet-badge');
         const baharBadge = document.getElementById('bahar-bet-badge');
         if (side === 'andar') {
-            andarBadge.textContent = `₹${amount.toLocaleString()}`;
+            andarBadge.textContent = `${amount.toLocaleString()} pts`;
             baharBadge.textContent = '';
         } else {
-            baharBadge.textContent = `₹${amount.toLocaleString()}`;
+            baharBadge.textContent = `${amount.toLocaleString()} pts`;
             andarBadge.textContent = '';
         }
     }
@@ -561,8 +645,8 @@
         baharBox.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
         document.getElementById('andar-bet-badge').textContent = '';
         document.getElementById('bahar-bet-badge').textContent = '';
-        document.getElementById('status-first-bet').textContent = '₹0';
-        document.getElementById('status-second-bet').textContent = '₹0';
+        document.getElementById('status-first-bet').textContent = '0 pts';
+        document.getElementById('status-second-bet').textContent = '0 pts';
     }
 
     function showSquareBanner(title, message) {
@@ -580,10 +664,36 @@
             showSquareBanner('Selection Required', 'Please select ANDAR or BAHAR before placing your bet.');
             return;
         }
+        const manual = document.getElementById('manual-bet-amount');
+        if (manual && manual.value !== '') {
+            const typed = parseInt(manual.value, 10);
+            if (isNaN(typed) || typed < 500) {
+                showSquareBanner('Minimum Bet', 'Minimum betting amount is 500 points.');
+                return;
+            }
+            activeSelectedChip = typed;
+        }
+
+        const totalEl = document.getElementById('sum-total');
+        const currentSessionTotal = totalEl ? parseInt(totalEl.textContent.replace(/,/g, '') || '0', 10) : 0;
+        if ((currentSessionTotal + activeSelectedChip) > 1000000) {
+            showSquareBanner('Session Limit Exceeded', 'Session betting limit exceeded. Maximum cumulative limit is 10,00,000 Points across Andar + Bahar.');
+            return;
+        }
 
         if (gameEngineInstance) {
             gameEngineInstance.selectedChip = activeSelectedChip;
+            const placeBtn = document.getElementById('btn-hud-place-bet');
+            if (placeBtn) {
+                placeBtn.disabled = true;
+                placeBtn.dataset.originalText = placeBtn.textContent;
+                placeBtn.textContent = 'PLACING...';
+            }
             await gameEngineInstance.placeBet(activeSelectedSide);
+            if (placeBtn) {
+                placeBtn.disabled = false;
+                placeBtn.textContent = placeBtn.dataset.originalText || 'PLACE BET';
+            }
         }
     }
 
@@ -656,6 +766,18 @@
             defaultChip: {{ $denominations[0] ?? 500 }},
             cancellationDuration: {{ (int) $room->cancellation_duration }}
         });
+
+        const manualAmt = document.getElementById('manual-bet-amount');
+        if (manualAmt) {
+            manualAmt.addEventListener('input', function () {
+                const typed = parseInt(this.value, 10);
+                if (!isNaN(typed) && typed >= 500) {
+                    activeSelectedChip = typed;
+                    document.querySelectorAll('.poker-chip').forEach(c => c.classList.remove('selected'));
+                    if (activeSelectedSide) updateSideBadge(activeSelectedSide, activeSelectedChip);
+                }
+            });
+        }
 
         // Hook timer bar into game engine and check cancel timer
         const oldRenderState = gameEngineInstance.renderState.bind(gameEngineInstance);
@@ -964,13 +1086,10 @@
             if (t) lastPenT = t;
             if (pos.card_hidden) applyLiveCardOverlay(null);
             else if (pos.first_card) applyLiveCardOverlay(pos.first_card, pos.card_x, pos.card_y, pos.card_scale);
-            if (!pos.visible || pos.x == null || pos.y == null || !liveFootageReady) {
+            // Yellow cursor mark is for admin only - do not show to players
+            if (playerPenMarker) {
                 playerPenMarker.style.display = 'none';
-                return;
             }
-            playerPenMarker.style.display = 'block';
-            playerPenMarker.style.left = (Number(pos.x) * 100) + '%';
-            playerPenMarker.style.top = (Number(pos.y) * 100) + '%';
         }
 
         async function pollPenPosition() {

@@ -110,22 +110,64 @@ class GameEngine {
         }
 
         // 2. Round Info
-        const roundNumEl = document.getElementById('round-number-display');
-        if (roundNumEl) roundNumEl.textContent = `#${data.round_number}`;
+        const roundNumEl = document.getElementById('round-number-display') || document.getElementById('session-id-display');
+        if (roundNumEl) roundNumEl.textContent = `Session #${data.round_number}`;
 
         const roundStatusBadge = document.getElementById('round-status-badge');
         if (roundStatusBadge) {
             const statusMap = {
-                'open': { text: 'WAITING FOR DEAL', class: 'bg-slate-700 text-slate-200' },
-                'betting_open': { text: 'BETTING OPEN', class: 'bg-emerald-600 text-white animate-pulse' },
+                'open': { text: 'ROUND IN PROGRESS', class: 'bg-slate-700 text-slate-200' },
+                'betting_open': { text: data.remaining_seconds != null ? ('BETTING OPEN – ' + String(data.remaining_seconds).padStart(2, '0') + ' SEC') : 'BETTING OPEN', class: 'bg-emerald-600 text-white animate-pulse' },
                 'betting_closed': { text: 'BETTING CLOSED', class: 'bg-amber-600 text-white' },
+                'result_pending': { text: 'RESULT PENDING', class: 'bg-amber-700 text-white' },
                 'result_declared': { text: 'RESULT DECLARED', class: 'bg-indigo-600 text-white' },
-                'round_closed': { text: 'ROUND CLOSED', class: 'bg-slate-800 text-slate-400' },
+                'round_closed': { text: 'SESSION COMPLETE', class: 'bg-slate-800 text-slate-400' },
             };
             const s = statusMap[data.round_status] || { text: data.round_status, class: 'bg-slate-700 text-slate-200' };
             roundStatusBadge.textContent = s.text;
-            roundStatusBadge.className = `px-3 py-1 text-xs font-bold rounded-full ${s.class}`;
+            roundStatusBadge.className = `px-2 py-0.5 text-[10px] font-bold rounded-full ${s.class}`;
         }
+
+        const statusBanner = document.getElementById('player-game-status-banner');
+        if (statusBanner) {
+            if (data.round_status === 'betting_open') {
+                statusBanner.textContent = 'BETTING OPEN – ' + String(data.remaining_seconds ?? 0).padStart(2, '0') + ' SEC';
+            } else if (data.round_status === 'betting_closed') {
+                statusBanner.textContent = 'BETTING CLOSED · Bets locked · Live game in progress';
+            } else if (data.round_status === 'result_pending') {
+                statusBanner.textContent = 'RESULT PENDING';
+            } else if (data.round_status === 'result_declared') {
+                statusBanner.textContent = 'RESULT DECLARED';
+            } else if (data.round_status === 'open') {
+                statusBanner.textContent = 'ROUND IN PROGRESS';
+            } else {
+                statusBanner.textContent = '';
+            }
+        }
+
+        const countEl = document.getElementById('player-count-display');
+        if (countEl && data.active_users !== undefined) {
+            countEl.textContent = data.active_users;
+        }
+
+        if (this.currentStatus === 'betting_closed' && data.round_status === 'betting_open') {
+            if (typeof window.showToast === 'function') {
+                window.showToast('BETTING OPEN. 10 seconds remaining. You can place/add bets for this betting window.', 'success');
+            }
+        }
+        if (this.currentStatus === 'betting_open' && data.round_status === 'betting_closed') {
+            if (typeof window.showToast === 'function') {
+                window.showToast('BETTING CLOSED. Your bets for this betting window are locked. The live game is still in progress. Please continue watching the live table.', 'info');
+            }
+        }
+        this.currentStatus = data.round_status;
+
+        const setTxt = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+        setTxt('sum-andar', Number(data.session_andar || 0).toLocaleString());
+        setTxt('sum-bahar', Number(data.session_bahar || 0).toLocaleString());
+        setTxt('sum-total', Number(data.session_total || 0).toLocaleString());
+        setTxt('sum-limit', Number(data.session_limit || 1000000).toLocaleString());
+        setTxt('sum-remaining', Number(data.session_remaining || 0).toLocaleString());
 
         // 3. First Card Render
         this.renderFirstCard(data.first_card);
@@ -428,8 +470,13 @@ class GameEngine {
         const winningSide = data.winning_side;
         const userBets = data.user_bets || [];
         const winningBets = userBets.filter(b => b.selection === winningSide && b.status !== 'cancelled');
+        const losingBets = userBets.filter(b => b.selection !== winningSide && b.status !== 'cancelled');
         const hasWon = winningBets.length > 0;
-        const totalWonPayout = winningBets.reduce((acc, b) => acc + (b.amount * 2), 0);
+        const totalStakeWin = winningBets.reduce((acc, b) => acc + Number(b.amount || 0), 0);
+        const totalProfit = winningBets.reduce((acc, b) => acc + Number(b.profit_amount || 0), 0);
+        const totalReturn = winningBets.reduce((acc, b) => acc + Number(b.payout_amount || (b.amount * 2) || 0), 0);
+        const totalLost = losingBets.reduce((acc, b) => acc + Number(b.amount || 0), 0);
+        const payoutLabel = data.payout_label || ((Number(data.payout_mode) === 25) ? '25% Profit' : '100% Profit');
 
         const isAndar = winningSide === 'andar';
         const winTitle = isAndar ? 'ROYAL ANDAR WON!' : 'ROYAL BAHAR WON!';
@@ -441,14 +488,45 @@ class GameEngine {
                 userResultHtml = `
                     <div class="p-4 bg-emerald-950/80 border border-emerald-500 rounded-xl my-4 text-center">
                         <span class="text-3xl block mb-1">🎉</span>
-                        <h4 class="text-emerald-300 font-bold text-lg uppercase">YOU WON!</h4>
-                        <p class="text-emerald-100 text-sm mt-1">1:1 Return Credited: <strong class="text-xl text-yellow-300">+${totalWonPayout.toLocaleString()} pts</strong></p>
+                        <h4 class="text-emerald-300 font-black text-xl uppercase tracking-wider">YOU WON</h4>
+                        <div class="space-y-1.5 text-xs text-emerald-100 mt-3 text-left bg-black/40 p-3 rounded-lg border border-emerald-500/30">
+                            <div class="flex justify-between"><span>Winning Side:</span> <strong class="text-white uppercase">${winningSide.toUpperCase()}</strong></div>
+                            <div class="flex justify-between"><span>User's Total Bet:</span> <strong class="text-white">${totalStakeWin.toLocaleString()} Points</strong></div>
+                            <div class="flex justify-between"><span>Payout Mode:</span> <strong class="text-emerald-300 font-bold">${payoutLabel}</strong></div>
+                            <div class="flex justify-between"><span>Profit Points:</span> <strong class="text-emerald-400 font-bold">+${totalProfit.toLocaleString()} Points</strong></div>
+                            <div class="flex justify-between border-t border-emerald-500/40 pt-1 text-sm font-black text-yellow-300">
+                                <span>Total Return Points:</span>
+                                <span>${totalReturn.toLocaleString()} Points</span>
+                            </div>
+                            <div class="flex justify-between border-t border-emerald-500/20 pt-1 text-[11px] text-slate-300">
+                                <span>Updated Wallet Balance:</span>
+                                <strong class="text-white">${Math.floor(Number(data.wallet_balance)).toLocaleString()} Points</strong>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-slate-400">
+                                <span>Session ID: #${data.round_number}</span>
+                                <span>Round ID: ${data.round_id}</span>
+                            </div>
+                        </div>
                     </div>`;
             } else {
                 userResultHtml = `
-                    <div class="p-4 bg-slate-900/80 border border-slate-700 rounded-xl my-4 text-center">
-                        <h4 class="text-slate-300 font-bold text-md uppercase">BET LOST</h4>
-                        <p class="text-slate-400 text-xs mt-1">Better luck in the next round!</p>
+                    <div class="p-4 bg-slate-900/90 border border-red-700/60 rounded-xl my-4 text-center">
+                        <span class="text-2xl block mb-1">💔</span>
+                        <h4 class="text-slate-200 font-black text-lg uppercase tracking-wider">BETTER LUCK NEXT TIME</h4>
+                        <div class="space-y-1.5 text-xs text-slate-300 mt-3 text-left bg-black/50 p-3 rounded-lg border border-white/10">
+                            <div class="flex justify-between"><span>Winning Side:</span> <strong class="text-white uppercase">${winningSide.toUpperCase()}</strong></div>
+                            <div class="flex justify-between"><span>Your Bet:</span> <strong class="text-white">${totalLost.toLocaleString()} Points</strong></div>
+                            <div class="flex justify-between"><span class="text-red-400 font-bold">Result:</span> <strong class="text-red-400 font-bold">LOST</strong></div>
+                            <div class="flex justify-between"><span class="text-red-300">Points Lost:</span> <strong class="text-red-300 font-mono">${totalLost.toLocaleString()} Points</strong></div>
+                            <div class="flex justify-between border-t border-slate-700 pt-1 text-[11px] text-slate-400">
+                                <span>Updated Wallet Balance:</span>
+                                <strong class="text-white">${Math.floor(Number(data.wallet_balance)).toLocaleString()} Points</strong>
+                            </div>
+                            <div class="flex justify-between text-[10px] text-slate-500">
+                                <span>Session ID: #${data.round_number}</span>
+                                <span>Round ID: ${data.round_id}</span>
+                            </div>
+                        </div>
                     </div>`;
             }
         } else {
@@ -465,14 +543,20 @@ class GameEngine {
 
         modal.innerHTML = `
             <div class="glass-panel max-w-md w-full p-6 text-center border-2 ${headerColor} shadow-2xl animate-bounce-short">
-                <span class="text-xs uppercase tracking-widest text-slate-400">Round #${data.round_number} Result</span>
+                <span class="text-xs uppercase tracking-widest text-slate-400">Session #${data.round_number} · ID ${data.session_id || data.round_id}</span>
                 <h2 class="text-2xl md:text-3xl font-royal font-black text-white mt-1 mb-2">${winTitle}</h2>
                 <div class="inline-block px-4 py-1.5 rounded-full font-bold text-sm uppercase ${isAndar ? 'badge-andar' : 'badge-bahar'} mb-2">
                     Winner: ${winningSide.toUpperCase()}
                 </div>
                 ${userResultHtml}
-                <div class="text-xs text-slate-400 mb-4">Updated Balance: <strong class="text-white">${Math.floor(Number(data.wallet_balance)).toLocaleString()} pts</strong></div>
-                <button type="button" onclick="GameEngine.dismissResultModal(${data.round_id})" class="btn-gold w-full py-2.5 text-sm uppercase font-bold cursor-pointer">Continue Playing</button>
+                <div class="grid grid-cols-2 gap-2 mt-4">
+                    <button type="button" onclick="GameEngine.dismissResultModal(${data.round_id}); window.location.reload();" class="py-2.5 px-3 bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs uppercase font-black rounded-xl shadow transition cursor-pointer">
+                        NEXT SESSION
+                    </button>
+                    <button type="button" onclick="GameEngine.dismissResultModal(${data.round_id})" class="py-2.5 px-3 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs uppercase font-bold rounded-xl border border-slate-700 transition cursor-pointer">
+                        Continue Watching
+                    </button>
+                </div>
             </div>
         `;
 

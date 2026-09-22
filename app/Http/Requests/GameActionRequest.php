@@ -14,7 +14,7 @@ class GameActionRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'action' => ['required', 'in:start_round,open_betting,close_betting,declare_result'],
+            'action' => ['required', 'in:start_round,open_betting,close_betting,declare_result,create_new_round,confirm_first_card'],
             'first_card' => ['nullable', 'string'],
             'winning_side' => ['nullable', 'in:andar,bahar'],
         ];

@@ -103,7 +103,7 @@
 
 @section('content')
 <div class="space-y-5">
-    <!-- Top Status Bar -->
+    <!-- Top Status Bar (Section A: Session Information & Table Info) -->
     <div class="glass-panel p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4 border-amber-500/20">
         <div class="flex items-center gap-3 sm:gap-4">
             <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-slate-950 font-black text-lg sm:text-xl font-royal shadow-lg shrink-0">
@@ -114,7 +114,14 @@
                     <h1 class="text-base sm:text-lg font-bold font-royal text-white">{{ $room->name }}</h1>
                     <span class="badge-live px-2 py-0.5 rounded text-[10px] font-extrabold uppercase">LIVE</span>
                 </div>
-                <span class="text-xs text-slate-400">Current Active Round: <strong class="text-amber-400 font-bold">#{{ $currentRound->round_number }}</strong> &bull; Status: <strong class="text-slate-200 uppercase font-mono">{{ $currentRound->status }}</strong></span>
+                <span class="text-xs text-slate-400">
+                    Session <strong class="text-amber-400 font-bold">#{{ $currentRound->round_number }}</strong> &bull; ID <strong class="text-slate-200">{{ $currentRound->id }}</strong> &bull; Status: <strong class="text-slate-200 uppercase font-mono">{{ str_replace('_', ' ', $currentRound->status) }}</strong>
+                    @if($currentRound->started_at)
+                        &bull; Started <strong class="text-slate-200">{{ $currentRound->started_at->format('h:i:s A') }}</strong>
+                        &bull; Duration: <strong id="admin-session-duration" class="text-amber-300 font-mono" data-started="{{ $currentRound->started_at->timestamp }}">00:00</strong>
+                    @endif
+                    &bull; Payout: <strong class="{{ $currentRound->payout_locked ? 'text-emerald-400 font-black' : 'text-amber-300 font-bold' }}">{{ $currentRound->payoutLabel() }}{{ $currentRound->payout_locked ? ' (LOCKED)' : '' }}</strong>
+                </span>
             </div>
         </div>
 
@@ -136,10 +143,74 @@
             <form method="POST" action="{{ route('admin.game.action', $room->id) }}">
                 @csrf
                 <input type="hidden" name="action" value="create_new_round">
-                <button type="submit" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition">
-                    + New Round Sequence
+                <button type="submit" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-bold border border-slate-700 transition js-busy-btn" data-busy-text="Starting Next...">
+                    Start Next Session
                 </button>
             </form>
+        </div>
+    </div>
+
+    <!-- Step Guidance (PDF Pages 22 & 23) -->
+    @php
+        $stepStatus = 'session_start';
+        if ($currentRound->status === 'result_declared' || $currentRound->status === 'round_closed') {
+            $currentStepIndex = 8; // declare result / completed
+        } elseif ($currentRound->payout_locked) {
+            $currentStepIndex = 5; // continue live game / match occurs
+        } elseif ($currentRound->status === 'betting_open' || $currentRound->status === 'betting_closed') {
+            $currentStepIndex = 3; // betting window
+        } elseif ($currentRound->first_card) {
+            $currentStepIndex = 2; // initial cards
+        } else {
+            $currentStepIndex = 1; // session start / ref card
+        }
+
+        $workflowSteps = [
+            ['num' => 1, 'name' => 'SESSION START'],
+            ['num' => 2, 'name' => 'REFERENCE CARD'],
+            ['num' => 3, 'name' => 'INITIAL CARDS'],
+            ['num' => 4, 'name' => 'BETTING WINDOW (10s)'],
+            ['num' => 5, 'name' => 'FIRST CARD CONDITION'],
+            ['num' => 6, 'name' => 'CONTINUE LIVE GAME'],
+            ['num' => 7, 'name' => 'MATCH OCCURS'],
+            ['num' => 8, 'name' => 'DECLARE RESULT'],
+            ['num' => 9, 'name' => 'PAYOUT & COMPLETE'],
+        ];
+    @endphp
+    <div class="glass-panel p-3.5 border-slate-800/80">
+        <div class="flex items-center justify-between mb-2">
+            <span class="text-[11px] font-black uppercase tracking-wider text-amber-400 font-royal flex items-center gap-1.5">
+                <span>📋</span> Step Guidance Workflow
+            </span>
+            <span class="text-[10px] text-slate-400 italic">
+                * Note: Betting Window is repeatable multiple times during active session
+            </span>
+        </div>
+        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin text-[10px] font-bold">
+            @foreach($workflowSteps as $idx => $step)
+                @php
+                    $isPassed = ($idx < $currentStepIndex);
+                    $isCurrent = ($idx === $currentStepIndex);
+                    if ($isCurrent) {
+                        $badgeStyle = 'bg-amber-500 text-slate-950 border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.5)]';
+                    } elseif ($isPassed) {
+                        $badgeStyle = 'bg-emerald-950 text-emerald-300 border-emerald-700';
+                    } else {
+                        $badgeStyle = 'bg-slate-900 text-slate-500 border-slate-800';
+                    }
+                @endphp
+                <div class="flex items-center gap-1.5 shrink-0">
+                    <div class="px-2.5 py-1 rounded-lg border flex items-center gap-1.5 {{ $badgeStyle }}">
+                        <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black {{ $isCurrent ? 'bg-slate-950 text-amber-400' : ($isPassed ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400') }}">
+                            {{ $isPassed ? '✓' : $step['num'] }}
+                        </span>
+                        <span class="whitespace-nowrap uppercase tracking-wider">{{ $step['name'] }}</span>
+                    </div>
+                    @if(!$loop->last)
+                        <span class="text-slate-600 font-black text-xs">&rarr;</span>
+                    @endif
+                </div>
+            @endforeach
         </div>
     </div>
 
@@ -198,10 +269,12 @@
                         <span class="px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider bg-slate-800 text-slate-400 border border-slate-700" title="Webcam will be used">
                             📷 WEBCAM
                         </span>
-                    @endif
-                    <span id="admin-stream-status-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider {{ $room->is_streaming ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-800 text-slate-400 border border-slate-700' }}">
+                             <span id="admin-stream-status-badge" class="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider {{ $room->is_streaming ? 'bg-red-600 text-white animate-pulse' : 'bg-slate-800 text-slate-400 border border-slate-700' }}">
                         {{ $room->is_streaming ? '🔴 LIVE STREAMING' : '⚪ STREAM OFFLINE' }}
                     </span>
+                    <button type="button" onclick="toggleAdminStreamFullscreen()" class="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition cursor-pointer" title="Toggle Fullscreen">
+                        ⛶ Fullscreen
+                    </button>
                 </div>
             </div>
 
@@ -221,7 +294,7 @@
                 <canvas id="admin-stream-canvas" class="hidden" width="480" height="270"></canvas>
 
                 <!-- White Screen (Shown when stream is ended/offline as like User Panel) -->
-                <div id="admin-stream-white-screen" class="absolute inset-0 bg-white flex flex-col items-center justify-center text-slate-700 select-none p-4 {{ $room->is_streaming ? 'hidden' : '' }}">
+                <div id="admin-stream-white-screen" class="absolute inset-0 bg-white flex flex-col items-center justify-center text-slate-700 select-none p-4 {{ $room->is_streaming ? '' : 'hidden' }}">
                     <div class="w-10 h-10 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center text-lg mb-1 shadow-sm">
                         🎥
                     </div>
@@ -265,35 +338,75 @@
                 <button type="button" id="btn-overlay-card-smaller" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider border border-slate-700 cursor-pointer">− Size</button>
                 <button type="button" id="btn-overlay-card-larger" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider border border-slate-700 cursor-pointer">+ Size</button>
                 <button type="button" id="btn-overlay-card-delete" class="px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white text-[10px] font-black uppercase tracking-wider border border-red-500 cursor-pointer">Delete</button>
+                <button type="button" id="btn-overlay-card-save" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-[10px] font-black uppercase tracking-wider border border-emerald-500 cursor-pointer shadow-md shadow-emerald-600/30 transition">Save</button>
             </div>
         </div>
 
-        <!-- STEP 3: Betting Window Control -->
+        <!-- STEP 3: Betting Window Control (PDF Pages 8 & 9) -->
         <div class="glass-panel p-5 border-slate-800 flex flex-col justify-between">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold font-royal text-white flex items-center gap-2">
                     <span class="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">3</span>
                     <span>Betting Window Control</span>
                 </h3>
-                <span class="text-xs text-slate-400 font-mono">Status: <strong class="text-amber-400">{{ strtoupper($currentRound->status) }}</strong></span>
+                <span class="text-xs text-slate-400 font-mono">Status: <strong class="{{ $currentRound->status === 'betting_open' ? 'text-emerald-400' : 'text-amber-400' }}">{{ strtoupper($currentRound->status) }}</strong>
+                    @if(!empty($currentWindow))
+                        &bull; Window #{{ $currentWindow->window_number }}
+                    @endif
+                    @if($currentRound->status === 'betting_open')
+                        &bull; <span id="admin-betting-countdown" class="text-emerald-300 font-bold" data-remaining="{{ $currentRound->remainingBettingSeconds() }}">{{ $currentRound->remainingBettingSeconds() }}s remaining</span>
+                    @endif
+                </span>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 my-auto">
                 <form method="POST" action="{{ route('admin.game.action', $room->id) }}">
                     @csrf
                     <input type="hidden" name="action" value="open_betting">
-                    <button type="submit" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition flex flex-col items-center justify-center gap-0.5">
-                        <span>⏱️ OPEN BETTING ({{ $room->betting_duration }}s)</span>
-                        <small class="text-[9px] sm:text-[10px] font-normal opacity-80">Triggers live countdown for players</small>
+                    <button type="submit" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition flex flex-col items-center justify-center gap-0.5 js-busy-btn" data-busy-text="OPENING...">
+                        <span>⏱️ OPEN BETTING – 10 SEC</span>
+                        <small class="text-[9px] sm:text-[10px] font-normal opacity-80">Repeatable while session is active</small>
                     </button>
                 </form>
 
                 <form method="POST" action="{{ route('admin.game.action', $room->id) }}">
                     @csrf
                     <input type="hidden" name="action" value="close_betting">
-                    <button type="submit" class="w-full py-3.5 bg-amber-700 hover:bg-amber-600 text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition flex flex-col items-center justify-center gap-0.5">
-                        <span>🔒 LOCK / CLOSE BETTING</span>
+                    <button type="submit" class="w-full py-3.5 bg-amber-700 hover:bg-amber-600 text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition flex flex-col items-center justify-center gap-0.5 js-busy-btn" data-busy-text="CLOSING...">
+                        <span>🔒 CLOSE BETTING</span>
                         <small class="text-[9px] sm:text-[10px] font-normal opacity-80">Immediately locks placed bets</small>
+                    </button>
+                </form>
+            </div>
+        </div>
+
+        <!-- STEP 3B: First Card Payout Condition -->
+        <div class="glass-panel p-5 border-slate-800 flex flex-col justify-between">
+            <div class="flex items-center justify-between mb-3">
+                <h3 class="text-sm font-bold font-royal text-white flex items-center gap-2">
+                    <span class="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">3b</span>
+                    <span>First Card Payout Condition</span>
+                </h3>
+                <span class="text-xs font-bold {{ $currentRound->payout_locked ? 'text-emerald-400' : 'text-amber-300' }}">
+                    {{ $currentRound->payoutLabel() }}{{ $currentRound->payout_locked ? ' · LOCKED' : '' }}
+                </span>
+            </div>
+            <p class="text-[10px] text-slate-500 mb-3">Locks 25% or 100% profit for this entire session. Required before declaring a winner. Resets on the next session.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <form method="POST" action="{{ route('admin.game.action', $room->id) }}">
+                    @csrf
+                    <input type="hidden" name="action" value="confirm_first_card">
+                    <input type="hidden" name="first_card_matched" value="1">
+                    <button type="submit" class="w-full py-3.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow transition js-busy-btn" data-busy-text="LOCKING 25%..." {{ $currentRound->payout_locked ? 'disabled' : '' }}>
+                        First Card Matched – 25%
+                    </button>
+                </form>
+                <form method="POST" action="{{ route('admin.game.action', $room->id) }}">
+                    @csrf
+                    <input type="hidden" name="action" value="confirm_first_card">
+                    <input type="hidden" name="first_card_matched" value="0">
+                    <button type="submit" class="w-full py-3.5 bg-indigo-700 hover:bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow transition js-busy-btn" data-busy-text="LOCKING 100%..." {{ $currentRound->payout_locked ? 'disabled' : '' }}>
+                        First Card Not Matched – 100%
                     </button>
                 </form>
             </div>
@@ -319,9 +432,9 @@
                     @csrf
                     <input type="hidden" name="action" value="declare_result">
                     <input type="hidden" name="winning_side" value="andar">
-                    <button type="button" onclick="openConfirmModal('form-andar','Confirm declaration: ANDAR WON?','This will immediately credit 1:1 winnings to all ANDAR bettors.','andar')" class="btn-andar w-full py-3.5 text-center flex flex-col items-center justify-center gap-0.5" {{ $currentRound->status === 'result_declared' ? 'disabled' : '' }}>
+                    <button type="button" onclick="openConfirmResultModal('form-andar','andar')" class="btn-andar w-full py-3.5 text-center flex flex-col items-center justify-center gap-0.5" {{ $currentRound->status === 'result_declared' ? 'disabled' : '' }}>
                         <span class="text-base sm:text-lg font-black font-royal tracking-widest text-white">ANDAR WON</span>
-                        <span class="text-[10px] font-normal text-indigo-200">1:1 Auto Payout</span>
+                        <span class="text-[10px] font-normal text-indigo-200">{{ $currentRound->payoutLabel() }} · Confirm & Process</span>
                     </button>
                 </form>
 
@@ -330,9 +443,9 @@
                     @csrf
                     <input type="hidden" name="action" value="declare_result">
                     <input type="hidden" name="winning_side" value="bahar">
-                    <button type="button" onclick="openConfirmModal('form-bahar','Confirm declaration: BAHAR WON?','This will immediately credit 1:1 winnings to all BAHAR bettors.','bahar')" class="btn-bahar w-full py-3.5 text-center flex flex-col items-center justify-center gap-0.5" {{ $currentRound->status === 'result_declared' ? 'disabled' : '' }}>
+                    <button type="button" onclick="openConfirmResultModal('form-bahar','bahar')" class="btn-bahar w-full py-3.5 text-center flex flex-col items-center justify-center gap-0.5" {{ $currentRound->status === 'result_declared' ? 'disabled' : '' }}>
                         <span class="text-base sm:text-lg font-black font-royal tracking-widest text-white">BAHAR WON</span>
-                        <span class="text-[10px] font-normal text-red-200">1:1 Auto Payout</span>
+                        <span class="text-[10px] font-normal text-red-200">{{ $currentRound->payoutLabel() }} · Confirm & Process</span>
                     </button>
                 </form>
             </div>
@@ -364,9 +477,10 @@
             </div>
 
             <div class="text-xs text-slate-400 flex justify-between border-t border-slate-800 pt-3">
-                <span>Total Round Pool:</span>
+                <span>Total Session Pool:</span>
                 <strong class="text-amber-300 font-bold">{{ number_format($totalAndarAmount + $totalBaharAmount, 0) }} pts</strong>
             </div>
+            <div class="text-[10px] text-slate-500 mt-1">Active users this session: <strong class="text-slate-300">{{ $room->active_users_count }}</strong></div>
         </div>
 
         <!-- Table 2: Active Bets Placed in This Round -->
@@ -436,6 +550,48 @@
         </div>
     </div>
 
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 pt-1">
+        <div class="glass-panel p-5 border-slate-800">
+            <h4 class="text-xs font-bold uppercase text-slate-400 mb-2.5">Betting Window History</h4>
+            <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                @forelse(($bettingWindows ?? []) as $w)
+                    <div class="p-2 bg-slate-900 rounded-lg border border-slate-800 flex items-center justify-between text-xs">
+                        <span class="text-slate-200 font-bold">#{{ $w->window_number }}</span>
+                        <span class="text-slate-400">{{ $w->started_at ? $w->started_at->format('H:i:s') : '-' }} → {{ $w->ended_at ? $w->ended_at->format('H:i:s') : 'open' }}</span>
+                        <span class="uppercase font-bold {{ $w->status === 'open' ? 'text-emerald-400' : 'text-slate-400' }}">{{ $w->status }}</span>
+                    </div>
+                @empty
+                    <div class="text-slate-500 text-xs text-center py-2">No betting windows yet.</div>
+                @endforelse
+            </div>
+        </div>
+        <div class="glass-panel p-5 border-slate-800">
+            <h4 class="text-xs font-bold uppercase text-slate-400 mb-2.5">Session Completion</h4>
+            <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="p-2 rounded-lg bg-slate-900 border border-slate-800"><span class="text-slate-500 block">Total bets</span><strong class="text-white">{{ number_format($totalAndarAmount + $totalBaharAmount, 0) }} pts</strong></div>
+                <div class="p-2 rounded-lg bg-slate-900 border border-slate-800"><span class="text-slate-500 block">Processed</span><strong class="text-white">{{ number_format($sessionProcessed ?? 0, 0) }} pts</strong></div>
+                <div class="p-2 rounded-lg bg-slate-900 border border-slate-800"><span class="text-slate-500 block">Winners</span><strong class="text-emerald-400">{{ $sessionWinners ?? 0 }}</strong></div>
+                <div class="p-2 rounded-lg bg-slate-900 border border-slate-800"><span class="text-slate-500 block">Losers</span><strong class="text-red-400">{{ $sessionLosers ?? 0 }}</strong></div>
+            </div>
+        </div>
+        <div class="glass-panel p-5 border-slate-800">
+            <h4 class="text-xs font-bold uppercase text-slate-400 mb-2.5">Audit Log</h4>
+            <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+                @forelse(($auditLogs ?? []) as $log)
+                    <div class="text-[10px] text-slate-300 border-b border-slate-800/80 pb-1">
+                        <span class="text-slate-500">{{ $log->created_at?->format('H:i:s') }}</span>
+                        <strong class="text-amber-300 ml-1">{{ $log->action }}</strong>
+                        @if($log->new_state)
+                            <span class="text-slate-500"> → {{ $log->new_state }}</span>
+                        @endif
+                    </div>
+                @empty
+                    <div class="text-slate-500 text-xs text-center py-2">No audit entries yet.</div>
+                @endforelse
+            </div>
+        </div>
+    </div>
+
     <!-- Live Camera Source Link Section (CCTV / External Stream URL) -->
     <div class="glass-panel p-5 border-slate-800">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-2.5">
@@ -494,7 +650,7 @@
                 Cancel
             </button>
             <button id="confirmOkBtn" onclick="submitConfirmedForm()" class="flex-1 py-3 rounded-xl font-bold text-sm text-white transition shadow-lg">
-                ✓ Confirm
+                Confirm & Process Result
             </button>
         </div>
     </div>
@@ -1004,16 +1160,45 @@
         unbindAdminPenTracking();
     }
 
-    function openConfirmModal(formId, title, body, side) {
+    function openConfirmResultModal(formId, side) {
+        const payoutLocked = {{ $currentRound->payout_locked ? 'true' : 'false' }};
+        if (!payoutLocked) {
+            if (typeof window.showToast === 'function') {
+                window.showToast('Confirm first card condition (25% or 100%) before declaring the result.', 'error');
+            } else {
+                alert('Confirm first card condition (25% or 100%) before declaring the result.');
+            }
+            return;
+        }
         _pendingFormId = formId;
         _pendingWinningSide = side;
-        document.getElementById('confirmTitle').textContent = title;
-        document.getElementById('confirmBody').textContent  = body;
+
+        const sideUpper = side.toUpperCase();
+        const payoutLabel = @json($currentRound->payoutLabel());
+        const totalAndar = @json(number_format($totalAndarAmount, 0));
+        const totalBahar = @json(number_format($totalBaharAmount, 0));
+        const sessionId = @json($currentRound->round_number);
+
+        document.getElementById('confirmTitle').textContent = 'Confirm Result?';
+        
+        const bodyEl = document.getElementById('confirmBody');
+        if (bodyEl) {
+            bodyEl.innerHTML = `
+                <div class="space-y-2 text-left bg-slate-900/80 p-3.5 rounded-xl border border-slate-700/80 my-2 text-xs font-semibold">
+                    <div class="flex justify-between"><span class="text-slate-400">SESSION:</span><strong class="text-white font-mono">#${sessionId}</strong></div>
+                    <div class="flex justify-between"><span class="text-slate-400">Winning Side:</span><strong class="${side === 'andar' ? 'text-indigo-400' : 'text-red-400'} font-black text-sm uppercase">${sideUpper}</strong></div>
+                    <div class="flex justify-between"><span class="text-slate-400">Payout Mode:</span><strong class="text-amber-300 font-bold">${payoutLabel}</strong></div>
+                    <div class="flex justify-between border-t border-slate-800 pt-1.5"><span class="text-slate-400">Total Andar Bets:</span><strong class="text-white">${totalAndar} Points</strong></div>
+                    <div class="flex justify-between"><span class="text-slate-400">Total Bahar Bets:</span><strong class="text-white">${totalBahar} Points</strong></div>
+                </div>
+                <p class="text-[11px] text-slate-400 text-center mt-2">This action will close the session and process the applicable winning points.</p>
+            `;
+        }
 
         const icon = document.getElementById('confirmIcon');
         const btn  = document.getElementById('confirmOkBtn');
         btn.disabled = false;
-        btn.innerHTML = '✓ Confirm';
+        btn.innerHTML = 'CONFIRM & PROCESS RESULT';
 
         if (side === 'andar') {
             icon.style.background = 'linear-gradient(135deg,#4338ca,#6366f1)';
@@ -1035,7 +1220,7 @@
         const submitBtn = document.getElementById('confirmOkBtn');
         if (submitBtn) {
             submitBtn.disabled = false;
-            submitBtn.innerHTML = '✓ Confirm';
+            submitBtn.innerHTML = 'CONFIRM & PROCESS RESULT';
         }
         _pendingFormId = null;
     }
@@ -1265,6 +1450,11 @@
 
     function publishOverlayCard() {
         if (!adminOverlayVisible || !adminOverlayCard) return;
+        const btnSave = document.getElementById('btn-overlay-card-save');
+        if (btnSave) {
+            btnSave.disabled = true;
+            btnSave.textContent = 'Saving...';
+        }
         if (streamChannel) {
             streamChannel.postMessage({
                 type: 'overlay_card',
@@ -1295,8 +1485,23 @@
             if (data && data.success) {
                 const label = document.getElementById('admin-first-card-set-label');
                 if (label) label.textContent = 'Card Set: ' + adminOverlayCard.replace('_', ' ').toUpperCase();
+                if (btnSave) {
+                    btnSave.textContent = 'Saved ✓';
+                    setTimeout(() => {
+                        btnSave.disabled = false;
+                        btnSave.textContent = 'Save';
+                    }, 1500);
+                }
+            } else if (btnSave) {
+                btnSave.disabled = false;
+                btnSave.textContent = 'Save';
             }
-        }).catch(() => {});
+        }).catch(() => {
+            if (btnSave) {
+                btnSave.disabled = false;
+                btnSave.textContent = 'Save';
+            }
+        });
     }
 
     (function bindAdminCardDrag() {
@@ -1325,7 +1530,7 @@
             dragging = false;
             overlay.style.cursor = 'grab';
             e.stopPropagation();
-            publishOverlayCard();
+            // Do not publish immediately - user will click Save button
         });
     })();
 
@@ -1351,7 +1556,7 @@
         if (radio) radio.checked = true;
 
         paintAdminOverlayCard(newCode);
-        publishOverlayCard();
+        // Do not publish immediately - user will click Save button
     });
 
     const btnSmaller = document.getElementById('btn-overlay-card-smaller');
@@ -1361,7 +1566,6 @@
             adminOverlayScale = Math.max(0.2, Math.round((adminOverlayScale - 0.1) * 10) / 10);
             const overlay = document.getElementById('admin-live-card-overlay');
             if (overlay) applyAdminOverlayBox(overlay);
-            publishOverlayCard();
         });
     }
     if (btnLarger) {
@@ -1369,13 +1573,18 @@
             adminOverlayScale = Math.min(2.5, Math.round((adminOverlayScale + 0.1) * 10) / 10);
             const overlay = document.getElementById('admin-live-card-overlay');
             if (overlay) applyAdminOverlayBox(overlay);
-            publishOverlayCard();
         });
     }
     const btnDelete = document.getElementById('btn-overlay-card-delete');
     if (btnDelete) {
         btnDelete.addEventListener('click', function () {
             hideAdminOverlayCard();
+        });
+    }
+    const btnSave = document.getElementById('btn-overlay-card-save');
+    if (btnSave) {
+        btnSave.addEventListener('click', function () {
+            publishOverlayCard();
         });
     }
 
@@ -1392,5 +1601,58 @@
             if (overlay && overlay.classList.contains('is-visible')) applyAdminOverlayBox(overlay);
         });
     }
+
+    function toggleAdminStreamFullscreen() {
+        const el = document.getElementById('admin-stream-preview');
+        if (!el) return;
+        if (!document.fullscreenElement) {
+            el.requestFullscreen().catch(() => {});
+        } else {
+            document.exitFullscreen().catch(() => {});
+        }
+    }
+
+    (function initDurationTracker() {
+        const el = document.getElementById('admin-session-duration');
+        if (!el) return;
+        const started = parseInt(el.dataset.started, 10);
+        if (!started || isNaN(started)) return;
+        const update = () => {
+            const nowSec = Math.floor(Date.now() / 1000);
+            const diff = Math.max(0, nowSec - started);
+            const mins = Math.floor(diff / 60);
+            const secs = diff % 60;
+            el.textContent = `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+        };
+        update();
+        setInterval(update, 1000);
+    })();
+
+    (function initBettingCountdown() {
+        const el = document.getElementById('admin-betting-countdown');
+        if (!el) return;
+        let remaining = parseInt(el.dataset.remaining, 10);
+        if (isNaN(remaining) || remaining <= 0) return;
+        const iv = setInterval(() => {
+            remaining--;
+            if (remaining <= 0) {
+                el.textContent = '0s (Closing...)';
+                clearInterval(iv);
+            } else {
+                el.textContent = `${remaining}s remaining`;
+            }
+        }, 1000);
+    })();
+
+    document.querySelectorAll('.js-busy-btn').forEach(function (btn) {
+        const form = btn.closest('form');
+        if (!form) return;
+        form.addEventListener('submit', function () {
+            if (btn.disabled) return;
+            btn.dataset.originalHtml = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = btn.dataset.busyText || 'Processing...';
+        });
+    });
 </script>
 @endsection
