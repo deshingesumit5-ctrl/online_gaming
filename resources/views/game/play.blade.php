@@ -244,16 +244,16 @@
     </div>
 
     <!-- Main Live Table Surface (Matching Image 4 Dealer Table Camera Stream) -->
-    <div class="felt-surface relative flex-grow min-h-0 flex items-center justify-center overflow-hidden"
-         style="background: #1e1a17 url('{{ asset('images/live-table-bg.jpg') }}') center center / cover no-repeat;">
+    <div id="player-felt-surface" class="felt-surface relative flex-grow min-h-0 flex items-center justify-center overflow-hidden"
+         style="background: {{ $room->is_streaming ? '#000' : '#1e1a17 url(\'' . asset('images/live-table-bg.jpg') . '\') center center / cover no-repeat' }};">
         
         <!-- Live Stream Video / Camera Broadcast Container (Overlaid when stream is active) -->
-        <div id="player-live-stream-box" class="absolute inset-0 z-0 flex items-center justify-center overflow-hidden {{ $room->is_streaming ? '' : 'hidden' }}">
+        <div id="player-live-stream-box" class="absolute inset-0 z-0 bg-black flex items-center justify-center overflow-hidden {{ $room->is_streaming ? '' : 'hidden' }}">
             <!-- Live Camera Frame Image (broadcasted from Admin Live Camera) -->
-            <img id="player-live-camera-img" class="w-full h-full object-cover" alt="Live Dealer Stream" src="">
+            <img id="player-live-camera-img" class="w-full h-full object-cover hidden" alt="Live Dealer Stream" src="">
 
             <!-- External / CCTV Live Stream Player Container -->
-            <div id="player-external-stream-wrap" class="hidden absolute inset-0">
+            <div id="player-external-stream-wrap" class="hidden absolute inset-0 bg-black">
                 <video id="live-cctv-stream" class="w-full h-full object-cover hidden" autoplay muted playsinline></video>
                 <iframe id="live-youtube-stream" class="w-full h-full border-0 hidden pointer-events-auto"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
@@ -274,6 +274,7 @@
                     <div class="index-suit" id="player-live-card-index-suit-b"></div>
                 </div>
             </div>
+            <div id="player-live-wait-cover" class="absolute inset-0 z-40 bg-black {{ $room->is_streaming ? '' : 'hidden' }}"></div>
 
             <!-- Live Streaming Indicator Badge -->
             <div class="absolute top-3 left-3 z-10 flex items-center gap-2 bg-black/60 backdrop-blur-sm border border-red-500/40 px-2.5 py-1 rounded-full">
@@ -740,25 +741,69 @@
             }
         }
 
-        function revealPlayerLiveFootage() {
+        function setFeltBackground(isStreaming) {
+            const felt = document.getElementById('player-felt-surface');
+            if (!felt) return;
+            if (isStreaming) {
+                felt.style.background = '#000';
+            } else {
+                felt.style.background = "#1e1a17 url('{{ asset('images/live-table-bg.jpg') }}') center center / cover no-repeat";
+            }
+        }
+
+        function hideLiveWaitCover() {
+            const cover = document.getElementById('player-live-wait-cover');
+            if (cover) cover.classList.add('hidden');
+        }
+
+        function showLiveWaitCover() {
+            const cover = document.getElementById('player-live-wait-cover');
+            if (cover) cover.classList.remove('hidden');
+        }
+
+        function finishLiveFootageReveal() {
             if (liveFootageReady) return;
             liveFootageReady = true;
+            hideLiveWaitCover();
+            if (pendingLiveCard !== undefined) {
+                const pending = pendingLiveCard;
+                pendingLiveCard = undefined;
+                applyLiveCardOverlay(pending.cardCode, pending.x, pending.y, pending.scale);
+            }
+        }
+
+        function revealPlayerLiveFootage() {
+            if (liveFootageReady) return;
             const streamBox = document.getElementById('player-live-stream-box');
             const externalWrap = document.getElementById('player-external-stream-wrap');
             const cctvVideo = document.getElementById('live-cctv-stream');
+            const fallbackImg = document.getElementById('player-live-camera-img');
             if (streamBox) {
                 streamBox.classList.remove('hidden');
                 streamBox.classList.add('bg-black');
             }
             if (externalWrap) externalWrap.classList.add('bg-black');
-            if (cctvVideo) {
+
+            const videoReady = cctvVideo && !cctvVideo.classList.contains('hidden') && cctvVideo.videoWidth > 0;
+            if (videoReady) {
                 cctvVideo.style.opacity = '1';
                 cctvVideo.classList.remove('hidden');
+                if (typeof cctvVideo.requestVideoFrameCallback === 'function') {
+                    cctvVideo.requestVideoFrameCallback(function () {
+                        finishLiveFootageReveal();
+                    });
+                } else {
+                    requestAnimationFrame(function () {
+                        requestAnimationFrame(finishLiveFootageReveal);
+                    });
+                }
+                return;
             }
-            if (pendingLiveCard !== undefined) {
-                const pending = pendingLiveCard;
-                pendingLiveCard = undefined;
-                applyLiveCardOverlay(pending.cardCode, pending.x, pending.y, pending.scale);
+
+            const jpegReady = fallbackImg && !fallbackImg.classList.contains('hidden') && fallbackImg.naturalWidth > 0;
+            if (jpegReady) {
+                finishLiveFootageReveal();
+                return;
             }
         }
 
@@ -774,6 +819,7 @@
             if (fallbackImg && !fallbackImg._liveReadyBound) {
                 fallbackImg._liveReadyBound = true;
                 fallbackImg.addEventListener('load', () => {
+                    if (cctvMode === 'hls') return;
                     if (fallbackImg.naturalWidth > 0) revealPlayerLiveFootage();
                 });
             }
@@ -1009,6 +1055,7 @@
 
         function startHlsPlayback(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg) {
             if (ytIframe) ytIframe.classList.add('hidden');
+            if (fallbackImg) fallbackImg.classList.add('hidden');
             if (externalWrap) externalWrap.classList.remove('hidden');
             if (!cctvVideo) return;
             cctvVideo.muted = true;
@@ -1076,9 +1123,11 @@
             if (isStreaming) {
                 streamEndedByAdmin = false;
                 window._isStreamActive = true;
+                setFeltBackground(true);
+                if (!liveFootageReady) showLiveWaitCover();
                 if (streamBox) {
                     streamBox.classList.remove('hidden');
-                    if (!liveFootageReady) streamBox.classList.remove('bg-black');
+                    streamBox.classList.add('bg-black');
                 }
                 if (whiteScreen) whiteScreen.classList.add('hidden');
                 bindLiveFootageReadyWatchers(cctvVideo, fallbackImg);
@@ -1091,7 +1140,7 @@
                     } else {
                     if (externalWrap) {
                         externalWrap.classList.remove('hidden');
-                        if (!liveFootageReady) externalWrap.classList.remove('bg-black');
+                        externalWrap.classList.add('bg-black');
                     }
 
                     const ytMatch = /(?:youtube\.com\/(?:watch\?v=|embed\/|live\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/i.exec(streamUrl);
@@ -1103,8 +1152,9 @@
                             ytIframe.classList.remove('hidden');
                         }
                         if (cctvVideo) cctvVideo.classList.add('hidden');
-                        revealPlayerLiveFootage();
+                        finishLiveFootageReveal();
                     } else if (streamUrl.toLowerCase().includes('.m3u8')) {
+                        if (fallbackImg) fallbackImg.classList.add('hidden');
                         startCctvLowLatency(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
                     } else {
                         // Direct video file/feed (MP4 / WebM)
@@ -1132,6 +1182,8 @@
                 window._isStreamActive = false;
                 liveFootageReady = false;
                 pendingLiveCard = undefined;
+                setFeltBackground(false);
+                hideLiveWaitCover();
                 if (playerPenMarker) playerPenMarker.style.display = 'none';
                 const cardOverlay = document.getElementById('player-live-card-overlay');
                 if (cardOverlay) cardOverlay.classList.remove('is-visible');
@@ -1222,6 +1274,7 @@
             }
             if (e.persisted) {
                 liveFootageReady = false;
+                showLiveWaitCover();
                 cctvMode = null;
                 if (playerHls) {
                     try { playerHls.destroy(); } catch (err) {}
