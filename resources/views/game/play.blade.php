@@ -178,6 +178,21 @@
     }
 
 
+    @media (max-width: 1023px), (orientation: landscape) and (max-height: 700px) {
+        .game-viewport .felt-surface {
+            position: absolute;
+            inset: 0;
+            flex: none;
+            z-index: 0;
+        }
+        .game-hud-bar {
+            background: transparent !important;
+            border-top-color: transparent !important;
+            backdrop-filter: none !important;
+            -webkit-backdrop-filter: none !important;
+        }
+    }
+
     @media (orientation: landscape) and (max-height: 550px) {
         .landscape-compact-bar {
             padding-top: 3px !important;
@@ -296,7 +311,7 @@
     </div>
 
     <!-- Bottom Casino Cockpit HUD Bar (Matching Image 4 Overlaid HUD) -->
-    <div class="relative z-30 p-2 sm:p-3.5 bg-black/90 backdrop-blur-md border-t border-white/15 text-white shrink-0">
+    <div class="game-hud-bar relative z-30 p-2 sm:p-3.5 bg-black/90 backdrop-blur-md border-t border-white/15 text-white shrink-0">
         <div class="flex flex-col landscape:flex-row lg:flex-row items-center justify-between gap-2.5 sm:gap-4 landscape-compact-hud">
             
             <!-- LEFT SECTION: Chips, Undo + Place Bet, Balance + First Bet / Second Bet -->
