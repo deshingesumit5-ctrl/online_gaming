@@ -339,7 +339,6 @@
                 <button type="button" id="btn-overlay-card-smaller" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider border border-slate-700 cursor-pointer">− Size</button>
                 <button type="button" id="btn-overlay-card-larger" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider border border-slate-700 cursor-pointer">+ Size</button>
                 <button type="button" id="btn-overlay-card-delete" class="px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white text-[10px] font-black uppercase tracking-wider border border-red-500 cursor-pointer">Delete</button>
-                <button type="button" id="btn-overlay-card-save" class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-[10px] font-black uppercase tracking-wider border border-emerald-500 cursor-pointer shadow-md shadow-emerald-600/30 transition">Save</button>
             </div>
         </div>
 
@@ -1451,11 +1450,6 @@
 
     function publishOverlayCard() {
         if (!adminOverlayVisible || !adminOverlayCard) return;
-        const btnSave = document.getElementById('btn-overlay-card-save');
-        if (btnSave) {
-            btnSave.disabled = true;
-            btnSave.textContent = 'Saving...';
-        }
         if (streamChannel) {
             streamChannel.postMessage({
                 type: 'overlay_card',
@@ -1486,23 +1480,8 @@
             if (data && data.success) {
                 const label = document.getElementById('admin-first-card-set-label');
                 if (label) label.textContent = 'Card Set: ' + adminOverlayCard.replace('_', ' ').toUpperCase();
-                if (btnSave) {
-                    btnSave.textContent = 'Saved ✓';
-                    setTimeout(() => {
-                        btnSave.disabled = false;
-                        btnSave.textContent = 'Save';
-                    }, 1500);
-                }
-            } else if (btnSave) {
-                btnSave.disabled = false;
-                btnSave.textContent = 'Save';
             }
-        }).catch(() => {
-            if (btnSave) {
-                btnSave.disabled = false;
-                btnSave.textContent = 'Save';
-            }
-        });
+        }).catch(() => {});
     }
 
     (function bindAdminCardDrag() {
@@ -1531,7 +1510,7 @@
             dragging = false;
             overlay.style.cursor = 'grab';
             e.stopPropagation();
-            // Do not publish immediately - user will click Save button
+            publishOverlayCard();
         });
     })();
 
@@ -1557,7 +1536,7 @@
         if (radio) radio.checked = true;
 
         paintAdminOverlayCard(newCode);
-        // Do not publish immediately - user will click Save button
+        publishOverlayCard();
     });
 
     const btnSmaller = document.getElementById('btn-overlay-card-smaller');
@@ -1582,12 +1561,7 @@
             hideAdminOverlayCard();
         });
     }
-    const btnSave = document.getElementById('btn-overlay-card-save');
-    if (btnSave) {
-        btnSave.addEventListener('click', function () {
-            publishOverlayCard();
-        });
-    }
+
 
     if (adminPreview && typeof ResizeObserver !== 'undefined') {
         new ResizeObserver(function () {
