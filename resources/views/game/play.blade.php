@@ -1327,10 +1327,7 @@
             const py = (y != null && y !== '' && isFinite(Number(y))) ? Number(y) : 0.58;
             lastLiveOverlayLayout = { x: px, y: py, scale: sc };
             const metrics = overlayCoverMetrics(box, playerOverlayMedia());
-            // On mobile only, increase card size by 1 admin unit (0.1 scale)
-            const isMobileView = window.innerWidth <= 1024;
-            const effectiveSc = isMobileView ? (sc + 0.1) : sc;
-            const widthPx = metrics.mw * metrics.coverScale * OVERLAY_BASE_VIDEO_FRAC * effectiveSc;
+            const widthPx = metrics.mw * metrics.coverScale * OVERLAY_BASE_VIDEO_FRAC * sc;
             overlay.style.width = widthPx + 'px';
             overlay.style.height = (widthPx * 168 / 118) + 'px';
             overlay.style.left = (metrics.offsetX + px * metrics.displayW) + 'px';

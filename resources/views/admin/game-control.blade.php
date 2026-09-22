@@ -712,6 +712,7 @@
     const adminPreview = document.getElementById('admin-stream-preview');
     let adminPenStreaming = false;
     let lastPenPost = null;
+    let lastAdminPointer = null;
 
     function showAdminPen(x, y, visible) {
         if (!adminPenMarker) return;
@@ -773,6 +774,10 @@
     }
 
     function onAdminPenMove(e) {
+        const src = e.touches && e.touches[0] ? e.touches[0] : e;
+        if (src && isFinite(src.clientX) && isFinite(src.clientY)) {
+            lastAdminPointer = { x: src.clientX, y: src.clientY };
+        }
         if (!adminPenStreaming) return;
         const pos = penCoordsFromEvent(e);
         if (!pos) return;
@@ -1323,6 +1328,15 @@
     let adminOverlayVisible = false;
     const OVERLAY_BASE_VIDEO_FRAC = 0.085;
 
+    if (adminPreview) {
+        adminPreview.addEventListener('pointermove', function (e) {
+            lastAdminPointer = { x: e.clientX, y: e.clientY };
+        });
+        adminPreview.addEventListener('pointerdown', function (e) {
+            lastAdminPointer = { x: e.clientX, y: e.clientY };
+        });
+    }
+
     function overlayMediaSize(media) {
         if (!media) return { mw: 0, mh: 0 };
         if (media.videoWidth) return { mw: media.videoWidth, mh: media.videoHeight };
@@ -1369,6 +1383,17 @@
         overlay.style.left = (metrics.offsetX + adminOverlayX * metrics.displayW) + 'px';
         overlay.style.top = (metrics.offsetY + adminOverlayY * metrics.displayH) + 'px';
         overlay.style.transform = 'translate(-50%, -50%)';
+    }
+
+    function coverCoordsFromClient(clientX, clientY) {
+        if (!adminPreview) return null;
+        const rect = adminPreview.getBoundingClientRect();
+        const metrics = overlayCoverMetrics(adminPreview, adminOverlayMedia());
+        if (!metrics.displayW || !metrics.displayH) return null;
+        return {
+            x: Math.min(1, Math.max(0, (clientX - rect.left - metrics.offsetX) / metrics.displayW)),
+            y: Math.min(1, Math.max(0, (clientY - rect.top - metrics.offsetY) / metrics.displayH))
+        };
     }
 
     function overlayPipCount(raw) {
@@ -1535,7 +1560,16 @@
         const radio = document.querySelector('input[name="first_card"][value="' + newCode + '"]');
         if (radio) radio.checked = true;
 
-        paintAdminOverlayCard(newCode);
+        let placeX = adminOverlayX;
+        let placeY = adminOverlayY;
+        if (lastAdminPointer) {
+            const atCursor = coverCoordsFromClient(lastAdminPointer.x, lastAdminPointer.y);
+            if (atCursor) {
+                placeX = atCursor.x;
+                placeY = atCursor.y;
+            }
+        }
+        paintAdminOverlayCard(newCode, placeX, placeY);
         publishOverlayCard();
     });
 
@@ -1546,6 +1580,7 @@
             adminOverlayScale = Math.max(0.2, Math.round((adminOverlayScale - 0.1) * 10) / 10);
             const overlay = document.getElementById('admin-live-card-overlay');
             if (overlay) applyAdminOverlayBox(overlay);
+            publishOverlayCard();
         });
     }
     if (btnLarger) {
@@ -1553,6 +1588,7 @@
             adminOverlayScale = Math.min(2.5, Math.round((adminOverlayScale + 0.1) * 10) / 10);
             const overlay = document.getElementById('admin-live-card-overlay');
             if (overlay) applyAdminOverlayBox(overlay);
+            publishOverlayCard();
         });
     }
     const btnDelete = document.getElementById('btn-overlay-card-delete');
