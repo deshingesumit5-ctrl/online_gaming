@@ -942,13 +942,16 @@
 
     function attachAdminHls(video, playUrl, fallbackUrl) {
         if (!video || !playUrl || !adminWantsLive) return;
-        if (isAdminVideoPlaying(video)) {
-            video.play().catch(() => {});
-            return;
-        }
+        // Destroy any stale HLS instance that is not actively delivering frames
         if (adminHls) {
-            video.play().catch(() => {});
-            return;
+            if (isAdminVideoPlaying(video)) {
+                video.play().catch(() => {});
+                return;
+            }
+            // HLS exists but video is stalled — destroy and re-init
+            try { adminHls.destroy(); } catch (e) {}
+            adminHls = null;
+            video._triedProxyHls = false;
         }
         video.classList.remove('hidden');
         video.muted = true;
@@ -977,7 +980,9 @@
         adminHls.on(Hls.Events.ERROR, function(_, data) {
             if (!adminWantsLive || !data || !adminHls) return;
             if (!data.fatal) {
-                video.play().catch(() => {});
+                if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                    adminHls.startLoad();
+                }
                 return;
             }
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
@@ -988,9 +993,10 @@
                     attachAdminHls(video, fallbackUrl, null);
                     return;
                 }
+                // Proxy unreachable — fallback to JPEG only
                 startAdminLiveJpeg();
-                adminHls.startLoad();
-                video.play().catch(() => {});
+                try { adminHls.destroy(); } catch (e) {}
+                adminHls = null;
                 return;
             }
             if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
@@ -1033,12 +1039,19 @@
 
     async function startLiveCameraStream() {
         const existingVideo = document.getElementById('admin-cctv-video');
-        if (adminHls && existingVideo) {
+        // If HLS is already alive and playing, just resume
+        if (adminHls && existingVideo && isAdminVideoPlaying(existingVideo)) {
             adminWantsLive = true;
             showAdminCctvStage();
             existingVideo.play().catch(() => {});
             startAdminLiveJpeg();
             return;
+        }
+        // If HLS exists but is stalled, destroy it so attachAdminHls can re-init
+        if (adminHls) {
+            try { adminHls.destroy(); } catch (e) {}
+            adminHls = null;
+            if (existingVideo) existingVideo._triedProxyHls = false;
         }
         if (adminStreamStarting) return;
         adminStreamStarting = true;
@@ -1067,8 +1080,25 @@
                     if (cctvIframe) cctvIframe.classList.add('hidden');
                     if (cctvVideo) {
                         cctvVideo.classList.remove('hidden');
-                        attachAdminHls(cctvVideo, livePlaylistUrl, null);
-                        startAdminHlsWatchdog(cctvVideo);
+                        // Pre-flight: verify the proxy playlist is reachable before attaching HLS.js
+                        let proxyOk = false;
+                        try {
+                            const probeResp = await fetch(livePlaylistUrl, { cache: 'no-store' });
+                            if (probeResp.ok) {
+                                const probeText = await probeResp.text();
+                                proxyOk = probeText.includes('#EXTM3U');
+                            }
+                        } catch (e) { proxyOk = false; }
+                        if (proxyOk) {
+                            attachAdminHls(cctvVideo, livePlaylistUrl, null);
+                            startAdminHlsWatchdog(cctvVideo);
+                        } else {
+                            // Proxy returned 204/error — CCTV may be unreachable from server.
+                            // Fall back to JPEG polling only.
+                            console.warn('[CCTV] Proxy playlist unavailable (CCTV may be offline or unreachable from server). Falling back to JPEG mode.');
+                            cctvVideo.classList.add('hidden');
+                            startAdminLiveJpeg();
+                        }
                     }
                 } else if (parsed && parsed.type === 'jpeg') {
                     if (cctvIframe) cctvIframe.classList.add('hidden');
@@ -1389,13 +1419,9 @@
         if (!adminWantsLive) return;
         const hasCctv = String(configuredStreamUrl || '').trim() !== '';
         if (!hasCctv) return;
-        const video = document.getElementById('admin-cctv-video');
-        if (adminHls && video) {
-            showAdminCctvStage();
-            video.play().catch(() => {});
-            startAdminLiveJpeg();
-            return;
-        }
+        // Always go through startLiveCameraStream so the pre-flight proxy check
+        // and stale-HLS cleanup run on every resume.
+        startAdminLiveJpeg();
         startLiveCameraStream();
     }
 

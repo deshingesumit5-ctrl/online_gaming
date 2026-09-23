@@ -174,13 +174,13 @@ class LowLatencyStreamService
             $pending = [];
         }
 
-        $keep = array_slice($pairs, -1);
+        $keep = array_slice($pairs, -3); // keep last 3 segments for smooth HLS.js playback
         if ($keep === []) {
             return null;
         }
 
         $header[] = '#EXT-X-TARGETDURATION:' . max(1, $target);
-        $header[] = '#EXT-X-MEDIA-SEQUENCE:' . max(0, count($pairs) - 1);
+        $header[] = '#EXT-X-MEDIA-SEQUENCE:' . max(0, count($pairs) - count($keep));
         $header[] = '#EXT-X-INDEPENDENT-SEGMENTS';
 
         $out = implode("\n", $header) . "\n";
