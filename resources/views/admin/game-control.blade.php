@@ -1067,7 +1067,7 @@
                     if (cctvIframe) cctvIframe.classList.add('hidden');
                     if (cctvVideo) {
                         cctvVideo.classList.remove('hidden');
-                        attachAdminHls(cctvVideo, livePlaylistUrl, parsed.streamUrl);
+                        attachAdminHls(cctvVideo, livePlaylistUrl, null);
                         startAdminHlsWatchdog(cctvVideo);
                     }
                 } else if (parsed && parsed.type === 'jpeg') {

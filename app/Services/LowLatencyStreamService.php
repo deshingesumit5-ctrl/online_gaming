@@ -105,8 +105,25 @@ class LowLatencyStreamService
             return null;
         }
 
+        // If this is a master/multivariant playlist, drill into the best media
+        // sub-playlist so every segment URL can be rewritten through our proxy.
+        // Returning the master as-is would leave raw CCTV domain URLs in it,
+        // causing the browser to fetch them directly (ERR_NAME_NOT_RESOLVED).
         if (str_contains($body, '#EXT-X-STREAM-INF')) {
-            return $body;
+            $variantUrl = $this->pickBestVariant($sourceUrl, $body);
+            if (!$variantUrl) {
+                return null;
+            }
+            $variantBody = $this->download($variantUrl);
+            if (!$variantBody || !str_contains($variantBody, '#EXTM3U')) {
+                return null;
+            }
+            // If variant is itself a master (shouldn't happen but be safe)
+            if (str_contains($variantBody, '#EXT-X-STREAM-INF')) {
+                return null;
+            }
+            $body = $variantBody;
+            $sourceUrl = $variantUrl;
         }
 
         $base = preg_replace('#/[^/]*$#', '/', $sourceUrl);
@@ -205,6 +222,58 @@ class LowLatencyStreamService
     private function sign(string $url): string
     {
         return hash_hmac('sha256', $url, (string) config('app.key'));
+    }
+
+    /**
+     * Parse a master HLS playlist and return the URL of the highest-bandwidth
+     * (or first available) media sub-playlist.
+     */
+    private function pickBestVariant(string $masterUrl, string $masterBody): ?string
+    {
+        $base = preg_replace('#/[^/]*$#', '/', $masterUrl);
+        $lines = preg_split('/\r\n|\n|\r/', $masterBody) ?: [];
+        $bestBandwidth = -1;
+        $bestUrl = null;
+        $pendingBandwidth = null;
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            if (str_starts_with($line, '#EXT-X-STREAM-INF')) {
+                $pendingBandwidth = 0;
+                if (preg_match('/BANDWIDTH=(\d+)/i', $line, $m)) {
+                    $pendingBandwidth = (int) $m[1];
+                }
+                continue;
+            }
+            if ($pendingBandwidth !== null && !str_starts_with($line, '#')) {
+                $url = preg_match('#^https?://#i', $line)
+                    ? $line
+                    : $base . ltrim($line, '/');
+                if ($pendingBandwidth > $bestBandwidth) {
+                    $bestBandwidth = $pendingBandwidth;
+                    $bestUrl = $url;
+                }
+                $pendingBandwidth = null;
+            }
+        }
+
+        // Fallback: first non-comment line if no BANDWIDTH tags found
+        if ($bestUrl === null) {
+            foreach ($lines as $line) {
+                $line = trim($line);
+                if ($line !== '' && !str_starts_with($line, '#')) {
+                    $bestUrl = preg_match('#^https?://#i', $line)
+                        ? $line
+                        : $base . ltrim($line, '/');
+                    break;
+                }
+            }
+        }
+
+        return $bestUrl;
     }
 
     private function discoverSnapshotUrl(string $streamUrl): ?string
