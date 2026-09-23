@@ -962,6 +962,8 @@
             probe.onerror = function () {
                 img._jpegFailCount = (img._jpegFailCount || 0) + 1;
                 if (img._jpegFailCount >= CCTV_OFFLINE_FAIL_THRESHOLD) {
+                                       const lv = document.getElementById('admin-cctv-video');
+                    if (lv && lv.videoWidth > 0 && !lv.paused) { hideCctvOfflineOverlay(); return; }
                     showCctvOfflineOverlay();
                 }
             };
