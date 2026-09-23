@@ -36,6 +36,10 @@ class Card extends Model
             return null;
         }
 
-        return Storage::disk('public')->url($this->photo_path);
+        try {
+            return Storage::disk('public')->url($this->photo_path);
+        } catch (\Throwable $e) {
+            return '/storage/' . ltrim($this->photo_path, '/');
+        }
     }
 }

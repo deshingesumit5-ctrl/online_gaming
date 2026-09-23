@@ -3,9 +3,13 @@
 namespace App\Http\Controllers;
 
 use App\Models\Card;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
@@ -16,9 +20,49 @@ class CardController extends Controller
 
     public const SUITS = ['Spades', 'Hearts', 'Diamonds', 'Clubs', 'None'];
 
+    public function __construct()
+    {
+        self::ensureSchema();
+    }
+
+    public static function ensureSchema(): void
+    {
+        if (Schema::hasTable('cards')) {
+            return;
+        }
+
+        try {
+            Artisan::call('migrate', [
+                '--force' => true,
+                '--path' => 'database/migrations/2026_09_23_000001_create_cards_table.php',
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning('Card migrate in ensureSchema: ' . $e->getMessage());
+        }
+
+        if (Schema::hasTable('cards')) {
+            return;
+        }
+
+        Schema::create('cards', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');
+            $table->string('rank', 32);
+            $table->string('suit', 32)->nullable();
+            $table->integer('value')->nullable();
+            $table->string('code')->nullable()->unique();
+            $table->text('description')->nullable();
+            $table->string('photo_path')->nullable();
+            $table->boolean('is_active')->default(true);
+            $table->timestamps();
+        });
+    }
+
     public function index(Request $request): View|JsonResponse
     {
-        $cards = Card::query()->latest()->orderByDesc('id')->get();
+        $cards = Card::query()->latest('id')->get();
+        $ranks = self::RANKS;
+        $suits = self::SUITS;
 
         if ($this->wantsCardJson($request)) {
             return response()->json([
@@ -26,12 +70,13 @@ class CardController extends Controller
             ]);
         }
 
-        return view('admin.cards.index', compact('cards'));
+        return view('admin.cards.index', compact('cards', 'ranks', 'suits'));
     }
 
     public function store(Request $request): JsonResponse|RedirectResponse
     {
         $validated = $this->validatedPayload($request);
+        unset($validated['photo']);
         $validated['photo_path'] = $this->storePhoto($request);
         $validated['is_active'] = $request->boolean('is_active', true);
         $validated['code'] = $this->nullableCode($request);
@@ -52,6 +97,7 @@ class CardController extends Controller
     public function update(Request $request, Card $card): JsonResponse|RedirectResponse
     {
         $validated = $this->validatedPayload($request, $card);
+        unset($validated['photo']);
         $validated['is_active'] = $request->boolean('is_active');
         $validated['code'] = $this->nullableCode($request);
 

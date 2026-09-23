@@ -856,22 +856,45 @@
         if (!url) return '';
         const raw = String(url).trim();
         const m = raw.match(/https?:\/\/[^\s"'<>\\]+/i);
-        return m ? m[0] : raw;
+        const candidate = m ? m[0] : raw;
+        try {
+            const u = new URL(candidate);
+            const host = (u.hostname || '').toLowerCase();
+            if (!host) return '';
+            if (host.indexOf('criterion-trademark') !== -1) return '';
+            if (/\.[a-z]$/i.test(host) && !/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return '';
+            return u.href;
+        } catch (e) {
+            return candidate;
+        }
     }
 
     function startAdminLiveJpeg() {
         const cctvContainer = document.getElementById('admin-cctv-stream-container');
         const img = document.getElementById('admin-cctv-live-jpg');
         if (!img || !adminWantsLive) return;
+        if (img._jpegFailCount && img._jpegFailCount >= 3) return;
         if (cctvContainer) cctvContainer.classList.remove('hidden');
-        img.classList.remove('hidden');
         const tick = () => {
             if (!adminWantsLive) return;
-            img.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+            const probe = new Image();
+            probe.onload = function () {
+                img._jpegFailCount = 0;
+                img.src = probe.src;
+                img.classList.remove('hidden');
+            };
+            probe.onerror = function () {
+                img._jpegFailCount = (img._jpegFailCount || 0) + 1;
+                if (img._jpegFailCount >= 3 && adminLiveJpegTimer) {
+                    clearInterval(adminLiveJpegTimer);
+                    adminLiveJpegTimer = null;
+                }
+            };
+            probe.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
         };
         tick();
         if (!adminLiveJpegTimer) {
-            adminLiveJpegTimer = setInterval(tick, 180);
+            adminLiveJpegTimer = setInterval(tick, 400);
         }
     }
 
@@ -891,7 +914,6 @@
         video.autoplay = true;
         video.playsInline = true;
         video.setAttribute('playsinline', '');
-        startAdminLiveJpeg();
         if (!Hls.isSupported()) {
             if (video.canPlayType('application/vnd.apple.mpegurl')) {
                 playNativeHlsAtLiveEdge(video, playUrl);
@@ -906,19 +928,19 @@
         });
         adminHls.on(Hls.Events.ERROR, function(_, data) {
             if (!adminWantsLive || !data || !adminHls) return;
-            startAdminLiveJpeg();
             if (!data.fatal) {
                 video.play().catch(() => {});
                 return;
             }
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                if (fallbackUrl && fallbackUrl !== playUrl && !video._triedDirectHls) {
-                    video._triedDirectHls = true;
+                if (fallbackUrl && fallbackUrl !== playUrl && !video._triedProxyHls) {
+                    video._triedProxyHls = true;
                     try { adminHls.destroy(); } catch (e) {}
                     adminHls = null;
                     attachAdminHls(video, fallbackUrl, null);
                     return;
                 }
+                startAdminLiveJpeg();
                 adminHls.startLoad();
                 video.play().catch(() => {});
                 return;
@@ -939,12 +961,6 @@
             if (!adminWantsLive || !video) return;
             if (video.paused || video.ended) {
                 video.play().catch(() => {});
-            }
-            if (video.videoWidth > 0) {
-                const jpg = document.getElementById('admin-cctv-live-jpg');
-                if (jpg) jpg.classList.add('hidden');
-            } else {
-                startAdminLiveJpeg();
             }
         }, 2000);
     }
@@ -1020,10 +1036,9 @@
                     if (cctvJpg) cctvJpg.classList.add('hidden');
                     if (cctvVideo) {
                         cctvVideo.classList.remove('hidden');
-                        attachAdminHls(cctvVideo, livePlaylistUrl || parsed.streamUrl, parsed.streamUrl);
+                        attachAdminHls(cctvVideo, parsed.streamUrl, livePlaylistUrl);
                         startAdminHlsWatchdog(cctvVideo);
                     }
-                    startAdminLiveJpeg();
                     window._adminJpegProbe = startAdminLiveJpeg;
                 } else {
                     // Direct MP4 / WebM video link

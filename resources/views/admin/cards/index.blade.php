@@ -95,7 +95,7 @@
                     <label class="block text-[11px] font-bold uppercase tracking-wider text-emerald-200/80 mb-1">Rank</label>
                     <select x-model="form.rank" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white focus:border-amber-400">
                         <option value="">Select rank</option>
-                        @foreach(\App\Http\Controllers\CardController::RANKS as $rank)
+                        @foreach($ranks as $rank)
                             <option value="{{ $rank }}">{{ $rank }}</option>
                         @endforeach
                     </select>
@@ -105,7 +105,7 @@
                     <label class="block text-[11px] font-bold uppercase tracking-wider text-emerald-200/80 mb-1">Suit</label>
                     <select x-model="form.suit" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white focus:border-amber-400">
                         <option value="">Select suit</option>
-                        @foreach(\App\Http\Controllers\CardController::SUITS as $suit)
+                        @foreach($suits as $suit)
                             <option value="{{ $suit }}">{{ $suit }}</option>
                         @endforeach
                     </select>

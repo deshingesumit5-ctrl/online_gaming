@@ -440,23 +440,40 @@ class GameController extends Controller
     public function liveJpeg(int $roomId, LowLatencyStreamService $liveStream)
     {
         $path = $liveStream->latestJpegPath($roomId);
-        if (!$path) {
-            abort(404);
+        if ($path) {
+            return response()->file($path, [
+                'Content-Type' => 'image/jpeg',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma' => 'no-cache',
+            ]);
         }
 
-        return response()->file($path, [
-            'Content-Type' => 'image/jpeg',
+        $frame = \Illuminate\Support\Facades\Cache::get("room_stream_frame_{$roomId}");
+        if (is_string($frame) && str_starts_with($frame, 'data:image')) {
+            $raw = base64_decode((string) preg_replace('#^data:image/\w+;base64,#', '', $frame), true);
+            if ($raw) {
+                return response($raw, 200, [
+                    'Content-Type' => 'image/jpeg',
+                    'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                    'Pragma' => 'no-cache',
+                ]);
+            }
+        }
+
+        return response('', 204, [
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
-            'Pragma' => 'no-cache',
         ]);
     }
 
-    public function livePlaylist(int $roomId, LowLatencyStreamService $liveStream): Response
+    public function livePlaylist(int $roomId, LowLatencyStreamService $liveStream)
     {
         $room = Room::findOrFail($roomId);
         $playlist = $liveStream->rewrittenPlaylist($room);
-        if (!$playlist) {
-            abort(404);
+        if (!$playlist || !str_contains($playlist, '#EXTM3U')) {
+            return response('', 204, [
+                'Content-Type' => 'application/vnd.apple.mpegurl',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            ]);
         }
 
         return response($playlist, 200, [
