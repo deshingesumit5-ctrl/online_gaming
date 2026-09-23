@@ -1028,11 +1028,13 @@
                     attachAdminHls(video, fallbackUrl, null);
                     return;
                 }
-                // Proxy unreachable — fallback to JPEG + reconnect watchdog
-                startAdminLiveJpeg();
-                startCctvReconnectWatchdog();
+                // Segments failing (CCTV offline) — show offline msg + start watchdog.
+                // Destroy HLS so it stops spawning 502 errors.
                 try { adminHls.destroy(); } catch (e) {}
                 adminHls = null;
+                showCctvOfflineOverlay();
+                startAdminLiveJpeg();
+                if (!adminCctvReconnectTimer) startCctvReconnectWatchdog();
                 return;
             }
             if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
@@ -1057,16 +1059,22 @@
 
     // -----------------------------------------------------------
     // CCTV Reconnection Watchdog
-    // Periodically retries the proxy playlist when CCTV is offline.
-    // When the playlist becomes reachable again (power restored),
-    // it automatically restarts the full live stream.
+    // Uses the server-side JPEG proxy as the liveness check.
+    // The JPEG endpoint downloads a fresh frame directly from the
+    // CCTV camera on the server — if it returns a real image, the
+    // camera is definitely reachable; if not, the camera is off.
+    // This avoids the false-positive problem with the M3U8 playlist
+    // (the proxy server could return a cached/stale playlist even
+    // when the CCTV segments themselves fail with 502).
     // -----------------------------------------------------------
     let adminCctvReconnectTimer = null;
-    const CCTV_RECONNECT_INTERVAL = 8000; // retry every 8 seconds
+    let adminCctvLastRestartAt = 0;
+    const CCTV_RECONNECT_INTERVAL = 10000;   // poll every 10 seconds
+    const CCTV_RESTART_COOLDOWN   = 30000;   // minimum 30 s between restarts
 
     function startCctvReconnectWatchdog() {
         if (adminCctvReconnectTimer) return; // already running
-        adminCctvReconnectTimer = setInterval(async () => {
+        adminCctvReconnectTimer = setInterval(() => {
             if (!adminWantsLive) {
                 stopCctvReconnectWatchdog();
                 return;
@@ -1075,52 +1083,36 @@
             const video = document.getElementById('admin-cctv-video');
             if (isAdminVideoPlaying(video)) {
                 hideCctvOfflineOverlay();
+                stopCctvReconnectWatchdog();
                 return;
             }
-            // If JPEG is loading fine, also no need
-            const jpg = document.getElementById('admin-cctv-live-jpg');
-            if (jpg && !jpg.classList.contains('hidden') && jpg.naturalWidth > 0 && (jpg._jpegFailCount || 0) < CCTV_OFFLINE_FAIL_THRESHOLD) {
-                hideCctvOfflineOverlay();
+            // Enforce a cooldown between restart attempts to prevent loop-flooding
+            const now = Date.now();
+            if (now - adminCctvLastRestartAt < CCTV_RESTART_COOLDOWN) {
                 return;
             }
-            // Probe the proxy playlist to see if CCTV came back
-            try {
-                const probeResp = await fetch(livePlaylistUrl, { cache: 'no-store' });
-                if (probeResp.ok) {
-                    const probeText = await probeResp.text();
-                    if (probeText.includes('#EXTM3U')) {
-                        // CCTV is back online! Restart the stream.
-                        console.log('[CCTV] Reconnect watchdog: CCTV is back online. Restarting stream...');
-                        hideCctvOfflineOverlay();
-                        stopCctvReconnectWatchdog();
-                        // Reset flags so startLiveCameraStream runs fresh
-                        if (adminHls) {
-                            try { adminHls.destroy(); } catch (e) {}
-                            adminHls = null;
-                        }
-                        adminStreamStarting = false;
-                        if (video) video._triedProxyHls = false;
-                        startLiveCameraStream();
-                        return;
+            // Use the server-side JPEG proxy as the definitive liveness check.
+            // The server fetches a fresh frame from the actual CCTV camera;
+            // if it returns a real JPEG the camera is up, so we can reconnect.
+            const jpegProbe = new Image();
+            jpegProbe.onload = function () {
+                if (!adminWantsLive) return;
+                if (jpegProbe.naturalWidth > 0) {
+                    // Camera is reachable — restart the stream
+                    hideCctvOfflineOverlay();
+                    stopCctvReconnectWatchdog();
+                    adminCctvLastRestartAt = Date.now();
+                    if (adminHls) {
+                        try { adminHls.destroy(); } catch (e) {}
+                        adminHls = null;
                     }
+                    adminStreamStarting = false;
+                    if (video) video._triedProxyHls = false;
+                    startLiveCameraStream();
                 }
-            } catch (e) {
-                // Still offline, continue retrying
-            }
-            // Also try JPEG endpoint as secondary check
-            try {
-                const jpegProbe = new Image();
-                jpegProbe.onload = function() {
-                    if (jpegProbe.naturalWidth > 0) {
-                        console.log('[CCTV] Reconnect watchdog: JPEG is back. Restarting stream...');
-                        hideCctvOfflineOverlay();
-                        stopCctvReconnectWatchdog();
-                        adminStreamStarting = false;
-                        startLiveCameraStream();
-                    }
-                };
-                jpegProbe.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + 'probe=' + Date.now();
-            } catch (e) {}
+            };
+            // onerror: camera still offline, keep waiting
+            jpegProbe.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + '_r=' + Date.now();
         }, CCTV_RECONNECT_INTERVAL);
     }
 
@@ -1192,27 +1184,30 @@
                     if (cctvIframe) cctvIframe.classList.add('hidden');
                     if (cctvVideo) {
                         cctvVideo.classList.remove('hidden');
-                        // Pre-flight: verify the proxy playlist is reachable before attaching HLS.js
-                        let proxyOk = false;
+                        // Pre-flight: verify the CCTV camera is reachable via the server-side
+                        // JPEG proxy. The server downloads a live frame from the actual camera;
+                        // if we get a real image the camera is up. If not, go straight to
+                        // offline-overlay + reconnect watchdog (avoids the 502-flood problem
+                        // where the M3U8 playlist returns valid text but segments all fail).
+                        let cameraUp = false;
                         try {
-                            const probeResp = await fetch(livePlaylistUrl, { cache: 'no-store' });
-                            if (probeResp.ok) {
-                                const probeText = await probeResp.text();
-                                proxyOk = probeText.includes('#EXTM3U');
-                            }
-                        } catch (e) { proxyOk = false; }
-                        if (proxyOk) {
-                            attachAdminHls(cctvVideo, livePlaylistUrl, null);
-                            startAdminHlsWatchdog(cctvVideo);
+                            const jpegResp = await fetch(
+                                liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + '_pf=' + Date.now(),
+                                { cache: 'no-store' }
+                            );
+                            cameraUp = jpegResp.ok && jpegResp.status === 200;
+                        } catch (e) { cameraUp = false; }
+
+                        if (cameraUp) {
                             hideCctvOfflineOverlay();
                             stopCctvReconnectWatchdog();
+                            attachAdminHls(cctvVideo, livePlaylistUrl, null);
+                            startAdminHlsWatchdog(cctvVideo);
                         } else {
-                            // Proxy returned 204/error — CCTV may be unreachable from server.
-                            // Fall back to JPEG polling + start reconnection watchdog.
-                            console.warn('[CCTV] Proxy playlist unavailable (CCTV may be offline or unreachable from server). Falling back to JPEG mode + reconnect watchdog.');
+                            // CCTV is unreachable — show offline overlay immediately.
                             cctvVideo.classList.add('hidden');
+                            showCctvOfflineOverlay();
                             startAdminLiveJpeg();
-                            // Start the reconnect watchdog to auto-recover when CCTV comes back
                             startCctvReconnectWatchdog();
                         }
                     }

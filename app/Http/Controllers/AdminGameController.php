@@ -695,8 +695,10 @@ class AdminGameController extends Controller
 
     public function adminLiveJpeg(int $roomId, \App\Services\LowLatencyStreamService $liveStream)
     {
-        $path = $liveStream->latestJpegPath($roomId);
-        if ($path) {
+        // Fast path 1: local file fresh within 2 seconds
+        $dir  = storage_path('app/live/' . $roomId);
+        $path = $dir . DIRECTORY_SEPARATOR . 'latest.jpg';
+        if (is_file($path) && filesize($path) > 100 && (time() - filemtime($path)) <= 2) {
             return response()->file($path, [
                 'Content-Type'  => 'image/jpeg',
                 'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
@@ -704,6 +706,33 @@ class AdminGameController extends Controller
             ]);
         }
 
+        // Fast path 2: stored snapshot URL (avoids re-discovery on every call)
+        $snapFile = $dir . DIRECTORY_SEPARATOR . 'snapshot.url';
+        if (is_file($snapFile)) {
+            $snapUrl = trim((string) file_get_contents($snapFile));
+            if ($snapUrl !== '') {
+                try {
+                    $resp = \Illuminate\Support\Facades\Http::timeout(3)
+                        ->withOptions(['verify' => false, 'allow_redirects' => true])
+                        ->withHeaders(['User-Agent' => 'Fun2WinLive/1.0'])
+                        ->get($snapUrl);
+                    $bytes = $resp->successful() ? $resp->body() : null;
+                    if (is_string($bytes) && strlen($bytes) > 100 && str_starts_with($bytes, "\xFF\xD8")) {
+                        if (!is_dir($dir)) mkdir($dir, 0777, true);
+                        file_put_contents($path, $bytes);
+                        return response($bytes, 200, [
+                            'Content-Type'  => 'image/jpeg',
+                            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                            'Pragma'        => 'no-cache',
+                        ]);
+                    }
+                } catch (\Throwable $e) {
+                    // snapshot URL unreachable — camera is offline
+                }
+            }
+        }
+
+        // No fresh frame available — camera is offline
         return response('', 204, [
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
         ]);
