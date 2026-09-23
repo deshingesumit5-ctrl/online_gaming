@@ -8,6 +8,7 @@ use App\Http\Controllers\AdminReportController;
 use App\Http\Controllers\AdminUserController;
 use App\Http\Controllers\AdminWalletController;
 use App\Http\Controllers\AdminWithdrawalController;
+use App\Http\Controllers\CardController;
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\GameController;
@@ -112,6 +113,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/users/{id}/status', [AdminUserController::class, 'updateStatus'])->name('users.status');
     Route::post('/users/{id}/points/add', [AdminUserController::class, 'addPoints'])->name('users.points.add');
     Route::post('/users/{id}/points/deduct', [AdminUserController::class, 'deductPoints'])->name('users.points.deduct');
+
+    Route::resource('cards', CardController::class)->only(['index', 'store', 'update', 'destroy']);
 
     // Points Management & Manual Adjustments & Points Requests Approvals
     Route::get('/wallet', [AdminWalletController::class, 'index'])->name('wallet.index');

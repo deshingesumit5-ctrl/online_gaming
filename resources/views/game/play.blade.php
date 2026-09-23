@@ -91,7 +91,7 @@
         position: absolute;
         left: 48%;
         top: 58%;
-        width: 8.5%;
+        width: 4.8%;
         height: auto;
         aspect-ratio: 118 / 168;
         flex: none;
@@ -1275,14 +1275,18 @@
             if (fallbackImg && !fallbackImg._liveReadyBound) {
                 fallbackImg._liveReadyBound = true;
                 fallbackImg.addEventListener('load', () => {
-                    if (cctvMode === 'hls') return;
-                    if (fallbackImg.naturalWidth > 0) revealPlayerLiveFootage();
+                    if (fallbackImg.naturalWidth > 0) {
+                        const vid = document.getElementById('live-cctv-stream');
+                        if (vid && vid.videoWidth > 0 && !vid.classList.contains('hidden')) return;
+                        fallbackImg.classList.remove('hidden');
+                        revealPlayerLiveFootage();
+                    }
                 });
             }
         }
 
         let lastLiveOverlayLayout = { x: 0.48, y: 0.58, scale: 1 };
-        const OVERLAY_BASE_VIDEO_FRAC = 0.085;
+        const OVERLAY_BASE_VIDEO_FRAC = 0.048;
 
         function overlayMediaSize(media) {
             if (!media) return { mw: 0, mh: 0 };
@@ -1303,8 +1307,19 @@
             const cw = Math.max(1, container.clientWidth);
             const ch = Math.max(1, container.clientHeight);
             const sz = overlayMediaSize(media);
-            const mw = sz.mw || 16;
-            const mh = sz.mh || 9;
+            if (!sz.mw || !sz.mh) {
+                return {
+                    coverScale: 1,
+                    displayW: cw,
+                    displayH: ch,
+                    offsetX: 0,
+                    offsetY: 0,
+                    mw: cw,
+                    mh: ch
+                };
+            }
+            const mw = sz.mw;
+            const mh = sz.mh;
             const coverScale = Math.max(cw / mw, ch / mh);
             const displayW = mw * coverScale;
             const displayH = mh * coverScale;
@@ -1572,8 +1587,11 @@
 
         function startHlsPlayback(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg) {
             if (ytIframe) ytIframe.classList.add('hidden');
-            if (fallbackImg) fallbackImg.classList.add('hidden');
             if (externalWrap) externalWrap.classList.remove('hidden');
+            if (fallbackImg) {
+                fallbackImg.classList.remove('hidden');
+                startLiveJpeg(fallbackImg);
+            }
             if (!cctvVideo) return;
             cctvVideo.muted = true;
             cctvVideo.setAttribute('muted', '');
@@ -1583,11 +1601,12 @@
             cctvVideo.classList.remove('hidden');
             keepVideoRunning(cctvVideo);
             bindLiveFootageReadyWatchers(cctvVideo, fallbackImg);
-            const playUrl = streamUrl;
+            const playUrl = livePlaylistUrl || streamUrl;
 
             const showVideoWhenReady = () => {
                 if (cctvVideo.videoWidth > 0) {
                     if (fallbackImg) fallbackImg.classList.add('hidden');
+                    stopLiveJpeg();
                     revealPlayerLiveFootage();
                 }
             };
@@ -1604,11 +1623,24 @@
                     });
                     playerHls.on(Hls.Events.ERROR, function(_, data) {
                         if (streamEndedByAdmin || !data || !playerHls) return;
+                        if (fallbackImg) {
+                            fallbackImg.classList.remove('hidden');
+                            startLiveJpeg(fallbackImg);
+                        }
                         if (!data.fatal) {
                             cctvVideo.play().catch(() => {});
                             return;
                         }
                         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                            if (streamUrl && streamUrl !== playUrl && !cctvVideo._triedDirectHls) {
+                                cctvVideo._triedDirectHls = true;
+                                try { playerHls.destroy(); } catch (e) {}
+                                playerHls = null;
+                                playerHls = createLowLatencyHls();
+                                playerHls.loadSource(streamUrl);
+                                playerHls.attachMedia(cctvVideo);
+                                return;
+                            }
                             playerHls.startLoad();
                             cctvVideo.play().catch(() => {});
                         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
@@ -1671,7 +1703,6 @@
                         if (cctvVideo) cctvVideo.classList.add('hidden');
                         finishLiveFootageReveal();
                     } else if (streamUrl.toLowerCase().includes('.m3u8')) {
-                        if (fallbackImg) fallbackImg.classList.add('hidden');
                         startCctvLowLatency(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
                     } else {
                         // Direct video file/feed (MP4 / WebM)

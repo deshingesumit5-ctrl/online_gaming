@@ -28,7 +28,7 @@
         position: absolute;
         left: 48%;
         top: 58%;
-        width: 8.5%;
+        width: 4.8%;
         height: auto;
         aspect-ratio: 56 / 80;
         flex: none;
@@ -295,7 +295,7 @@
                 <canvas id="admin-stream-canvas" class="hidden" width="480" height="270"></canvas>
 
                 <!-- White Screen (Shown when stream is ended/offline as like User Panel) -->
-                <div id="admin-stream-white-screen" class="absolute inset-0 bg-white flex flex-col items-center justify-center text-slate-700 select-none p-4 {{ $room->is_streaming ? '' : 'hidden' }}">
+                <div id="admin-stream-white-screen" class="absolute inset-0 bg-white flex flex-col items-center justify-center text-slate-700 select-none p-4 {{ $room->is_streaming ? 'hidden' : '' }}">
                     <div class="w-10 h-10 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center text-lg mb-1 shadow-sm">
                         🎥
                     </div>
@@ -852,7 +852,30 @@
         }
     }
 
-    function attachAdminHls(video, playUrl) {
+    function sanitizeStreamUrl(url) {
+        if (!url) return '';
+        const raw = String(url).trim();
+        const m = raw.match(/https?:\/\/[^\s"'<>\\]+/i);
+        return m ? m[0] : raw;
+    }
+
+    function startAdminLiveJpeg() {
+        const cctvContainer = document.getElementById('admin-cctv-stream-container');
+        const img = document.getElementById('admin-cctv-live-jpg');
+        if (!img || !adminWantsLive) return;
+        if (cctvContainer) cctvContainer.classList.remove('hidden');
+        img.classList.remove('hidden');
+        const tick = () => {
+            if (!adminWantsLive) return;
+            img.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+        };
+        tick();
+        if (!adminLiveJpegTimer) {
+            adminLiveJpegTimer = setInterval(tick, 180);
+        }
+    }
+
+    function attachAdminHls(video, playUrl, fallbackUrl) {
         if (!video || !playUrl || !adminWantsLive) return;
         if (isAdminVideoPlaying(video)) {
             video.play().catch(() => {});
@@ -868,6 +891,7 @@
         video.autoplay = true;
         video.playsInline = true;
         video.setAttribute('playsinline', '');
+        startAdminLiveJpeg();
         if (!Hls.isSupported()) {
             if (video.canPlayType('application/vnd.apple.mpegurl')) {
                 playNativeHlsAtLiveEdge(video, playUrl);
@@ -882,11 +906,19 @@
         });
         adminHls.on(Hls.Events.ERROR, function(_, data) {
             if (!adminWantsLive || !data || !adminHls) return;
+            startAdminLiveJpeg();
             if (!data.fatal) {
                 video.play().catch(() => {});
                 return;
             }
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+                if (fallbackUrl && fallbackUrl !== playUrl && !video._triedDirectHls) {
+                    video._triedDirectHls = true;
+                    try { adminHls.destroy(); } catch (e) {}
+                    adminHls = null;
+                    attachAdminHls(video, fallbackUrl, null);
+                    return;
+                }
                 adminHls.startLoad();
                 video.play().catch(() => {});
                 return;
@@ -907,6 +939,12 @@
             if (!adminWantsLive || !video) return;
             if (video.paused || video.ended) {
                 video.play().catch(() => {});
+            }
+            if (video.videoWidth > 0) {
+                const jpg = document.getElementById('admin-cctv-live-jpg');
+                if (jpg) jpg.classList.add('hidden');
+            } else {
+                startAdminLiveJpeg();
             }
         }, 2000);
     }
@@ -963,7 +1001,7 @@
             const cctvIframe = document.getElementById('admin-cctv-iframe');
             const webcamVideo = document.getElementById('admin-live-camera');
 
-            const parsed = parseStreamUrl(configuredStreamUrl);
+            const parsed = parseStreamUrl(sanitizeStreamUrl(configuredStreamUrl));
 
             if (parsed) {
                 // 1. CCTV / External Stream Link Mode (No webcam permission needed)
@@ -982,10 +1020,11 @@
                     if (cctvJpg) cctvJpg.classList.add('hidden');
                     if (cctvVideo) {
                         cctvVideo.classList.remove('hidden');
-                        attachAdminHls(cctvVideo, parsed.streamUrl);
+                        attachAdminHls(cctvVideo, livePlaylistUrl || parsed.streamUrl, parsed.streamUrl);
                         startAdminHlsWatchdog(cctvVideo);
                     }
-                    window._adminJpegProbe = function() {};
+                    startAdminLiveJpeg();
+                    window._adminJpegProbe = startAdminLiveJpeg;
                 } else {
                     // Direct MP4 / WebM video link
                     if (cctvIframe) cctvIframe.classList.add('hidden');
@@ -1326,7 +1365,20 @@
     let adminOverlayY = 0.58;
     let adminOverlayScale = 1;
     let adminOverlayVisible = false;
-    const OVERLAY_BASE_VIDEO_FRAC = 0.085;
+    const OVERLAY_SCALE_KEY = 'fun2win_overlay_default_scale_' + currentRoomId;
+    const OVERLAY_BASE_VIDEO_FRAC = 0.048;
+    function readDefaultOverlayScale() {
+        try {
+            const v = parseFloat(localStorage.getItem(OVERLAY_SCALE_KEY));
+            if (isFinite(v) && v >= 0.2 && v <= 3) return v;
+        } catch (e) {}
+        return 1;
+    }
+    function saveDefaultOverlayScale(scale) {
+        adminOverlayScale = scale;
+        try { localStorage.setItem(OVERLAY_SCALE_KEY, String(scale)); } catch (e) {}
+    }
+    adminOverlayScale = readDefaultOverlayScale();
 
     if (adminPreview) {
         adminPreview.addEventListener('pointermove', function (e) {
@@ -1358,8 +1410,19 @@
         const cw = Math.max(1, container.clientWidth);
         const ch = Math.max(1, container.clientHeight);
         const sz = overlayMediaSize(media);
-        const mw = sz.mw || 16;
-        const mh = sz.mh || 9;
+        if (!sz.mw || !sz.mh) {
+            return {
+                coverScale: 1,
+                displayW: cw,
+                displayH: ch,
+                offsetX: 0,
+                offsetY: 0,
+                mw: cw,
+                mh: ch
+            };
+        }
+        const mw = sz.mw;
+        const mh = sz.mh;
         const coverScale = Math.max(cw / mw, ch / mh);
         const displayW = mw * coverScale;
         const displayH = mh * coverScale;
@@ -1569,7 +1632,7 @@
                 placeY = atCursor.y;
             }
         }
-        paintAdminOverlayCard(newCode, placeX, placeY);
+        paintAdminOverlayCard(newCode, placeX, placeY, readDefaultOverlayScale());
         publishOverlayCard();
     });
 
@@ -1577,7 +1640,7 @@
     const btnLarger = document.getElementById('btn-overlay-card-larger');
     if (btnSmaller) {
         btnSmaller.addEventListener('click', function () {
-            adminOverlayScale = Math.max(0.2, Math.round((adminOverlayScale - 0.1) * 10) / 10);
+            saveDefaultOverlayScale(Math.max(0.2, Math.round((adminOverlayScale - 0.1) * 10) / 10));
             const overlay = document.getElementById('admin-live-card-overlay');
             if (overlay) applyAdminOverlayBox(overlay);
             publishOverlayCard();
@@ -1585,7 +1648,7 @@
     }
     if (btnLarger) {
         btnLarger.addEventListener('click', function () {
-            adminOverlayScale = Math.min(2.5, Math.round((adminOverlayScale + 0.1) * 10) / 10);
+            saveDefaultOverlayScale(Math.min(2.5, Math.round((adminOverlayScale + 0.1) * 10) / 10));
             const overlay = document.getElementById('admin-live-card-overlay');
             if (overlay) applyAdminOverlayBox(overlay);
             publishOverlayCard();

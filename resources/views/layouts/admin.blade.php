@@ -44,6 +44,9 @@
                 <a href="{{ route('admin.users.index') }}" class="px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0 {{ request()->routeIs('admin.users.*') ? 'bg-amber-500 text-slate-950 font-bold shadow-md' : 'text-slate-300 hover:text-white hover:bg-slate-800/60' }}">
                     User Approvals
                 </a>
+                <a href="{{ route('admin.cards.index') }}" class="px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0 {{ request()->routeIs('admin.cards.*') ? 'bg-amber-500 text-slate-950 font-bold shadow-md' : 'text-slate-300 hover:text-white hover:bg-slate-800/60' }}">
+                    Card Master
+                </a>
                 <a href="{{ route('admin.game.control.index') }}" class="px-3 py-1.5 rounded-lg transition whitespace-nowrap shrink-0 {{ request()->routeIs('admin.game.*') ? 'bg-amber-500 text-slate-950 font-bold shadow-md' : 'text-slate-300 hover:text-white hover:bg-slate-800/60' }}">
                     Game Control
                 </a>
@@ -108,6 +111,9 @@
                 </a>
                 <a href="{{ route('admin.users.index') }}" class="flex items-center px-3.5 py-2.5 rounded-xl transition whitespace-nowrap {{ request()->routeIs('admin.users.*') ? 'bg-amber-500 text-slate-950 font-bold shadow-md' : 'text-slate-300 hover:text-white hover:bg-slate-800/50' }}">
                     <span class="whitespace-nowrap">User Approvals</span>
+                </a>
+                <a href="{{ route('admin.cards.index') }}" class="flex items-center px-3.5 py-2.5 rounded-xl transition whitespace-nowrap {{ request()->routeIs('admin.cards.*') ? 'bg-amber-500 text-slate-950 font-bold shadow-md' : 'text-slate-300 hover:text-white hover:bg-slate-800/50' }}">
+                    <span class="whitespace-nowrap">Card Master</span>
                 </a>
                 <a href="{{ route('admin.game.control.index') }}" class="flex items-center px-3.5 py-2.5 rounded-xl transition whitespace-nowrap {{ request()->routeIs('admin.game.*') ? 'bg-amber-500 text-slate-950 font-bold shadow-md' : 'text-slate-300 hover:text-white hover:bg-slate-800/50' }}">
                     <span class="whitespace-nowrap">Game Control</span>

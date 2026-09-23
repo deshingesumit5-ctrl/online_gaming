@@ -73,6 +73,23 @@ class LowLatencyStreamService
             }
         }
 
+        $room = Room::find($roomId);
+        $sourceUrl = $room ? trim((string) $room->live_stream_url) : '';
+        if ($sourceUrl !== '') {
+            $snapshotUrl = $this->discoverSnapshotUrl($sourceUrl);
+            if ($snapshotUrl) {
+                $bytes = $this->download($snapshotUrl);
+                if ($this->isJpeg($bytes)) {
+                    if (!is_dir($this->dir($roomId))) {
+                        mkdir($this->dir($roomId), 0777, true);
+                    }
+                    file_put_contents($path, $bytes);
+                    file_put_contents($this->dir($roomId) . DIRECTORY_SEPARATOR . 'snapshot.url', $snapshotUrl);
+                    return $path;
+                }
+            }
+        }
+
         return is_file($path) && filesize($path) > 100 ? $path : null;
     }
 
