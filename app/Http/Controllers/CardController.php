@@ -27,6 +27,8 @@ class CardController extends Controller
 
     public static function ensureSchema(): void
     {
+        self::ensurePublicPhotoStorage();
+
         if (Schema::hasTable('cards')) {
             return;
         }
@@ -56,6 +58,63 @@ class CardController extends Controller
             $table->boolean('is_active')->default(true);
             $table->timestamps();
         });
+    }
+
+    public static function ensurePublicPhotoStorage(): void
+    {
+        $uploads = public_path('uploads/cards');
+        if (!is_dir($uploads)) {
+            @mkdir($uploads, 0755, true);
+        }
+
+        $link = public_path('storage');
+        $target = storage_path('app/public');
+        if (!file_exists($link) && is_dir($target)) {
+            try {
+                Artisan::call('storage:link');
+            } catch (\Throwable $e) {
+                if (is_dir($target) && !file_exists($link)) {
+                    @symlink($target, $link);
+                }
+            }
+        }
+    }
+
+    public function photo(Card $card)
+    {
+        $relative = str_replace('\\', '/', ltrim((string) $card->photo_path, '/'));
+        if ($relative === '') {
+            abort(404);
+        }
+
+        $basename = basename($relative);
+        $candidates = array_values(array_unique(array_filter([
+            public_path($relative),
+            public_path('uploads/cards/'.$basename),
+            public_path('storage/'.$relative),
+            public_path('storage/cards/'.$basename),
+            storage_path('app/public/'.$relative),
+            storage_path('app/public/cards/'.$basename),
+        ])));
+
+        foreach ($candidates as $file) {
+            if (is_file($file)) {
+                $publicCopy = public_path('uploads/cards/'.$basename);
+                if (!is_file($publicCopy) && is_dir(public_path('uploads/cards'))) {
+                    @copy($file, $publicCopy);
+                }
+
+                return response()->file($file, [
+                    'Cache-Control' => 'public, max-age=86400',
+                ]);
+            }
+        }
+
+        if (Storage::disk('public')->exists($relative)) {
+            return Storage::disk('public')->response($relative);
+        }
+
+        abort(404);
     }
 
     public function index(Request $request): View|JsonResponse
@@ -159,13 +218,35 @@ class CardController extends Controller
             return null;
         }
 
-        return $request->file('photo')->store('cards', 'public');
+        self::ensurePublicPhotoStorage();
+
+        $file = $request->file('photo');
+        $name = $file->hashName();
+        $dir = public_path('uploads/cards');
+        $file->move($dir, $name);
+
+        return 'uploads/cards/'.$name;
     }
 
     private function deletePhoto(?string $path): void
     {
-        if ($path && Storage::disk('public')->exists($path)) {
-            Storage::disk('public')->delete($path);
+        if (!$path) {
+            return;
+        }
+
+        $relative = str_replace('\\', '/', ltrim($path, '/'));
+        $publicFile = public_path($relative);
+        if (is_file($publicFile)) {
+            @unlink($publicFile);
+        }
+
+        if (Storage::disk('public')->exists($relative)) {
+            Storage::disk('public')->delete($relative);
+        }
+
+        $storageFile = storage_path('app/public/'.$relative);
+        if (is_file($storageFile)) {
+            @unlink($storageFile);
         }
     }
 

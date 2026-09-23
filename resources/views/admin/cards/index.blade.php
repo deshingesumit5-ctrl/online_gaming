@@ -9,18 +9,32 @@
 <style>
     .card-master-felt {
         background:
-            radial-gradient(ellipse at top, rgba(212, 175, 55, 0.12), transparent 55%),
-            radial-gradient(circle at 20% 80%, rgba(16, 185, 129, 0.08), transparent 40%),
-            linear-gradient(180deg, #0b3d2c 0%, #07261c 55%, #051910 100%);
-    }
-    .card-tile-face {
-        background: linear-gradient(180deg, #f7f1de 0%, #efe4c4 100%);
-        color: #1a1208;
-        border: 1px solid rgba(212, 175, 55, 0.55);
-        box-shadow: 0 10px 24px rgba(0, 0, 0, 0.35);
+            radial-gradient(ellipse at top, rgba(212, 175, 55, 0.08), transparent 55%),
+            linear-gradient(180deg, #0b1220 0%, #071018 100%);
     }
     .card-name-serif {
         font-family: Fraunces, Georgia, serif;
+    }
+    .card-master-table thead th {
+        font-size: 11px;
+        letter-spacing: .06em;
+        text-transform: uppercase;
+        color: #94a3b8;
+        font-weight: 800;
+        padding: 12px 14px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+        white-space: nowrap;
+        text-align: left;
+    }
+    .card-master-table tbody td {
+        padding: 12px 14px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        vertical-align: middle;
+        color: #e2e8f0;
+        font-size: 13px;
+    }
+    .card-master-table tbody tr:hover {
+        background: rgba(245, 158, 11, 0.06);
     }
     [x-cloak] { display: none !important; }
 </style>
@@ -50,32 +64,65 @@
         </div>
     </template>
 
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        <template x-for="card in cards" :key="card.id">
-            <article class="card-tile-face rounded-2xl overflow-hidden">
-                <div class="relative h-40 bg-[#123c2c]">
-                    <img x-show="card.photo_url" :src="card.photo_url" :alt="card.name" class="w-full h-full object-cover">
-                    <div x-show="!card.photo_url" class="w-full h-full flex items-center justify-center text-4xl text-amber-200" x-text="suitIcon(card.suit)"></div>
-                    <span class="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider bg-slate-950/80 text-amber-300 border border-amber-500/40" x-text="card.rank"></span>
-                    <span class="absolute top-2 right-2 text-lg" x-text="suitIcon(card.suit)"></span>
-                    <span class="absolute bottom-2 right-2 w-2.5 h-2.5 rounded-full border border-white/50"
-                          :class="card.is_active ? 'bg-emerald-400' : 'bg-slate-500'"
-                          :title="card.is_active ? 'Active' : 'Inactive'"></span>
-                </div>
-                <div class="p-3.5">
-                    <h3 class="card-name-serif text-lg leading-tight" x-text="card.name"></h3>
-                    <p class="text-xs text-slate-700 mt-1">
-                        Value: <span class="font-bold" x-text="card.value ?? '—'"></span>
-                        <span class="mx-1 text-slate-400">·</span>
-                        <span class="font-mono" x-text="card.code || 'no code'"></span>
-                    </p>
-                    <div class="flex gap-2 mt-3">
-                        <button type="button" @click="openEdit(card)" class="flex-1 py-1.5 rounded-lg bg-slate-900 text-amber-300 text-xs font-bold">Edit</button>
-                        <button type="button" @click="removeCard(card)" class="flex-1 py-1.5 rounded-lg bg-red-800 text-white text-xs font-bold">Delete</button>
-                    </div>
-                </div>
-            </article>
-        </template>
+    <div class="rounded-2xl border border-slate-700/70 bg-[#0c1324]/90 overflow-hidden" x-show="cards.length > 0">
+        <div class="overflow-x-auto">
+            <table class="card-master-table w-full min-w-[860px]">
+                <thead>
+                    <tr>
+                        <th class="w-12">#</th>
+                        <th class="w-24">Thumbnail</th>
+                        <th>Card name</th>
+                        <th>Rank</th>
+                        <th>Suit</th>
+                        <th>Value</th>
+                        <th>Code</th>
+                        <th>Status</th>
+                        <th class="text-right">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <template x-for="(card, index) in cards" :key="card.id">
+                        <tr>
+                            <td class="font-mono text-slate-400" x-text="index + 1"></td>
+                            <td>
+                                <div class="w-14 h-14 rounded-xl overflow-hidden border border-amber-500/30 bg-[#123c2c] flex items-center justify-center">
+                                    <img x-show="card.photo_url"
+                                         :src="card.photo_url"
+                                         :alt="card.name"
+                                         class="w-full h-full object-cover"
+                                         @error="onPhotoError(card)">
+                                    <span x-show="!card.photo_url" class="text-2xl text-amber-200" x-text="suitIcon(card.suit)"></span>
+                                </div>
+                            </td>
+                            <td>
+                                <div class="font-semibold text-white" x-text="card.name"></div>
+                                <div class="text-[11px] text-slate-400 mt-0.5" x-show="card.description" x-text="card.description"></div>
+                            </td>
+                            <td class="font-semibold text-amber-200" x-text="card.rank || '—'"></td>
+                            <td>
+                                <span class="inline-flex items-center gap-1.5">
+                                    <span x-text="suitIcon(card.suit)"></span>
+                                    <span x-text="card.suit || '—'"></span>
+                                </span>
+                            </td>
+                            <td class="font-mono" x-text="card.value ?? '—'"></td>
+                            <td class="font-mono text-slate-300" x-text="card.code || '—'"></td>
+                            <td>
+                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider"
+                                      :class="card.is_active ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'"
+                                      x-text="card.is_active ? 'Active' : 'Inactive'"></span>
+                            </td>
+                            <td>
+                                <div class="flex items-center justify-end gap-2">
+                                    <button type="button" @click="openEdit(card)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold border border-slate-600">Edit</button>
+                                    <button type="button" @click="removeCard(card)" class="px-3 py-1.5 rounded-lg bg-red-800 hover:bg-red-700 text-white text-xs font-bold">Delete</button>
+                                </div>
+                            </td>
+                        </tr>
+                    </template>
+                </tbody>
+            </table>
+        </div>
     </div>
 
     <div x-show="modalOpen" x-cloak class="fixed inset-0 z-[80] flex items-center justify-center p-4" style="background: rgba(0,0,0,0.72);">
@@ -176,6 +223,15 @@
             },
             suitIcon(suit) {
                 return { Spades: '♠', Hearts: '♥', Diamonds: '♦', Clubs: '♣', None: '★' }[suit] || '🂠';
+            },
+            onPhotoError(card) {
+                if (!card || !card.photo_url) return;
+                const pathId = '/admin/cards/' + card.id + '/photo';
+                if (card.photo_url.indexOf(pathId) === -1) {
+                    card.photo_url = pathId + '?t=' + Date.now();
+                    return;
+                }
+                card.photo_url = '';
             },
             resetForm() {
                 this.form = { name: '', rank: '', suit: '', value: '', code: '', description: '', is_active: true };

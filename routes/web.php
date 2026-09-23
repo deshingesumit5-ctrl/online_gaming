@@ -114,6 +114,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/users/{id}/points/add', [AdminUserController::class, 'addPoints'])->name('users.points.add');
     Route::post('/users/{id}/points/deduct', [AdminUserController::class, 'deductPoints'])->name('users.points.deduct');
 
+    Route::get('/cards/{card}/photo', [CardController::class, 'photo'])->name('cards.photo');
     Route::resource('cards', CardController::class)->only(['index', 'store', 'update', 'destroy']);
 
     // Points Management & Manual Adjustments & Points Requests Approvals

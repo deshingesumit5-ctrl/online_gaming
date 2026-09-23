@@ -21,8 +21,20 @@
         z-index: 30;
         display: none;
     }
-    #admin-stream-preview.is-pen-live {
-        cursor: crosshair;
+    #admin-stream-white-screen {
+        z-index: 6;
+    }
+    #admin-cctv-live-jpg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        z-index: 3;
+    }
+    #admin-cctv-video {
+        position: relative;
+        z-index: 2;
     }
     #admin-live-card-overlay {
         position: absolute;
@@ -855,40 +867,70 @@
     function sanitizeStreamUrl(url) {
         if (!url) return '';
         const raw = String(url).trim();
-        const m = raw.match(/https?:\/\/[^\s"'<>\\]+/i);
+        const m = raw.match(/https?:\/\/[^\s"'<>\\]+/i) || raw.match(/rtsp:\/\/[^\s"'<>\\]+/i);
         const candidate = m ? m[0] : raw;
         try {
             const u = new URL(candidate);
             const host = (u.hostname || '').toLowerCase();
-            if (!host) return '';
-            if (host.indexOf('criterion-trademark') !== -1) return '';
-            if (/\.[a-z]$/i.test(host) && !/^\d{1,3}(\.\d{1,3}){3}$/.test(host)) return '';
+            if (!host) return candidate;
+            if (host.indexOf('criterion-trademark') !== -1) return candidate;
             return u.href;
         } catch (e) {
             return candidate;
         }
     }
 
+    function parseStreamUrl(url) {
+        if (!url) return null;
+        url = String(url).trim();
+        if (!url) return null;
+        const ytMatch = /(?:youtube\.com\/(?:watch\?v=|embed\/|live\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/i.exec(url);
+        if (ytMatch) {
+            return {
+                type: 'youtube',
+                embedUrl: 'https://www.youtube.com/embed/' + ytMatch[1] + '?autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0'
+            };
+        }
+        if (url.toLowerCase().includes('.m3u8') || /^rtsp:\/\//i.test(url)) {
+            return { type: 'hls', streamUrl: url };
+        }
+        if (/\.(jpe?g|png|mjpeg)(\?|$)/i.test(url) || /snapshot|image\.cgi|jpg\/image|picture/i.test(url)) {
+            return { type: 'jpeg', streamUrl: url };
+        }
+        return { type: 'video', streamUrl: url };
+    }
+
+    function showAdminCctvStage() {
+        const whiteScreen = document.getElementById('admin-stream-white-screen');
+        const cctvContainer = document.getElementById('admin-cctv-stream-container');
+        const webcamVideo = document.getElementById('admin-live-camera');
+        if (whiteScreen) whiteScreen.classList.add('hidden');
+        if (cctvContainer) cctvContainer.classList.remove('hidden');
+        if (webcamVideo) webcamVideo.classList.add('hidden');
+    }
+
     function startAdminLiveJpeg() {
         const cctvContainer = document.getElementById('admin-cctv-stream-container');
         const img = document.getElementById('admin-cctv-live-jpg');
         if (!img || !adminWantsLive) return;
-        if (img._jpegFailCount && img._jpegFailCount >= 3) return;
         if (cctvContainer) cctvContainer.classList.remove('hidden');
         const tick = () => {
             if (!adminWantsLive) return;
             const probe = new Image();
             probe.onload = function () {
+                const liveVideo = document.getElementById('admin-cctv-video');
+                if (liveVideo && liveVideo.videoWidth > 0 && !liveVideo.paused) {
+                    img.classList.add('hidden');
+                    return;
+                }
                 img._jpegFailCount = 0;
                 img.src = probe.src;
                 img.classList.remove('hidden');
+                const whiteScreen = document.getElementById('admin-stream-white-screen');
+                if (whiteScreen) whiteScreen.classList.add('hidden');
             };
             probe.onerror = function () {
                 img._jpegFailCount = (img._jpegFailCount || 0) + 1;
-                if (img._jpegFailCount >= 3 && adminLiveJpegTimer) {
-                    clearInterval(adminLiveJpegTimer);
-                    adminLiveJpegTimer = null;
-                }
             };
             probe.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
         };
@@ -925,6 +967,12 @@
         adminHls.attachMedia(video);
         adminHls.on(Hls.Events.MANIFEST_PARSED, () => {
             video.play().catch(() => {});
+        });
+        video.addEventListener('playing', function () {
+            if (video.videoWidth > 0) {
+                const jpg = document.getElementById('admin-cctv-live-jpg');
+                if (jpg) jpg.classList.add('hidden');
+            }
         });
         adminHls.on(Hls.Events.ERROR, function(_, data) {
             if (!adminWantsLive || !data || !adminHls) return;
@@ -983,27 +1031,13 @@
         seekLive();
     }
 
-    function parseStreamUrl(url) {
-        if (!url) return null;
-        url = url.trim();
-        const ytMatch = /(?:youtube\.com\/(?:watch\?v=|embed\/|live\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/i.exec(url);
-        if (ytMatch) {
-            return {
-                type: 'youtube',
-                embedUrl: 'https://www.youtube.com/embed/' + ytMatch[1] + '?autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0'
-            };
-        }
-        if (url.toLowerCase().includes('.m3u8')) {
-            return { type: 'hls', streamUrl: url };
-        }
-        return { type: 'video', streamUrl: url };
-    }
-
     async function startLiveCameraStream() {
         const existingVideo = document.getElementById('admin-cctv-video');
         if (adminHls && existingVideo) {
             adminWantsLive = true;
+            showAdminCctvStage();
             existingVideo.play().catch(() => {});
+            startAdminLiveJpeg();
             return;
         }
         if (adminStreamStarting) return;
@@ -1016,32 +1050,30 @@
             const cctvVideo = document.getElementById('admin-cctv-video');
             const cctvIframe = document.getElementById('admin-cctv-iframe');
             const webcamVideo = document.getElementById('admin-live-camera');
+            const rawUrl = String(configuredStreamUrl || '').trim();
+            const parsed = parseStreamUrl(sanitizeStreamUrl(rawUrl) || rawUrl);
 
-            const parsed = parseStreamUrl(sanitizeStreamUrl(configuredStreamUrl));
+            if (rawUrl || parsed) {
+                showAdminCctvStage();
+                startAdminLiveJpeg();
 
-            if (parsed) {
-                // 1. CCTV / External Stream Link Mode (No webcam permission needed)
-                if (webcamVideo) webcamVideo.classList.add('hidden');
-                if (cctvContainer) cctvContainer.classList.remove('hidden');
-
-                if (parsed.type === 'youtube') {
+                if (parsed && parsed.type === 'youtube') {
                     if (cctvVideo) cctvVideo.classList.add('hidden');
                     if (cctvIframe) {
                         cctvIframe.src = parsed.embedUrl;
                         cctvIframe.classList.remove('hidden');
                     }
-                } else if (parsed.type === 'hls') {
+                } else if (parsed && parsed.type === 'hls') {
                     if (cctvIframe) cctvIframe.classList.add('hidden');
-                    const cctvJpg = document.getElementById('admin-cctv-live-jpg');
-                    if (cctvJpg) cctvJpg.classList.add('hidden');
                     if (cctvVideo) {
                         cctvVideo.classList.remove('hidden');
                         attachAdminHls(cctvVideo, parsed.streamUrl, livePlaylistUrl);
                         startAdminHlsWatchdog(cctvVideo);
                     }
-                    window._adminJpegProbe = startAdminLiveJpeg;
-                } else {
-                    // Direct MP4 / WebM video link
+                } else if (parsed && parsed.type === 'jpeg') {
+                    if (cctvIframe) cctvIframe.classList.add('hidden');
+                    if (cctvVideo) cctvVideo.classList.add('hidden');
+                } else if (parsed && parsed.type === 'video') {
                     if (cctvIframe) cctvIframe.classList.add('hidden');
                     if (cctvVideo) {
                         cctvVideo.classList.remove('hidden');
@@ -1055,11 +1087,13 @@
                     badge.textContent = '🔴 LIVE (CCTV LINK)';
                 }
             } else {
-                // 2. Laptop Webcam Mode (Fallback when no stream link is configured)
                 if (cctvContainer) cctvContainer.classList.add('hidden');
+                if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                    throw new Error('Camera is not available in this browser.');
+                }
                 if (!adminMediaStream) {
                     adminMediaStream = await navigator.mediaDevices.getUserMedia({
-                        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+                        video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'environment' },
                         audio: false
                     });
                 }
@@ -1076,7 +1110,6 @@
 
             if (whiteScreen) whiteScreen.classList.add('hidden');
 
-            // Signal server to set is_streaming = true
             const tokenMeta = document.querySelector('meta[name="csrf-token"]');
             const token = tokenMeta ? tokenMeta.content : '';
             await fetch("{{ route('admin.game.action', $room->id) }}", {
@@ -1089,13 +1122,10 @@
                 body: JSON.stringify({ action: 'start_stream' })
             });
 
-            if (parsed && parsed.type === 'hls' && typeof window._adminJpegProbe === 'function') {
-                setTimeout(window._adminJpegProbe, 600);
-                setTimeout(window._adminJpegProbe, 1600);
-            }
+            setTimeout(startAdminLiveJpeg, 600);
+            setTimeout(startAdminLiveJpeg, 1600);
 
-            // Start broadcasting frames to user panel if video element is active
-            const activeVideoEl = parsed ? (parsed.type !== 'youtube' ? cctvVideo : null) : webcamVideo;
+            const activeVideoEl = parsed && parsed.type !== 'youtube' ? cctvVideo : (!parsed ? webcamVideo : null);
             if (frameBroadcastInterval) clearInterval(frameBroadcastInterval);
 
             if (activeVideoEl) {
@@ -1132,7 +1162,11 @@
             bindAdminPenTracking();
         } catch (err) {
             console.error('Camera/Stream start error:', err);
-            if (!{{ $room->is_streaming ? 'true' : 'false' }}) {
+            const hasCctv = String(configuredStreamUrl || '').trim() !== '';
+            if (hasCctv) {
+                showAdminCctvStage();
+                startAdminLiveJpeg();
+            } else if (!{{ $room->is_streaming ? 'true' : 'false' }}) {
                 alert('Could not start stream: ' + (err.message || 'Please check stream link or camera permission.'));
             }
         } finally {
@@ -1353,9 +1387,13 @@
 
     function resumeAdminLiveStream() {
         if (!adminWantsLive) return;
+        const hasCctv = String(configuredStreamUrl || '').trim() !== '';
+        if (!hasCctv) return;
         const video = document.getElementById('admin-cctv-video');
         if (adminHls && video) {
+            showAdminCctvStage();
             video.play().catch(() => {});
+            startAdminLiveJpeg();
             return;
         }
         startLiveCameraStream();

@@ -3,7 +3,6 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Storage;
 
 class Card extends Model
 {
@@ -36,10 +35,12 @@ class Card extends Model
             return null;
         }
 
-        try {
-            return Storage::disk('public')->url($this->photo_path);
-        } catch (\Throwable $e) {
-            return '/storage/' . ltrim($this->photo_path, '/');
+        $path = str_replace('\\', '/', ltrim((string) $this->photo_path, '/'));
+
+        if (str_starts_with($path, 'http://') || str_starts_with($path, 'https://')) {
+            return $path;
         }
+
+        return '/admin/cards/'.$this->id.'/photo'.($this->updated_at ? '?v='.$this->updated_at->getTimestamp() : '');
     }
 }
