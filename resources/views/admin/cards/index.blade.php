@@ -90,7 +90,7 @@
                                          :src="card.photo_url"
                                          :alt="card.name"
                                          class="w-full h-full object-cover"
-                                         @error="onPhotoError(card)">
+                                         @@error="onPhotoError(card)">
                                     <span x-show="!card.photo_url" class="text-2xl text-amber-200" x-text="suitIcon(card.suit)"></span>
                                 </div>
                             </td>
