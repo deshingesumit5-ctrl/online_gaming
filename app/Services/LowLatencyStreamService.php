@@ -202,9 +202,18 @@ class LowLatencyStreamService
             return null;
         }
 
-        $allowedHost = parse_url($room->live_stream_url, PHP_URL_HOST);
-        $segHost = parse_url($url, PHP_URL_HOST);
-        if (!$allowedHost || strcasecmp((string) $allowedHost, (string) $segHost) !== 0) {
+        $allowedHost = strtolower((string) parse_url($room->live_stream_url, PHP_URL_HOST));
+        $segHost     = strtolower((string) parse_url($url, PHP_URL_HOST));
+        if (!$allowedHost || !$segHost) {
+            return null;
+        }
+        // Allow exact match OR segments served from a subdomain of the same root host
+        // (e.g., master at camera.example.com, segments at cdn.example.com)
+        $rootAllowed = preg_replace('/^[^.]+\./', '', $allowedHost);
+        $rootSeg     = preg_replace('/^[^.]+\./', '', $segHost);
+        $hostOk = $allowedHost === $segHost
+                  || (strlen($rootAllowed) > 3 && $rootAllowed === $rootSeg);
+        if (!$hostOk) {
             return null;
         }
 
@@ -218,6 +227,113 @@ class LowLatencyStreamService
             's' => $this->sign($segmentUrl),
         ]);
     }
+
+    private function proxiedAdminSegmentUrl(int $roomId, string $segmentUrl): string
+    {
+        return url('/admin/game-control/' . $roomId . '/live-seg') . '?' . http_build_query([
+            'u' => $segmentUrl,
+            's' => $this->sign($segmentUrl),
+        ]);
+    }
+
+    /**
+     * Same as rewrittenPlaylist but rewrites segment proxy URLs to use the
+     * admin-middleware route (/admin/game-control/{id}/live-seg) so that the
+     * admin panel CCTV stream never hits the player auth guard.
+     */
+    public function rewrittenPlaylistForAdmin(Room $room): ?string
+    {
+        $sourceUrl = trim((string) $room->live_stream_url);
+        if ($sourceUrl === '' || !str_contains(strtolower($sourceUrl), '.m3u8')) {
+            return null;
+        }
+
+        $body = $this->download($sourceUrl);
+        if (!$body || !str_contains($body, '#EXTM3U')) {
+            return null;
+        }
+
+        if (str_contains($body, '#EXT-X-STREAM-INF')) {
+            $variantUrl = $this->pickBestVariant($sourceUrl, $body);
+            if (!$variantUrl) {
+                return null;
+            }
+            $variantBody = $this->download($variantUrl);
+            if (!$variantBody || !str_contains($variantBody, '#EXTM3U')) {
+                return null;
+            }
+            if (str_contains($variantBody, '#EXT-X-STREAM-INF')) {
+                return null;
+            }
+            $body      = $variantBody;
+            $sourceUrl = $variantUrl;
+        }
+
+        $base    = preg_replace('#/[^/]*$#', '/', $sourceUrl);
+        $lines   = preg_split('/\r\n|\n|\r/', $body) ?: [];
+        $header  = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-START:TIME-OFFSET=-1,PRECISE=YES'];
+        $target  = 2;
+        $pairs   = [];
+        $pending = [];
+
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if ($line === '') {
+                continue;
+            }
+            if (str_starts_with($line, '#EXT-X-TARGETDURATION:')) {
+                $target = max(1, (int) substr($line, 22));
+                continue;
+            }
+            if (str_starts_with($line, '#') && !str_starts_with($line, '#EXTINF') && !str_starts_with($line, '#EXT-X-DISCONTINUITY') && !str_starts_with($line, '#EXT-X-KEY') && !str_starts_with($line, '#EXT-X-MAP') && !str_starts_with($line, '#EXT-X-BYTERANGE') && !str_starts_with($line, '#EXT-X-PROGRAM-DATE-TIME') && !str_starts_with($line, '#EXT-X-PART')) {
+                continue;
+            }
+            if (str_starts_with($line, '#')) {
+                $pending[] = $line;
+                if (str_starts_with($line, '#EXTINF:')) {
+                    $inf = (float) substr($line, 8);
+                    if ($inf > $target) {
+                        $target = (int) ceil($inf);
+                    }
+                }
+                continue;
+            }
+
+            $seg = $line;
+            if (!preg_match('#^https?://#i', $seg)) {
+                if (str_starts_with($seg, '/')) {
+                    $origin = parse_url($sourceUrl, PHP_URL_SCHEME) . '://' . parse_url($sourceUrl, PHP_URL_HOST);
+                    $port   = parse_url($sourceUrl, PHP_URL_PORT);
+                    if ($port) {
+                        $origin .= ':' . $port;
+                    }
+                    $seg = $origin . $seg;
+                } else {
+                    $seg = $base . $seg;
+                }
+            }
+
+            $pairs[]  = array_merge($pending, [$this->proxiedAdminSegmentUrl($room->id, $seg)]);
+            $pending  = [];
+        }
+
+        $keep = array_slice($pairs, -3); // keep last 3 segments for smoother playback
+        if ($keep === []) {
+            return null;
+        }
+
+        $header[] = '#EXT-X-TARGETDURATION:' . max(1, $target);
+        $header[] = '#EXT-X-MEDIA-SEQUENCE:' . max(0, count($pairs) - count($keep));
+        $header[] = '#EXT-X-INDEPENDENT-SEGMENTS';
+
+        $out = implode("\n", $header) . "\n";
+        foreach ($keep as $block) {
+            $out .= implode("\n", $block) . "\n";
+        }
+
+        return $out;
+    }
+
 
     private function sign(string $url): string
     {

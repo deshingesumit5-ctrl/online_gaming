@@ -641,4 +641,71 @@ class AdminGameController extends Controller
 
         return response()->json(['success' => true]);
     }
+
+    // -----------------------------------------------------------------------
+    // Admin HLS / JPEG Proxy Methods
+    // These mirror GameController::livePlaylist / liveSegment / liveJpeg but
+    // live under the admin middleware so the admin panel stream works without
+    // depending on the player auth guard.
+    // -----------------------------------------------------------------------
+
+    public function adminLivePlaylist(int $roomId, \App\Services\LowLatencyStreamService $liveStream)
+    {
+        $room = Room::findOrFail($roomId);
+        $playlist = $liveStream->rewrittenPlaylistForAdmin($room);
+        if (!$playlist || !str_contains($playlist, '#EXTM3U')) {
+            return response('', 204, [
+                'Content-Type'  => 'application/vnd.apple.mpegurl',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            ]);
+        }
+
+        return response($playlist, 200, [
+            'Content-Type'  => 'application/vnd.apple.mpegurl',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma'        => 'no-cache',
+        ]);
+    }
+
+    public function adminLiveSegment(Request $request, int $roomId, \App\Services\LowLatencyStreamService $liveStream)
+    {
+        $url      = (string) $request->query('u', '');
+        $sig      = (string) $request->query('s', '');
+        $resolved = $liveStream->resolveSegmentUrl($roomId, $url, $sig);
+        if (!$resolved) {
+            abort(403);
+        }
+
+        try {
+            $response = \Illuminate\Support\Facades\Http::timeout(5)
+                ->withOptions(['verify' => false, 'allow_redirects' => true])
+                ->get($resolved);
+            if (!$response->successful()) {
+                abort(502);
+            }
+
+            return response($response->body(), 200, [
+                'Content-Type'  => $response->header('Content-Type') ?: 'video/MP2T',
+                'Cache-Control' => 'no-store, no-cache, max-age=0',
+            ]);
+        } catch (\Throwable $e) {
+            abort(502);
+        }
+    }
+
+    public function adminLiveJpeg(int $roomId, \App\Services\LowLatencyStreamService $liveStream)
+    {
+        $path = $liveStream->latestJpegPath($roomId);
+        if ($path) {
+            return response()->file($path, [
+                'Content-Type'  => 'image/jpeg',
+                'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+                'Pragma'        => 'no-cache',
+            ]);
+        }
+
+        return response('', 204, [
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+        ]);
+    }
 }

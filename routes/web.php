@@ -129,6 +129,10 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/game-control/{roomId}/action', [AdminGameController::class, 'handleAction'])->name('game.action');
     Route::post('/game-control/{roomId}/stream-frame', [AdminGameController::class, 'uploadStreamFrame'])->name('game.stream.frame.upload');
     Route::post('/game-control/{roomId}/pen-position', [AdminGameController::class, 'updatePenPosition'])->name('game.pen.position.update');
+    // Admin HLS proxy routes (avoids relying on player-auth middleware for stream)
+    Route::get('/game-control/{roomId}/live.m3u8', [AdminGameController::class, 'adminLivePlaylist'])->name('game.admin.live.playlist');
+    Route::get('/game-control/{roomId}/live-seg', [AdminGameController::class, 'adminLiveSegment'])->name('game.admin.live.segment');
+    Route::get('/game-control/{roomId}/live.jpg', [AdminGameController::class, 'adminLiveJpeg'])->name('game.admin.live.jpeg');
 
     // Game & Room Management (Specification Section 33)
     Route::get('/games', [AdminGameManagementController::class, 'index'])->name('games.index');

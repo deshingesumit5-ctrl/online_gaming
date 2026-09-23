@@ -831,8 +831,8 @@
     }
 
     let adminLiveJpegTimer = null;
-    const liveJpegUrl = @json(route('game.live.jpeg', $room->id));
-    const livePlaylistUrl = @json(route('game.live.playlist', $room->id));
+    const liveJpegUrl = @json(route('admin.game.admin.live.jpeg', $room->id));
+    const livePlaylistUrl = @json(route('admin.game.admin.live.playlist', $room->id));
 
     function createLowLatencyHls() {
         return new Hls({
