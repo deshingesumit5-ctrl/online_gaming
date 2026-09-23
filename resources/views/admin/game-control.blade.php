@@ -301,6 +301,18 @@
                     <video id="admin-cctv-video" class="w-full h-full object-cover {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}" autoplay muted playsinline></video>
                     <img id="admin-cctv-live-jpg" class="w-full h-full object-cover hidden" alt="Live CCTV">
                     <iframe id="admin-cctv-iframe" class="w-full h-full border-0 hidden" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
+                    {{-- CCTV Switched Off Overlay --}}
+                    <div id="admin-cctv-offline-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-black/85 z-10 hidden" style="backdrop-filter:blur(2px);">
+                        <div class="w-14 h-14 rounded-full bg-red-900/60 border-2 border-red-500 flex items-center justify-center text-3xl mb-3 shadow-lg shadow-red-500/30 animate-pulse">
+                            📵
+                        </div>
+                        <span class="text-red-400 text-sm font-black uppercase tracking-widest">CCTV is Switched Off</span>
+                        <span class="text-slate-400 text-[11px] mt-1.5 text-center max-w-[220px]">The camera at the shop appears to be offline. It will reconnect automatically when power is restored.</span>
+                        <div id="admin-cctv-retry-spinner" class="mt-3 flex items-center gap-2 text-[10px] text-slate-500">
+                            <svg class="animate-spin h-3.5 w-3.5 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                            <span>Retrying connection…</span>
+                        </div>
+                    </div>
                 </div>
 
                 <!-- Live Stream Canvas for Frame Capture -->
@@ -909,6 +921,22 @@
         if (webcamVideo) webcamVideo.classList.add('hidden');
     }
 
+    let adminCctvOfflineShown = false;
+    const CCTV_OFFLINE_FAIL_THRESHOLD = 8; // consecutive JPEG failures before showing offline msg
+
+    function showCctvOfflineOverlay() {
+        if (adminCctvOfflineShown) return;
+        adminCctvOfflineShown = true;
+        const overlay = document.getElementById('admin-cctv-offline-overlay');
+        if (overlay) overlay.classList.remove('hidden');
+    }
+
+    function hideCctvOfflineOverlay() {
+        adminCctvOfflineShown = false;
+        const overlay = document.getElementById('admin-cctv-offline-overlay');
+        if (overlay) overlay.classList.add('hidden');
+    }
+
     function startAdminLiveJpeg() {
         const cctvContainer = document.getElementById('admin-cctv-stream-container');
         const img = document.getElementById('admin-cctv-live-jpg');
@@ -921,16 +949,21 @@
                 const liveVideo = document.getElementById('admin-cctv-video');
                 if (liveVideo && liveVideo.videoWidth > 0 && !liveVideo.paused) {
                     img.classList.add('hidden');
+                    hideCctvOfflineOverlay();
                     return;
                 }
                 img._jpegFailCount = 0;
                 img.src = probe.src;
                 img.classList.remove('hidden');
+                hideCctvOfflineOverlay();
                 const whiteScreen = document.getElementById('admin-stream-white-screen');
                 if (whiteScreen) whiteScreen.classList.add('hidden');
             };
             probe.onerror = function () {
                 img._jpegFailCount = (img._jpegFailCount || 0) + 1;
+                if (img._jpegFailCount >= CCTV_OFFLINE_FAIL_THRESHOLD) {
+                    showCctvOfflineOverlay();
+                }
             };
             probe.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
         };
@@ -975,6 +1008,8 @@
             if (video.videoWidth > 0) {
                 const jpg = document.getElementById('admin-cctv-live-jpg');
                 if (jpg) jpg.classList.add('hidden');
+                hideCctvOfflineOverlay();
+                stopCctvReconnectWatchdog();
             }
         });
         adminHls.on(Hls.Events.ERROR, function(_, data) {
@@ -993,8 +1028,9 @@
                     attachAdminHls(video, fallbackUrl, null);
                     return;
                 }
-                // Proxy unreachable — fallback to JPEG only
+                // Proxy unreachable — fallback to JPEG + reconnect watchdog
                 startAdminLiveJpeg();
+                startCctvReconnectWatchdog();
                 try { adminHls.destroy(); } catch (e) {}
                 adminHls = null;
                 return;
@@ -1017,6 +1053,82 @@
                 video.play().catch(() => {});
             }
         }, 2000);
+    }
+
+    // -----------------------------------------------------------
+    // CCTV Reconnection Watchdog
+    // Periodically retries the proxy playlist when CCTV is offline.
+    // When the playlist becomes reachable again (power restored),
+    // it automatically restarts the full live stream.
+    // -----------------------------------------------------------
+    let adminCctvReconnectTimer = null;
+    const CCTV_RECONNECT_INTERVAL = 8000; // retry every 8 seconds
+
+    function startCctvReconnectWatchdog() {
+        if (adminCctvReconnectTimer) return; // already running
+        adminCctvReconnectTimer = setInterval(async () => {
+            if (!adminWantsLive) {
+                stopCctvReconnectWatchdog();
+                return;
+            }
+            // If HLS video is already playing fine, no need to reconnect
+            const video = document.getElementById('admin-cctv-video');
+            if (isAdminVideoPlaying(video)) {
+                hideCctvOfflineOverlay();
+                return;
+            }
+            // If JPEG is loading fine, also no need
+            const jpg = document.getElementById('admin-cctv-live-jpg');
+            if (jpg && !jpg.classList.contains('hidden') && jpg.naturalWidth > 0 && (jpg._jpegFailCount || 0) < CCTV_OFFLINE_FAIL_THRESHOLD) {
+                hideCctvOfflineOverlay();
+                return;
+            }
+            // Probe the proxy playlist to see if CCTV came back
+            try {
+                const probeResp = await fetch(livePlaylistUrl, { cache: 'no-store' });
+                if (probeResp.ok) {
+                    const probeText = await probeResp.text();
+                    if (probeText.includes('#EXTM3U')) {
+                        // CCTV is back online! Restart the stream.
+                        console.log('[CCTV] Reconnect watchdog: CCTV is back online. Restarting stream...');
+                        hideCctvOfflineOverlay();
+                        stopCctvReconnectWatchdog();
+                        // Reset flags so startLiveCameraStream runs fresh
+                        if (adminHls) {
+                            try { adminHls.destroy(); } catch (e) {}
+                            adminHls = null;
+                        }
+                        adminStreamStarting = false;
+                        if (video) video._triedProxyHls = false;
+                        startLiveCameraStream();
+                        return;
+                    }
+                }
+            } catch (e) {
+                // Still offline, continue retrying
+            }
+            // Also try JPEG endpoint as secondary check
+            try {
+                const jpegProbe = new Image();
+                jpegProbe.onload = function() {
+                    if (jpegProbe.naturalWidth > 0) {
+                        console.log('[CCTV] Reconnect watchdog: JPEG is back. Restarting stream...');
+                        hideCctvOfflineOverlay();
+                        stopCctvReconnectWatchdog();
+                        adminStreamStarting = false;
+                        startLiveCameraStream();
+                    }
+                };
+                jpegProbe.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + 'probe=' + Date.now();
+            } catch (e) {}
+        }, CCTV_RECONNECT_INTERVAL);
+    }
+
+    function stopCctvReconnectWatchdog() {
+        if (adminCctvReconnectTimer) {
+            clearInterval(adminCctvReconnectTimer);
+            adminCctvReconnectTimer = null;
+        }
     }
 
     function keepHlsAtLiveEdge(hls, video) {
@@ -1092,12 +1204,16 @@
                         if (proxyOk) {
                             attachAdminHls(cctvVideo, livePlaylistUrl, null);
                             startAdminHlsWatchdog(cctvVideo);
+                            hideCctvOfflineOverlay();
+                            stopCctvReconnectWatchdog();
                         } else {
                             // Proxy returned 204/error — CCTV may be unreachable from server.
-                            // Fall back to JPEG polling only.
-                            console.warn('[CCTV] Proxy playlist unavailable (CCTV may be offline or unreachable from server). Falling back to JPEG mode.');
+                            // Fall back to JPEG polling + start reconnection watchdog.
+                            console.warn('[CCTV] Proxy playlist unavailable (CCTV may be offline or unreachable from server). Falling back to JPEG mode + reconnect watchdog.');
                             cctvVideo.classList.add('hidden');
                             startAdminLiveJpeg();
+                            // Start the reconnect watchdog to auto-recover when CCTV comes back
+                            startCctvReconnectWatchdog();
                         }
                     }
                 } else if (parsed && parsed.type === 'jpeg') {
@@ -1230,6 +1346,8 @@
         }
 
         stopAdminHls();
+        stopCctvReconnectWatchdog();
+        hideCctvOfflineOverlay();
 
         if (adminMediaStream) {
             adminMediaStream.getTracks().forEach(track => track.stop());
@@ -1245,6 +1363,7 @@
         const cctvJpg = document.getElementById('admin-cctv-live-jpg');
         if (cctvJpg) {
             cctvJpg.removeAttribute('src');
+            cctvJpg._jpegFailCount = 0;
             cctvJpg.classList.add('hidden');
         }
         if (cctvIframe) {
