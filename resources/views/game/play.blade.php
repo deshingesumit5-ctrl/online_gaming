@@ -1448,7 +1448,13 @@
                 liveSyncDurationCount: 3,
                 liveMaxLatencyDurationCount: 10,
                 liveDurationInfinity: true,
-                startFragPrefetch: true
+                startFragPrefetch: true,
+                manifestLoadingMaxRetry: 6,
+                manifestLoadingRetryDelay: 1000,
+                levelLoadingMaxRetry: 6,
+                levelLoadingRetryDelay: 1000,
+                fragLoadingMaxRetry: 4,
+                fragLoadingRetryDelay: 1000
             });
         }
 
@@ -1642,8 +1648,14 @@
                                 return;
                             }
                             if (fallbackImg) startLiveJpeg(fallbackImg);
-                            playerHls.startLoad();
-                            cctvVideo.play().catch(() => {});
+                            try { playerHls.destroy(); } catch (e) {}
+                            playerHls = null;
+                            cctvMode = null;
+                            if (cctvVideo._hlsRetryTimer) clearTimeout(cctvVideo._hlsRetryTimer);
+                            cctvVideo._hlsRetryTimer = setTimeout(function () {
+                                if (streamEndedByAdmin) return;
+                                startCctvLowLatency(livePlaylistUrl || playUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
+                            }, 2000);
                         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
                             playerHls.recoverMediaError();
                             cctvVideo.play().catch(() => {});
