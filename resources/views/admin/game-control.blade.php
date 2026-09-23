@@ -1194,7 +1194,7 @@
                         let cameraUp = false;
                         try {
                             const jpegResp = await fetch(
-                                liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + '_pf=' + Date.now(),
+                                                              livePlaylistUrl + (livePlaylistUrl.indexOf('?') >= 0 ? '&' : '?') + '_pf=' + Date.now(),
                                 { cache: 'no-store' }
                             );
                             cameraUp = jpegResp.ok && jpegResp.status === 200;
