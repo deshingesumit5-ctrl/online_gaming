@@ -969,7 +969,7 @@
         const tick = () => {
             if (!adminWantsLive) return;
             const liveVideo = document.getElementById('admin-cctv-video');
-            if (adminHls || isAdminVideoPlaying(liveVideo)) {
+            if (isAdminVideoPlaying(liveVideo)) {
                 adminVideoStallCount = 0;
                 hideAdminLiveJpeg();
                 hideCctvOfflineOverlay();
@@ -981,7 +981,7 @@
                 hideCctvOfflineOverlay();
                 const whiteScreen = document.getElementById('admin-stream-white-screen');
                 if (whiteScreen) whiteScreen.classList.add('hidden');
-                if (adminHls || isAdminVideoPlaying(document.getElementById('admin-cctv-video'))) {
+                if (isAdminVideoPlaying(document.getElementById('admin-cctv-video'))) {
                     hideAdminLiveJpeg();
                     return;
                 }
@@ -1079,15 +1079,10 @@
                     return;
                 }
 
-                // Sustained failure across several attempts — now treat as offline.
+                // Sustained failure — keep trying HLS. Do not switch to a still JPEG.
                 adminHlsFatalFailCount = 0;
                 try { adminHls.destroy(); } catch (e) {}
                 adminHls = null;
-<<<<<<< HEAD
-=======
-                showCctvOfflineOverlay('stream');
-                startAdminLiveJpeg();
->>>>>>> 3f7e5c3759efd22b5d3cc3f0e9450c8f335fe4dd
                 startCctvReconnectWatchdog();
                 return;
             }
@@ -1104,11 +1099,25 @@
 
     function startAdminHlsWatchdog(video) {
         if (adminHlsWatchdog) clearInterval(adminHlsWatchdog);
+        let lastTime = -1;
+        let stallTicks = 0;
         adminHlsWatchdog = setInterval(() => {
             if (!adminWantsLive || !video) return;
             if (video.paused || video.ended) {
                 video.play().catch(() => {});
             }
+            const t = video.currentTime || 0;
+            if (video.videoWidth > 0 && t === lastTime) {
+                stallTicks++;
+                if (stallTicks >= 2) {
+                    stallTicks = 0;
+                    startCctvReconnectWatchdog();
+                }
+            } else {
+                stallTicks = 0;
+                hideAdminLiveJpeg();
+            }
+            lastTime = t;
         }, 2000);
     }
 
@@ -1310,23 +1319,11 @@
                             }
                         } catch (e) { cameraUp = false; cctvOfflineReason = 'camera'; }
 
-<<<<<<< HEAD
                         hideCctvOfflineOverlay();
                         stopCctvReconnectWatchdog();
                         attachAdminHls(cctvVideo, livePlaylistUrl, null);
                         startAdminHlsWatchdog(cctvVideo);
                         if (!cameraUp) {
-=======
-                        if (cameraUp) {
-                            hideCctvOfflineOverlay();
-                            stopCctvReconnectWatchdog();
-                            attachAdminHls(cctvVideo, livePlaylistUrl, null);
-                            startAdminHlsWatchdog(cctvVideo);
-                        } else {
-                            // CCTV is unreachable — show offline overlay and retry within seconds.
-                            showCctvOfflineOverlay(cctvOfflineReason);
-                            startAdminLiveJpeg();
->>>>>>> 3f7e5c3759efd22b5d3cc3f0e9450c8f335fe4dd
                             startCctvReconnectWatchdog();
                         }
                     }

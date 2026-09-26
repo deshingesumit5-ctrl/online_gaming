@@ -1460,6 +1460,8 @@
 
         function keepHlsAtLiveEdge(hls, video) {
             if (!hls || !video || video._liveEdgeIv) return;
+            let lastT = -1;
+            let stallTicks = 0;
             video._liveEdgeIv = setInterval(function () {
                 if (streamEndedByAdmin || !playerHls) return;
                 try {
@@ -1471,6 +1473,18 @@
                         }
                     }
                     if (video.paused) video.play().catch(function () {});
+                    const t = video.currentTime || 0;
+                    if (video.videoWidth > 0 && t === lastT) {
+                        stallTicks++;
+                        if (stallTicks >= 3) {
+                            stallTicks = 0;
+                            try { playerHls.startLoad(); } catch (e) {}
+                            video.play().catch(function () {});
+                        }
+                    } else {
+                        stallTicks = 0;
+                    }
+                    lastT = t;
                 } catch (e) {}
             }, 1500);
         }
@@ -1634,6 +1648,7 @@
                 if (cctvVideo.videoWidth > 0) {
                     if (fallbackImg) fallbackImg.classList.add('hidden');
                     stopLiveJpeg();
+                    cctvVideo.style.opacity = '1';
                     revealPlayerLiveFootage();
                 }
             };
@@ -1672,7 +1687,7 @@
                             cctvVideo._hlsRetryTimer = setTimeout(function () {
                                 if (streamEndedByAdmin) return;
                                 startCctvLowLatency(livePlaylistUrl || playUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
-                            }, 1500);
+                            }, 800);
                         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
                             playerHls.recoverMediaError();
                             cctvVideo.play().catch(() => {});
