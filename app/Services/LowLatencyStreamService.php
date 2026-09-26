@@ -131,11 +131,11 @@ class LowLatencyStreamService
             $sourceUrl = $variantUrl;
         }
 
-        $base = preg_replace('#/[^/]*$#', '/', $sourceUrl);
         $lines = preg_split('/\r\n|\n|\r/', $body) ?: [];
-        $header = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-START:TIME-OFFSET=-6,PRECISE=YES'];
+        $header = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-1,PRECISE=YES'];
         $target = 2;
         $pairs = [];
+        $rawSegments = [];
         $pending = [];
         $mapLine = null;
 
@@ -153,17 +153,8 @@ class LowLatencyStreamService
             }
             if (str_starts_with($line, '#EXT-X-MAP')) {
                 if (preg_match('/URI="([^"]+)"/', $line, $m)) {
-                    $mapSeg = $m[1];
-                    if (!preg_match('#^https?://#i', $mapSeg)) {
-                        if (str_starts_with($mapSeg, '/')) {
-                            $origin = parse_url($sourceUrl, PHP_URL_SCHEME) . '://' . parse_url($sourceUrl, PHP_URL_HOST);
-                            $port = parse_url($sourceUrl, PHP_URL_PORT);
-                            if ($port) { $origin .= ':' . $port; }
-                            $mapSeg = $origin . $mapSeg;
-                        } else {
-                            $mapSeg = $base . $mapSeg;
-                        }
-                    }
+                    $mapSeg = $this->absoluteMediaUrl($sourceUrl, $m[1]);
+                    $this->fetchSegment($mapSeg);
                     $line = '#EXT-X-MAP:URI="' . $this->proxiedSegmentUrl($room->id, $mapSeg) . '"';
                     $mapLine = $line;
                 }
@@ -180,28 +171,17 @@ class LowLatencyStreamService
                 continue;
             }
 
-            $seg = $line;
-            if (!preg_match('#^https?://#i', $seg)) {
-                if (str_starts_with($seg, '/')) {
-                    $origin = parse_url($sourceUrl, PHP_URL_SCHEME) . '://' . parse_url($sourceUrl, PHP_URL_HOST);
-                    $port = parse_url($sourceUrl, PHP_URL_PORT);
-                    if ($port) {
-                        $origin .= ':' . $port;
-                    }
-                    $seg = $origin . $seg;
-                } else {
-                    $seg = $base . $seg;
-                }
-            }
-
+            $seg = $this->absoluteMediaUrl($sourceUrl, $line);
+            $rawSegments[] = $seg;
             $pairs[] = array_merge($pending, [$this->proxiedSegmentUrl($room->id, $seg)]);
             $pending = [];
         }
 
-        $keep = array_slice($pairs, -8); // keep a short buffer so playback is not dropped at the live edge
+        $keep = array_slice($pairs, -3);
         if ($keep === []) {
             return null;
         }
+        $this->prefetchNewest($rawSegments);
 
         $header[] = '#EXT-X-TARGETDURATION:' . max(1, $target);
         $header[] = '#EXT-X-MEDIA-SEQUENCE:' . max(0, count($pairs) - count($keep));
@@ -303,11 +283,11 @@ class LowLatencyStreamService
             $sourceUrl = $variantUrl;
         }
 
-        $base    = preg_replace('#/[^/]*$#', '/', $sourceUrl);
         $lines   = preg_split('/\r\n|\n|\r/', $body) ?: [];
-        $header  = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-START:TIME-OFFSET=-6,PRECISE=YES'];
+        $header  = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-1,PRECISE=YES'];
         $target  = 2;
         $pairs   = [];
+        $rawSegments = [];
         $pending = [];
         $mapLine = null;
 
@@ -325,17 +305,8 @@ class LowLatencyStreamService
             }
             if (str_starts_with($line, '#EXT-X-MAP')) {
                 if (preg_match('/URI="([^"]+)"/', $line, $m)) {
-                    $mapSeg = $m[1];
-                    if (!preg_match('#^https?://#i', $mapSeg)) {
-                        if (str_starts_with($mapSeg, '/')) {
-                            $origin = parse_url($sourceUrl, PHP_URL_SCHEME) . '://' . parse_url($sourceUrl, PHP_URL_HOST);
-                            $port = parse_url($sourceUrl, PHP_URL_PORT);
-                            if ($port) { $origin .= ':' . $port; }
-                            $mapSeg = $origin . $mapSeg;
-                        } else {
-                            $mapSeg = $base . $mapSeg;
-                        }
-                    }
+                    $mapSeg = $this->absoluteMediaUrl($sourceUrl, $m[1]);
+                    $this->fetchSegment($mapSeg);
                     $line = '#EXT-X-MAP:URI="' . $this->proxiedAdminSegmentUrl($room->id, $mapSeg) . '"';
                     $mapLine = $line;
                 }
@@ -352,28 +323,17 @@ class LowLatencyStreamService
                 continue;
             }
 
-            $seg = $line;
-            if (!preg_match('#^https?://#i', $seg)) {
-                if (str_starts_with($seg, '/')) {
-                    $origin = parse_url($sourceUrl, PHP_URL_SCHEME) . '://' . parse_url($sourceUrl, PHP_URL_HOST);
-                    $port   = parse_url($sourceUrl, PHP_URL_PORT);
-                    if ($port) {
-                        $origin .= ':' . $port;
-                    }
-                    $seg = $origin . $seg;
-                } else {
-                    $seg = $base . $seg;
-                }
-            }
-
+            $seg = $this->absoluteMediaUrl($sourceUrl, $line);
+            $rawSegments[] = $seg;
             $pairs[]  = array_merge($pending, [$this->proxiedAdminSegmentUrl($room->id, $seg)]);
             $pending  = [];
         }
 
-        $keep = array_slice($pairs, -8); // keep a short buffer so playback is not dropped at the live edge
+        $keep = array_slice($pairs, -3);
         if ($keep === []) {
             return null;
         }
+        $this->prefetchNewest($rawSegments);
 
         $header[] = '#EXT-X-TARGETDURATION:' . max(1, $target);
         $header[] = '#EXT-X-MEDIA-SEQUENCE:' . max(0, count($pairs) - count($keep));
@@ -404,7 +364,6 @@ class LowLatencyStreamService
      */
     private function pickBestVariant(string $masterUrl, string $masterBody): ?string
     {
-        $base = preg_replace('#/[^/]*$#', '/', $masterUrl);
         $lines = preg_split('/\r\n|\n|\r/', $masterBody) ?: [];
         $bestBandwidth = -1;
         $bestUrl = null;
@@ -423,9 +382,7 @@ class LowLatencyStreamService
                 continue;
             }
             if ($pendingBandwidth !== null && !str_starts_with($line, '#')) {
-                $url = preg_match('#^https?://#i', $line)
-                    ? $line
-                    : $base . ltrim($line, '/');
+                $url = $this->absoluteMediaUrl($masterUrl, $line);
                 if ($pendingBandwidth > $bestBandwidth) {
                     $bestBandwidth = $pendingBandwidth;
                     $bestUrl = $url;
@@ -439,9 +396,7 @@ class LowLatencyStreamService
             foreach ($lines as $line) {
                 $line = trim($line);
                 if ($line !== '' && !str_starts_with($line, '#')) {
-                    $bestUrl = preg_match('#^https?://#i', $line)
-                        ? $line
-                        : $base . ltrim($line, '/');
+                    $bestUrl = $this->absoluteMediaUrl($masterUrl, $line);
                     break;
                 }
             }
@@ -535,9 +490,17 @@ class LowLatencyStreamService
     private function download(string $url): ?string
     {
         try {
-            $response = Http::timeout(3)
-                ->withOptions(['verify' => false, 'allow_redirects' => true])
-                ->withHeaders(['User-Agent' => 'Fun2WinLive/1.0'])
+            $response = Http::timeout(8)
+                ->connectTimeout(4)
+                ->withOptions([
+                    'verify' => false,
+                    'allow_redirects' => true,
+                    'cookies' => $this->cookieJar($url),
+                ])
+                ->withHeaders([
+                    'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                    'Accept' => '*/*',
+                ])
                 ->get($url);
 
             if (!$response->successful()) {
@@ -590,5 +553,131 @@ class LowLatencyStreamService
             mkdir($dir, 0777, true);
         }
         @file_put_contents($this->playlistCachePath($roomId, $which), $playlist);
+    }
+
+    private function absoluteMediaUrl(string $playlistUrl, string $ref): string
+    {
+        $ref = trim($ref);
+        if (preg_match('#^https?://#i', $ref)) {
+            return $ref;
+        }
+
+        $parts = parse_url($playlistUrl) ?: [];
+        $origin = ($parts['scheme'] ?? 'https') . '://' . ($parts['host'] ?? '');
+        if (!empty($parts['port'])) {
+            $origin .= ':' . $parts['port'];
+        }
+        $dir = isset($parts['path']) ? (preg_replace('#/[^/]*$#', '/', $parts['path']) ?: '/') : '/';
+        $abs = str_starts_with($ref, '/') ? $origin . $ref : $origin . $dir . $ref;
+        if (!str_contains($ref, '?') && !empty($parts['query'])) {
+            $abs .= '?' . $parts['query'];
+        }
+
+        return $abs;
+    }
+
+    /** Download the newest segment while building the playlist so the first player request is already cached. */
+    private function prefetchNewest(array $rawSegments): void
+    {
+        $latest = $rawSegments === [] ? null : $rawSegments[count($rawSegments) - 1];
+        if (is_string($latest) && $latest !== '') {
+            $this->fetchSegment($latest);
+        }
+    }
+
+    public function fetchSegment(string $url, ?string $range = null): ?array
+    {
+        $cacheKey = substr(hash('sha256', $url), 0, 24);
+        $cacheFile = storage_path('app/live/segs/' . $cacheKey . '.bin');
+        $typeFile = $cacheFile . '.type';
+        if ($range === null && is_file($cacheFile) && filesize($cacheFile) > 32 && (time() - filemtime($cacheFile)) < 30) {
+            $type = is_file($typeFile) ? trim((string) file_get_contents($typeFile)) : $this->guessSegmentType($url, null);
+
+            return ['body' => (string) file_get_contents($cacheFile), 'type' => $type, 'status' => 200];
+        }
+
+        $headers = [
+            'User-Agent' => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept' => '*/*',
+            'Referer' => $this->originOf($url) . '/',
+        ];
+        if ($range) {
+            $headers['Range'] = $range;
+        }
+
+        for ($attempt = 0; $attempt < 2; $attempt++) {
+            try {
+                $response = Http::timeout(12)
+                    ->connectTimeout(4)
+                    ->withOptions([
+                        'verify' => false,
+                        'allow_redirects' => true,
+                        'cookies' => $this->cookieJar($url),
+                    ])
+                    ->withHeaders($headers)
+                    ->get($url);
+                $status = $response->status();
+                $body = $response->body();
+                if ($status >= 200 && $status < 300 && $body !== '') {
+                    $type = $this->guessSegmentType($url, $response->header('Content-Type'));
+                    if ($status === 200 && $range === null) {
+                        $dir = dirname($cacheFile);
+                        if (!is_dir($dir)) {
+                            mkdir($dir, 0777, true);
+                        }
+                        file_put_contents($cacheFile, $body);
+                        file_put_contents($typeFile, $type);
+                    }
+
+                    return ['body' => $body, 'type' => $type, 'status' => $status];
+                }
+            } catch (\Throwable $e) {
+                // retry once
+            }
+            usleep(150000);
+        }
+
+        return null;
+    }
+
+    private function originOf(string $url): string
+    {
+        $parts = parse_url($url) ?: [];
+        $origin = ($parts['scheme'] ?? 'https') . '://' . ($parts['host'] ?? '');
+        if (!empty($parts['port'])) {
+            $origin .= ':' . $parts['port'];
+        }
+
+        return $origin;
+    }
+
+    private function cookieJar(string $url): \GuzzleHttp\Cookie\FileCookieJar
+    {
+        $host = preg_replace('/[^a-z0-9.-]/i', '_', (string) parse_url($url, PHP_URL_HOST));
+        $dir = storage_path('app/live/cookies');
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+
+        return new \GuzzleHttp\Cookie\FileCookieJar($dir . DIRECTORY_SEPARATOR . ($host ?: 'camera') . '.txt', true);
+    }
+
+    private function guessSegmentType(string $url, ?string $header): string
+    {
+        if (is_string($header) && $header !== '' && stripos($header, 'text/html') === false && stripos($header, 'application/xml') === false) {
+            return trim(explode(';', $header)[0]);
+        }
+        $path = strtolower((string) parse_url($url, PHP_URL_PATH));
+        if (str_ends_with($path, '.mp4') || str_ends_with($path, '.m4s') || str_ends_with($path, '.cmfv')) {
+            return 'video/mp4';
+        }
+        if (str_ends_with($path, '.aac')) {
+            return 'audio/aac';
+        }
+        if (str_ends_with($path, '.vtt')) {
+            return 'text/vtt';
+        }
+
+        return 'video/mp2t';
     }
 }

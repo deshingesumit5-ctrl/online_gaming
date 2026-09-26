@@ -492,20 +492,18 @@ class GameController extends Controller
             abort(403);
         }
 
-        try {
-            $response = Http::timeout(5)
-                ->withOptions(['verify' => false, 'allow_redirects' => true])
-                ->get($resolved);
-            if (!$response->successful()) {
-                abort(502);
-            }
-
-            return response($response->body(), 200, [
-                'Content-Type' => $response->header('Content-Type') ?: 'video/MP2T',
+        $range = $request->headers->get('Range');
+        $fetched = $liveStream->fetchSegment($resolved, is_string($range) ? $range : null);
+        if (!$fetched) {
+            return response('', 404, [
                 'Cache-Control' => 'no-store, no-cache, max-age=0',
             ]);
-        } catch (\Throwable $e) {
-            abort(502);
         }
+
+        return response($fetched['body'], $fetched['status'], [
+            'Content-Type' => $fetched['type'],
+            'Cache-Control' => 'public, max-age=15',
+            'Accept-Ranges' => 'bytes',
+        ]);
     }
 }

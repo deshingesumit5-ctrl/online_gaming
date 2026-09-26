@@ -30,11 +30,13 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
-        z-index: 1;
+        z-index: 3;
     }
     #admin-cctv-video {
-        position: relative;
+        position: absolute;
+        inset: 0;
         z-index: 2;
+        background: transparent;
     }
     #admin-live-card-overlay {
         position: absolute;
@@ -853,10 +855,10 @@
             enableWorker: true,
             lowLatencyMode: false,
             backBufferLength: 30,
-            maxBufferLength: 30,
-            maxMaxBufferLength: 60,
-            liveSyncDurationCount: 3,
-            liveMaxLatencyDurationCount: 12,
+            maxBufferLength: 8,
+            maxMaxBufferLength: 20,
+            liveSyncDurationCount: 1,
+            liveMaxLatencyDurationCount: 8,
             maxLiveSyncPlaybackRate: 1,
             liveDurationInfinity: true,
             startFragPrefetch: true,
@@ -1278,9 +1280,9 @@
 
             if (rawUrl || parsed) {
                 showAdminCctvStage();
-                hideAdminLiveJpeg();
 
                 if (parsed && parsed.type === 'youtube') {
+                    hideAdminLiveJpeg();
                     if (cctvVideo) cctvVideo.classList.add('hidden');
                     if (cctvIframe) {
                         cctvIframe.src = parsed.embedUrl;
@@ -1290,30 +1292,7 @@
                     if (cctvIframe) cctvIframe.classList.add('hidden');
                     if (cctvVideo) {
                         cctvVideo.classList.remove('hidden');
-                        // Pre-flight: verify the CCTV camera is reachable via the server-side
-                        // JPEG proxy. The server downloads a live frame from the actual camera;
-                        // if we get a real image the camera is up. If not, go straight to
-                        // offline-overlay + reconnect watchdog (avoids the 502-flood problem
-                        // where the M3U8 playlist returns valid text but segments all fail).
-                        let cameraUp = false;
-                        let cctvOfflineReason = 'camera';
-                        try {
-                            const playlistResp = await fetch(
-                                livePlaylistUrl + (livePlaylistUrl.indexOf('?') >= 0 ? '&' : '?') + '_pf=' + Date.now(),
-                                { cache: 'no-store' }
-                            );
-                            if (playlistResp.status === 200) {
-                                const playlistBody = await playlistResp.text();
-                                cameraUp = playlistLooksLive(playlistBody);
-                                if (!cameraUp) cctvOfflineReason = 'stream';
-                            } else if (playlistResp.status === 401 || playlistResp.status === 419 || playlistResp.redirected) {
-                                cctvOfflineReason = 'session';
-                            } else {
-                                cctvOfflineReason = 'camera';
-                            }
-                        } catch (e) { cameraUp = false; cctvOfflineReason = 'camera'; }
-
-                        if (cameraUp) hideCctvOfflineOverlay();
+                        startAdminLiveJpeg();
                         attachAdminHls(cctvVideo, livePlaylistUrl, null);
                         startAdminHlsWatchdog(cctvVideo);
                         startCctvReconnectWatchdog();
@@ -1356,8 +1335,6 @@
                 }
             }
 
-            if (whiteScreen) whiteScreen.classList.add('hidden');
-
             const tokenMeta = document.querySelector('meta[name="csrf-token"]');
             const token = tokenMeta ? tokenMeta.content : '';
             await fetch("{{ route('admin.game.action', $room->id) }}", {
@@ -1370,11 +1347,10 @@
                 body: JSON.stringify({ action: 'start_stream' })
             });
 
-            setTimeout(startAdminLiveJpeg, 2500);
-
-            const activeVideoEl = parsed && parsed.type !== 'youtube' ? cctvVideo : (!parsed ? webcamVideo : null);
+            if (whiteScreen) whiteScreen.classList.add('hidden');
             if (frameBroadcastInterval) clearInterval(frameBroadcastInterval);
 
+            const activeVideoEl = (!parsed) ? webcamVideo : (parsed.type === 'video' ? cctvVideo : null);
             if (activeVideoEl) {
                 frameBroadcastInterval = setInterval(() => {
                     if (!activeVideoEl || !canvasCtx) return;
