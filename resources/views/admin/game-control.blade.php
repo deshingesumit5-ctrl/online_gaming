@@ -857,9 +857,9 @@
             backBufferLength: 30,
             maxBufferLength: 8,
             maxMaxBufferLength: 20,
-            liveSyncDurationCount: 1,
-            liveMaxLatencyDurationCount: 8,
-            maxLiveSyncPlaybackRate: 1,
+            liveSyncDurationCount: 3,
+            liveMaxLatencyDurationCount: 12,
+            maxLiveSyncPlaybackRate: 1.5,
             liveDurationInfinity: true,
             startFragPrefetch: true,
             manifestLoadingMaxRetry: 10,
@@ -974,6 +974,11 @@
         const tick = () => {
             if (!adminWantsLive) return;
             const liveVideo = document.getElementById('admin-cctv-video');
+            const parsedLive = parseStreamUrl(sanitizeStreamUrl(configuredStreamUrl) || configuredStreamUrl);
+            if (parsedLive && parsedLive.type === 'hls') {
+                hideAdminLiveJpeg();
+                return;
+            }
             if (isAdminVideoPlaying(liveVideo)) {
                 adminVideoStallCount = 0;
                 hideAdminLiveJpeg();
@@ -986,7 +991,9 @@
                 hideCctvOfflineOverlay();
                 const whiteScreen = document.getElementById('admin-stream-white-screen');
                 if (whiteScreen) whiteScreen.classList.add('hidden');
-                if (isAdminVideoPlaying(document.getElementById('admin-cctv-video'))) {
+                const playingNow = document.getElementById('admin-cctv-video');
+                const parsedNow = parseStreamUrl(sanitizeStreamUrl(configuredStreamUrl) || configuredStreamUrl);
+                if ((parsedNow && parsedNow.type === 'hls') || isAdminVideoPlaying(playingNow) || (playingNow && playingNow.videoWidth > 0 && !playingNow.classList.contains('hidden'))) {
                     hideAdminLiveJpeg();
                     return;
                 }
@@ -1225,14 +1232,46 @@
         }
     }
 
+    function jumpVideoToLiveEdge(video) {
+        try {
+            if (!video || !video.seekable || video.seekable.length === 0) return;
+            const end = video.seekable.end(video.seekable.length - 1);
+            const now = video.currentTime || 0;
+            if (isFinite(end) && end - now > 0.75) {
+                video.currentTime = Math.max(0, end - 0.4);
+            }
+        } catch (e) {}
+    }
+
     function keepHlsAtLiveEdge(hls, video) {
         if (!hls || !video || video._liveEdgeIv) return;
+        video._edgeStall = 0;
+        video._edgeLastT = -1;
         video._liveEdgeIv = setInterval(function () {
             if (!adminWantsLive || !adminHls) return;
             try {
                 if (video.paused && !video.ended) video.play().catch(function () {});
+                const t = video.currentTime || 0;
+                const frozen = video.videoWidth > 0 && t === video._edgeLastT;
+                if (frozen) {
+                    video._edgeStall = (video._edgeStall || 0) + 1;
+                    if (video._edgeStall === 2) {
+                        jumpVideoToLiveEdge(video);
+                        try { adminHls.startLoad(-1); } catch (e) {}
+                        video.play().catch(function () {});
+                    }
+                    if (video._edgeStall >= 5 && Date.now() - adminCctvLastRestartAt >= CCTV_RESTART_COOLDOWN) {
+                        video._edgeStall = 0;
+                        adminCctvLastRestartAt = Date.now();
+                        restartAdminHlsFromProxy();
+                    }
+                } else if (video.videoWidth > 0) {
+                    video._edgeStall = 0;
+                    hideAdminLiveJpeg();
+                }
+                video._edgeLastT = video.currentTime || 0;
             } catch (e) {}
-        }, 2000);
+        }, 1000);
     }
 
     function playNativeHlsAtLiveEdge(video, streamUrl) {

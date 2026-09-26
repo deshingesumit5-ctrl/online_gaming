@@ -132,12 +132,13 @@ class LowLatencyStreamService
         }
 
         $lines = preg_split('/\r\n|\n|\r/', $body) ?: [];
-        $header = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-1,PRECISE=YES'];
+        $header = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-2,PRECISE=YES'];
         $target = 2;
         $pairs = [];
         $rawSegments = [];
         $pending = [];
         $mapLine = null;
+        $mediaSequence = 0;
 
         foreach ($lines as $line) {
             $line = trim($line);
@@ -146,6 +147,10 @@ class LowLatencyStreamService
             }
             if (str_starts_with($line, '#EXT-X-TARGETDURATION:')) {
                 $target = max(1, (int) substr($line, 22));
+                continue;
+            }
+            if (str_starts_with($line, '#EXT-X-MEDIA-SEQUENCE:')) {
+                $mediaSequence = max(0, (int) substr($line, 22));
                 continue;
             }
             if (str_starts_with($line, '#') && !str_starts_with($line, '#EXTINF') && !str_starts_with($line, '#EXT-X-DISCONTINUITY') && !str_starts_with($line, '#EXT-X-KEY') && !str_starts_with($line, '#EXT-X-MAP') && !str_starts_with($line, '#EXT-X-BYTERANGE') && !str_starts_with($line, '#EXT-X-PROGRAM-DATE-TIME') && !str_starts_with($line, '#EXT-X-PART')) {
@@ -177,14 +182,14 @@ class LowLatencyStreamService
             $pending = [];
         }
 
-        $keep = array_slice($pairs, -3);
+        $keep = array_slice($pairs, -8);
         if ($keep === []) {
             return null;
         }
         $this->prefetchNewest($rawSegments);
 
         $header[] = '#EXT-X-TARGETDURATION:' . max(1, $target);
-        $header[] = '#EXT-X-MEDIA-SEQUENCE:' . max(0, count($pairs) - count($keep));
+        $header[] = '#EXT-X-MEDIA-SEQUENCE:' . ($mediaSequence + max(0, count($pairs) - count($keep)));
         $header[] = '#EXT-X-INDEPENDENT-SEGMENTS';
         if ($mapLine) {
             $header[] = $mapLine;
@@ -284,12 +289,13 @@ class LowLatencyStreamService
         }
 
         $lines   = preg_split('/\r\n|\n|\r/', $body) ?: [];
-        $header  = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-1,PRECISE=YES'];
+        $header  = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-2,PRECISE=YES'];
         $target  = 2;
         $pairs   = [];
         $rawSegments = [];
         $pending = [];
         $mapLine = null;
+        $mediaSequence = 0;
 
         foreach ($lines as $line) {
             $line = trim($line);
@@ -298,6 +304,10 @@ class LowLatencyStreamService
             }
             if (str_starts_with($line, '#EXT-X-TARGETDURATION:')) {
                 $target = max(1, (int) substr($line, 22));
+                continue;
+            }
+            if (str_starts_with($line, '#EXT-X-MEDIA-SEQUENCE:')) {
+                $mediaSequence = max(0, (int) substr($line, 22));
                 continue;
             }
             if (str_starts_with($line, '#') && !str_starts_with($line, '#EXTINF') && !str_starts_with($line, '#EXT-X-DISCONTINUITY') && !str_starts_with($line, '#EXT-X-KEY') && !str_starts_with($line, '#EXT-X-MAP') && !str_starts_with($line, '#EXT-X-BYTERANGE') && !str_starts_with($line, '#EXT-X-PROGRAM-DATE-TIME') && !str_starts_with($line, '#EXT-X-PART')) {
@@ -329,14 +339,14 @@ class LowLatencyStreamService
             $pending  = [];
         }
 
-        $keep = array_slice($pairs, -3);
+        $keep = array_slice($pairs, -8);
         if ($keep === []) {
             return null;
         }
         $this->prefetchNewest($rawSegments);
 
         $header[] = '#EXT-X-TARGETDURATION:' . max(1, $target);
-        $header[] = '#EXT-X-MEDIA-SEQUENCE:' . max(0, count($pairs) - count($keep));
+        $header[] = '#EXT-X-MEDIA-SEQUENCE:' . ($mediaSequence + max(0, count($pairs) - count($keep)));
         $header[] = '#EXT-X-INDEPENDENT-SEGMENTS';
         if ($mapLine) {
             $header[] = $mapLine;

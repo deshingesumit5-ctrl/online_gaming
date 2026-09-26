@@ -1130,8 +1130,10 @@
                 if (!msg) return;
                 if (msg.type === 'stream_frame' && msg.frame) {
                     lastBroadcastFrameTime = Date.now();
-                    const streamImg = document.getElementById('player-live-camera-img');
-                    if (streamImg) streamImg.src = msg.frame;
+                    if (cctvMode !== 'hls') {
+                        const streamImg = document.getElementById('player-live-camera-img');
+                        if (streamImg) streamImg.src = msg.frame;
+                    }
                     syncLiveStreamView(true);
                 } else if (msg.type === 'stream_started') {
                     syncLiveStreamView(true);
@@ -1151,10 +1153,11 @@
 
         // Cross-device fallback polling for stream frame when active
         setInterval(() => {
-            if (window._isStreamActive && (Date.now() - lastBroadcastFrameTime > 800)) {
+            if (cctvMode !== 'hls' && window._isStreamActive && (Date.now() - lastBroadcastFrameTime > 800)) {
                 fetch("{{ route('game.stream.frame.get', $room->id) }}")
                     .then(r => r.json())
                     .then(d => {
+                        if (cctvMode === 'hls') return;
                         if (d && d.frame) {
                             const streamImg = document.getElementById('player-live-camera-img');
                             if (streamImg) streamImg.src = d.frame;
@@ -1445,9 +1448,9 @@
                 backBufferLength: 30,
                 maxBufferLength: 8,
                 maxMaxBufferLength: 20,
-                liveSyncDurationCount: 1,
-                liveMaxLatencyDurationCount: 8,
-                maxLiveSyncPlaybackRate: 1,
+                liveSyncDurationCount: 3,
+                liveMaxLatencyDurationCount: 12,
+                maxLiveSyncPlaybackRate: 1.5,
                 liveDurationInfinity: true,
                 startFragPrefetch: true,
                 manifestLoadingMaxRetry: 10,
@@ -1461,8 +1464,41 @@
             });
         }
 
+        let playerHlsLastRestartAt = 0;
+
+        function jumpVideoToLiveEdge(video) {
+            try {
+                if (!video || !video.seekable || video.seekable.length === 0) return;
+                const end = video.seekable.end(video.seekable.length - 1);
+                const now = video.currentTime || 0;
+                if (isFinite(end) && end - now > 0.75) {
+                    video.currentTime = Math.max(0, end - 0.4);
+                }
+            } catch (e) {}
+        }
+
+        function restartPlayerHls(video) {
+            if (!video || streamEndedByAdmin) return;
+            if (video._liveEdgeIv) {
+                clearInterval(video._liveEdgeIv);
+                video._liveEdgeIv = null;
+            }
+            if (playerHls) {
+                try { playerHls.destroy(); } catch (e) {}
+                playerHls = null;
+            }
+            video._triedProxyHls = false;
+            video._edgeStall = 0;
+            const fallbackImg = document.getElementById('player-live-camera-img');
+            const ytIframe = document.getElementById('live-youtube-stream');
+            const externalWrap = document.getElementById('player-external-stream-wrap');
+            startHlsPlayback(livePlaylistUrl, video, ytIframe, externalWrap, fallbackImg);
+        }
+
         function keepHlsAtLiveEdge(hls, video) {
             if (!hls || !video || video._liveEdgeIv) return;
+            video._edgeStall = 0;
+            video._edgeLastT = -1;
             video._liveEdgeIv = setInterval(function () {
                 if (streamEndedByAdmin || !playerHls) return;
                 try {
@@ -1470,16 +1506,22 @@
                     const t = video.currentTime || 0;
                     if (video.videoWidth > 0 && t === video._edgeLastT) {
                         video._edgeStall = (video._edgeStall || 0) + 1;
-                        if (video._edgeStall >= 4) {
+                        if (video._edgeStall === 2) {
+                            jumpVideoToLiveEdge(video);
+                            try { playerHls.startLoad(-1); } catch (e) {}
+                            video.play().catch(function () {});
+                        }
+                        if (video._edgeStall >= 5 && Date.now() - playerHlsLastRestartAt >= 4000) {
                             video._edgeStall = 0;
-                            try { playerHls.startLoad(); } catch (e) {}
+                            playerHlsLastRestartAt = Date.now();
+                            restartPlayerHls(video);
                         }
                     } else {
                         video._edgeStall = 0;
                     }
-                    video._edgeLastT = t;
+                    video._edgeLastT = video.currentTime || 0;
                 } catch (e) {}
-            }, 2000);
+            }, 1000);
         }
 
         function playNativeHlsAtLiveEdge(video, streamUrl) {
@@ -1654,8 +1696,11 @@
                     revealPlayerLiveFootage();
                 }
             };
-            cctvVideo.addEventListener('playing', showVideoWhenReady);
-            cctvVideo.addEventListener('loadeddata', showVideoWhenReady);
+            if (!cctvVideo._hlsReadyBound) {
+                cctvVideo._hlsReadyBound = true;
+                cctvVideo.addEventListener('playing', showVideoWhenReady);
+                cctvVideo.addEventListener('loadeddata', showVideoWhenReady);
+            }
 
             if (Hls.isSupported()) {
                 if (!playerHls) {
