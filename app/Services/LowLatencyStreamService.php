@@ -132,6 +132,7 @@ class LowLatencyStreamService
         $target = 2;
         $pairs = [];
         $pending = [];
+        $mapLine = null;
 
         foreach ($lines as $line) {
             $line = trim($line);
@@ -143,6 +144,24 @@ class LowLatencyStreamService
                 continue;
             }
             if (str_starts_with($line, '#') && !str_starts_with($line, '#EXTINF') && !str_starts_with($line, '#EXT-X-DISCONTINUITY') && !str_starts_with($line, '#EXT-X-KEY') && !str_starts_with($line, '#EXT-X-MAP') && !str_starts_with($line, '#EXT-X-BYTERANGE') && !str_starts_with($line, '#EXT-X-PROGRAM-DATE-TIME') && !str_starts_with($line, '#EXT-X-PART')) {
+                continue;
+            }
+            if (str_starts_with($line, '#EXT-X-MAP')) {
+                if (preg_match('/URI="([^"]+)"/', $line, $m)) {
+                    $mapSeg = $m[1];
+                    if (!preg_match('#^https?://#i', $mapSeg)) {
+                        if (str_starts_with($mapSeg, '/')) {
+                            $origin = parse_url($sourceUrl, PHP_URL_SCHEME) . '://' . parse_url($sourceUrl, PHP_URL_HOST);
+                            $port = parse_url($sourceUrl, PHP_URL_PORT);
+                            if ($port) { $origin .= ':' . $port; }
+                            $mapSeg = $origin . $mapSeg;
+                        } else {
+                            $mapSeg = $base . $mapSeg;
+                        }
+                    }
+                    $line = '#EXT-X-MAP:URI="' . $this->proxiedSegmentUrl($room->id, $mapSeg) . '"';
+                    $mapLine = $line;
+                }
                 continue;
             }
             if (str_starts_with($line, '#')) {
@@ -182,6 +201,9 @@ class LowLatencyStreamService
         $header[] = '#EXT-X-TARGETDURATION:' . max(1, $target);
         $header[] = '#EXT-X-MEDIA-SEQUENCE:' . max(0, count($pairs) - count($keep));
         $header[] = '#EXT-X-INDEPENDENT-SEGMENTS';
+        if ($mapLine) {
+            $header[] = $mapLine;
+        }
 
         $out = implode("\n", $header) . "\n";
         foreach ($keep as $block) {
@@ -275,6 +297,7 @@ class LowLatencyStreamService
         $target  = 2;
         $pairs   = [];
         $pending = [];
+        $mapLine = null;
 
         foreach ($lines as $line) {
             $line = trim($line);
@@ -286,6 +309,24 @@ class LowLatencyStreamService
                 continue;
             }
             if (str_starts_with($line, '#') && !str_starts_with($line, '#EXTINF') && !str_starts_with($line, '#EXT-X-DISCONTINUITY') && !str_starts_with($line, '#EXT-X-KEY') && !str_starts_with($line, '#EXT-X-MAP') && !str_starts_with($line, '#EXT-X-BYTERANGE') && !str_starts_with($line, '#EXT-X-PROGRAM-DATE-TIME') && !str_starts_with($line, '#EXT-X-PART')) {
+                continue;
+            }
+            if (str_starts_with($line, '#EXT-X-MAP')) {
+                if (preg_match('/URI="([^"]+)"/', $line, $m)) {
+                    $mapSeg = $m[1];
+                    if (!preg_match('#^https?://#i', $mapSeg)) {
+                        if (str_starts_with($mapSeg, '/')) {
+                            $origin = parse_url($sourceUrl, PHP_URL_SCHEME) . '://' . parse_url($sourceUrl, PHP_URL_HOST);
+                            $port = parse_url($sourceUrl, PHP_URL_PORT);
+                            if ($port) { $origin .= ':' . $port; }
+                            $mapSeg = $origin . $mapSeg;
+                        } else {
+                            $mapSeg = $base . $mapSeg;
+                        }
+                    }
+                    $line = '#EXT-X-MAP:URI="' . $this->proxiedAdminSegmentUrl($room->id, $mapSeg) . '"';
+                    $mapLine = $line;
+                }
                 continue;
             }
             if (str_starts_with($line, '#')) {
@@ -325,6 +366,9 @@ class LowLatencyStreamService
         $header[] = '#EXT-X-TARGETDURATION:' . max(1, $target);
         $header[] = '#EXT-X-MEDIA-SEQUENCE:' . max(0, count($pairs) - count($keep));
         $header[] = '#EXT-X-INDEPENDENT-SEGMENTS';
+        if ($mapLine) {
+            $header[] = $mapLine;
+        }
 
         $out = implode("\n", $header) . "\n";
         foreach ($keep as $block) {
@@ -467,7 +511,7 @@ class LowLatencyStreamService
             . ' -fflags nobuffer+discardcorrupt -flags low_delay -probesize 32768 -analyzeduration 0'
             . ' -i ' . escapeshellarg($sourceUrl)
             . ' -an -vf fps=8 -q:v 5 -f image2 -update 1 ' . escapeshellarg($outFile)
-            . ' >/dev/null 2>&1 & echo $!';
+            . ' >>/var/www/online_gaming/storage/logs/ffmpeg-php.log 2>&1 & echo $!';
         $pid = trim((string) shell_exec($cmd));
         if ($pid !== '') {
             file_put_contents($this->dir($roomId) . DIRECTORY_SEPARATOR . 'ffmpeg.pid', $pid);
