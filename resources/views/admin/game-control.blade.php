@@ -303,11 +303,11 @@
                     <iframe id="admin-cctv-iframe" class="w-full h-full border-0 hidden" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                     {{-- CCTV Switched Off Overlay --}}
                     <div id="admin-cctv-offline-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-black/85 z-10 hidden" style="backdrop-filter:blur(2px);">
-                        <div class="w-14 h-14 rounded-full bg-red-900/60 border-2 border-red-500 flex items-center justify-center text-3xl mb-3 shadow-lg shadow-red-500/30 animate-pulse">
-                            📵
+                        <div id="admin-cctv-offline-icon-wrap" class="w-14 h-14 rounded-full bg-red-900/60 border-2 border-red-500 flex items-center justify-center text-3xl mb-3 shadow-lg shadow-red-500/30 animate-pulse">
+                            <span id="admin-cctv-offline-icon">📵</span>
                         </div>
-                        <span class="text-red-400 text-sm font-black uppercase tracking-widest">CCTV is Switched Off</span>
-                        <span class="text-slate-400 text-[11px] mt-1.5 text-center max-w-[220px]">The camera at the shop appears to be offline. It will reconnect automatically when power is restored.</span>
+                        <span id="admin-cctv-offline-title" class="text-red-400 text-sm font-black uppercase tracking-widest">CCTV is Switched Off</span>
+                        <span id="admin-cctv-offline-subtitle" class="text-slate-400 text-[11px] mt-1.5 text-center max-w-[220px]">The camera at the shop appears to be offline. It will reconnect automatically when power is restored.</span>
                         <div id="admin-cctv-retry-spinner" class="mt-3 flex items-center gap-2 text-[10px] text-slate-500">
                             <svg class="animate-spin h-3.5 w-3.5 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                             <span>Retrying connection…</span>
@@ -931,15 +931,20 @@
     let adminCctvOfflineShown = false;
     const CCTV_OFFLINE_FAIL_THRESHOLD = 8; // consecutive JPEG failures before showing offline msg
 
-    // Tracks whether the video is actually advancing frame-by-frame, not just
-    // its .paused flag (which briefly flips true during normal HLS rebuffering
-    // even while the stream is healthy).
-    let adminVideoStallCount = 0;
-    let adminLastVideoTime = -1;
-    const VIDEO_STALL_THRESHOLD = 3; // consecutive stalled ticks (~1.2s) before falling back to JPEG
+    const CCTV_OFFLINE_REASONS = {
+        camera:  { icon: '\ud83d\udcf5', title: 'Camera Unreachable', text: 'The shop camera or its internet connection appears to be down. It will reconnect automatically once restored.' },
+        session: { icon: '\ud83d\udd12', title: 'Session Expired', text: 'Your admin session has expired. Please refresh this page to reconnect.' },
+        stream:  { icon: '\u26a0\ufe0f', title: 'Stream Error', text: 'There is a technical issue with the video feed. This has been logged for review.' }
+    };
 
-    function showCctvOfflineOverlay() {
-        if (adminCctvOfflineShown) return;
+    function showCctvOfflineOverlay(reason) {
+        const info = CCTV_OFFLINE_REASONS[reason] || CCTV_OFFLINE_REASONS.camera;
+        const iconEl = document.getElementById('admin-cctv-offline-icon');
+        const titleEl = document.getElementById('admin-cctv-offline-title');
+        const subtitleEl = document.getElementById('admin-cctv-offline-subtitle');
+        if (iconEl) iconEl.textContent = info.icon;
+        if (titleEl) titleEl.textContent = info.title;
+        if (subtitleEl) subtitleEl.textContent = info.text;
         adminCctvOfflineShown = true;
         const overlay = document.getElementById('admin-cctv-offline-overlay');
         if (overlay) overlay.classList.remove('hidden');
@@ -988,7 +993,7 @@
                 if (img._jpegFailCount >= CCTV_OFFLINE_FAIL_THRESHOLD) {
                     const lv = document.getElementById('admin-cctv-video');
                     if (lv && lv.videoWidth > 0 && !lv.paused) { hideCctvOfflineOverlay(); return; }
-                    showCctvOfflineOverlay();
+                    showCctvOfflineOverlay('camera');
                 }
             };
             probe.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
@@ -1078,6 +1083,11 @@
                 adminHlsFatalFailCount = 0;
                 try { adminHls.destroy(); } catch (e) {}
                 adminHls = null;
+<<<<<<< HEAD
+=======
+                showCctvOfflineOverlay('stream');
+                startAdminLiveJpeg();
+>>>>>>> 3f7e5c3759efd22b5d3cc3f0e9450c8f335fe4dd
                 startCctvReconnectWatchdog();
                 return;
             }
@@ -1283,6 +1293,7 @@
                         // offline-overlay + reconnect watchdog (avoids the 502-flood problem
                         // where the M3U8 playlist returns valid text but segments all fail).
                         let cameraUp = false;
+                        let cctvOfflineReason = 'camera';
                         try {
                             const playlistResp = await fetch(
                                 livePlaylistUrl + (livePlaylistUrl.indexOf('?') >= 0 ? '&' : '?') + '_pf=' + Date.now(),
@@ -1291,14 +1302,31 @@
                             if (playlistResp.status === 200) {
                                 const playlistBody = await playlistResp.text();
                                 cameraUp = playlistLooksLive(playlistBody);
+                                if (!cameraUp) cctvOfflineReason = 'stream';
+                            } else if (playlistResp.status === 401 || playlistResp.status === 419 || playlistResp.redirected) {
+                                cctvOfflineReason = 'session';
+                            } else {
+                                cctvOfflineReason = 'camera';
                             }
-                        } catch (e) { cameraUp = false; }
+                        } catch (e) { cameraUp = false; cctvOfflineReason = 'camera'; }
 
+<<<<<<< HEAD
                         hideCctvOfflineOverlay();
                         stopCctvReconnectWatchdog();
                         attachAdminHls(cctvVideo, livePlaylistUrl, null);
                         startAdminHlsWatchdog(cctvVideo);
                         if (!cameraUp) {
+=======
+                        if (cameraUp) {
+                            hideCctvOfflineOverlay();
+                            stopCctvReconnectWatchdog();
+                            attachAdminHls(cctvVideo, livePlaylistUrl, null);
+                            startAdminHlsWatchdog(cctvVideo);
+                        } else {
+                            // CCTV is unreachable — show offline overlay and retry within seconds.
+                            showCctvOfflineOverlay(cctvOfflineReason);
+                            startAdminLiveJpeg();
+>>>>>>> 3f7e5c3759efd22b5d3cc3f0e9450c8f335fe4dd
                             startCctvReconnectWatchdog();
                         }
                     }
@@ -1627,7 +1655,15 @@
         // and stale-HLS cleanup run on every resume.
         startAdminLiveJpeg();
         startLiveCameraStream();
+        setTimeout(function () { startCctvReconnectWatchdog(); }, 3000);
     }
+
+    // Session keep-alive: lightweight ping every 4 minutes so a long-open
+    // admin tab never silently loses its session while a room is live.
+    setInterval(function () {
+        if (!adminWantsLive) return;
+        fetch(window.location.href, { method: 'HEAD', credentials: 'same-origin', cache: 'no-store' }).catch(function () {});
+    }, 4 * 60 * 1000);
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', resumeAdminLiveStream);
@@ -1661,6 +1697,7 @@
         adminOverlayScale = scale;
         try { localStorage.setItem(OVERLAY_SCALE_KEY, String(scale)); } catch (e) {}
     }
+    const NEW_CARD_DEFAULT_SCALE = 1;
     adminOverlayScale = readDefaultOverlayScale();
 
     if (adminPreview) {
@@ -1915,7 +1952,8 @@
                 placeY = atCursor.y;
             }
         }
-        paintAdminOverlayCard(newCode, placeX, placeY, readDefaultOverlayScale());
+        adminOverlayScale = NEW_CARD_DEFAULT_SCALE;
+        paintAdminOverlayCard(newCode, placeX, placeY, NEW_CARD_DEFAULT_SCALE);
         publishOverlayCard();
     });
 
@@ -2008,8 +2046,4 @@
             if (btn.disabled) return;
             btn.dataset.originalHtml = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = btn.dataset.busyText || 'Processing...';
-        });
-    });
-</script>
-@endsection
+            btn.innerHTML = btn.dataset.busyText || 'Processing
