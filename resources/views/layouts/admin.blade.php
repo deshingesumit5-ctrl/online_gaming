@@ -9,10 +9,9 @@
     <link rel="icon" type="image/png" href="{{ asset('images/logo.png') }}">
     <link rel="shortcut icon" href="{{ asset('images/logo.png') }}">
     <link rel="apple-touch-icon" href="{{ asset('images/logo.png') }}">
-    <!-- Local Tailwind utilities (so Game Control matches the designed layout even if the CDN is blocked) -->
-    <link rel="stylesheet" href="{{ asset('css/tailwind-utilities.css') }}">
+    <link rel="stylesheet" href="{{ asset('css/tailwind-utilities.css') }}?v={{ @filemtime(public_path('css/tailwind-utilities.css')) }}">
+    <link rel="stylesheet" href="{{ asset('css/gaming-theme.css') }}?v={{ @filemtime(public_path('css/gaming-theme.css')) }}">
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="{{ asset('css/gaming-theme.css') }}">
     @stack('styles')
 </head>
 <body class="bg-[#090d16] text-slate-100 min-h-screen flex flex-col selection:bg-amber-500 selection:text-black">
