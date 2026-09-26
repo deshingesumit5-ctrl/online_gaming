@@ -853,18 +853,21 @@
             enableWorker: true,
             lowLatencyMode: false,
             backBufferLength: 30,
-            maxBufferLength: 20,
-            maxMaxBufferLength: 40,
-            liveSyncDurationCount: 1,
-            liveMaxLatencyDurationCount: 4,
+            maxBufferLength: 30,
+            maxMaxBufferLength: 60,
+            liveSyncDurationCount: 3,
+            liveMaxLatencyDurationCount: 12,
+            maxLiveSyncPlaybackRate: 1,
             liveDurationInfinity: true,
             startFragPrefetch: true,
-            manifestLoadingMaxRetry: 6,
-            manifestLoadingRetryDelay: 1000,
-            levelLoadingMaxRetry: 6,
-            levelLoadingRetryDelay: 1000,
-            fragLoadingMaxRetry: 4,
-            fragLoadingRetryDelay: 1000
+            manifestLoadingMaxRetry: 10,
+            manifestLoadingRetryDelay: 500,
+            manifestLoadingTimeOut: 10000,
+            levelLoadingMaxRetry: 10,
+            levelLoadingRetryDelay: 500,
+            fragLoadingMaxRetry: 8,
+            fragLoadingRetryDelay: 500,
+            fragLoadingTimeOut: 20000
         });
     }
 
@@ -990,11 +993,8 @@
             };
             probe.onerror = function () {
                 img._jpegFailCount = (img._jpegFailCount || 0) + 1;
-                if (img._jpegFailCount >= CCTV_OFFLINE_FAIL_THRESHOLD) {
-                    const lv = document.getElementById('admin-cctv-video');
-                    if (lv && lv.videoWidth > 0 && !lv.paused) { hideCctvOfflineOverlay(); return; }
-                    showCctvOfflineOverlay('camera');
-                }
+                // A missing JPEG snapshot is not a power cut. Camera Unreachable
+                // is shown only after the live playlist itself stays down.
             };
             probe.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
         };
@@ -1043,16 +1043,12 @@
                     adminHlsFatalFailCount = 0;
                     hideAdminLiveJpeg();
                     hideCctvOfflineOverlay();
-                    stopCctvReconnectWatchdog();
                 }
             });
         }
         adminHls.on(Hls.Events.ERROR, function(_, data) {
             if (!adminWantsLive || !data || !adminHls) return;
             if (!data.fatal) {
-                if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                    adminHls.startLoad();
-                }
                 return;
             }
             if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
@@ -1065,25 +1061,15 @@
                 }
 
                 adminHlsFatalFailCount++;
-                if (adminHlsFatalFailCount < HLS_FATAL_FAIL_THRESHOLD) {
-                    // Transient blip — give it a moment to recover on its own
-                    // before tearing anything down or showing the offline overlay.
-                    setTimeout(() => {
-                        if (adminHls && adminWantsLive) {
-                            try {
-                                adminHls.loadSource(playUrl);
-                                adminHls.attachMedia(video);
-                            } catch (e) {}
-                        }
-                    }, 800);
+                if (video && video.videoWidth > 0 && !video.paused) {
                     return;
                 }
-
-                // Sustained failure — keep trying HLS. Do not switch to a still JPEG.
-                adminHlsFatalFailCount = 0;
-                try { adminHls.destroy(); } catch (e) {}
-                adminHls = null;
-                startCctvReconnectWatchdog();
+                if (adminHlsFatalFailCount >= HLS_FATAL_FAIL_THRESHOLD) {
+                    adminHlsFatalFailCount = 0;
+                    try { adminHls.startLoad(); } catch (e) {}
+                    video.play().catch(() => {});
+                    startCctvReconnectWatchdog();
+                }
                 return;
             }
             if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
@@ -1111,28 +1097,27 @@
                 stallTicks++;
                 if (stallTicks >= 2) {
                     stallTicks = 0;
+                    video.play().catch(() => {});
                     startCctvReconnectWatchdog();
                 }
             } else {
                 stallTicks = 0;
-                hideAdminLiveJpeg();
+                if (video.videoWidth > 0 && t !== lastTime) hideAdminLiveJpeg();
             }
             lastTime = t;
         }, 2000);
     }
 
-    // -----------------------------------------------------------
-    // CCTV Reconnection Watchdog
-    // Polls the live HLS playlist every 2s. When the camera is back
-    // and the playlist has real segments, HLS is re-attached and the
-    // offline overlay is hidden only after video actually plays.
-    // JPEG snapshot is a secondary signal if the playlist lags.
-    // -----------------------------------------------------------
+    // While the picture is moving, this stays quiet.
+    // Camera Unreachable is shown only after the shop playlist stays down.
+    // When the playlist returns, playback is resumed without rebuilding a healthy player.
     let adminCctvReconnectTimer = null;
     let adminCctvLastRestartAt = 0;
     let adminCctvReconnectBusy = false;
-    const CCTV_RECONNECT_INTERVAL = 2000;   // poll every 2 seconds
-    const CCTV_RESTART_COOLDOWN   = 2000;   // minimum 2 s between HLS restarts
+    let adminPlaylistDownStreak = 0;
+    const CCTV_RECONNECT_INTERVAL = 1000;   // while stalled, recheck the camera every second
+    const CCTV_RESTART_COOLDOWN   = 4000;   // do not tear down a stream that is still starting
+    const CCTV_DOWN_STREAK_TO_SHOW = 3;     // ~3s of a dead playlist before Camera Unreachable
 
     function playlistLooksLive(text) {
         return typeof text === 'string'
@@ -1160,19 +1145,20 @@
             return;
         }
         const video = document.getElementById('admin-cctv-video');
-        if (isAdminVideoPlaying(video)) {
+        const t = video ? (video.currentTime || 0) : 0;
+        const advancing = !!(video && video.videoWidth > 0 && t > 0 && video._healthLastT !== t);
+        if (video) video._healthLastT = t;
+        if (advancing) {
+            adminPlaylistDownStreak = 0;
+            if (video) video._frozenTicks = 0;
             hideCctvOfflineOverlay();
-            stopCctvReconnectWatchdog();
-            return;
-        }
-        const now = Date.now();
-        if (now - adminCctvLastRestartAt < CCTV_RESTART_COOLDOWN) {
             return;
         }
         adminCctvReconnectBusy = true;
         const probeUrl = livePlaylistUrl + (livePlaylistUrl.indexOf('?') >= 0 ? '&' : '?') + '_r=' + Date.now();
         fetch(probeUrl, { cache: 'no-store' }).then(function (resp) {
             if (!adminWantsLive) return false;
+            if (resp.status === 401 || resp.status === 419) return 'session';
             if (resp.status !== 200) return false;
             return resp.text().then(function (body) {
                 return playlistLooksLive(body);
@@ -1181,29 +1167,44 @@
             return false;
         }).then(function (playlistUp) {
             if (!adminWantsLive) return;
-            if (isAdminVideoPlaying(video)) {
+            const nowT = video ? (video.currentTime || 0) : 0;
+            if (video && video.videoWidth > 0 && nowT > 0 && nowT !== t) {
+                adminPlaylistDownStreak = 0;
                 hideCctvOfflineOverlay();
-                stopCctvReconnectWatchdog();
+                return;
+            }
+            if (playlistUp === 'session') {
+                showCctvOfflineOverlay('session');
                 return;
             }
             if (playlistUp) {
-                adminCctvLastRestartAt = Date.now();
-                restartAdminHlsFromProxy();
+                const wasDown = adminCctvOfflineShown || adminPlaylistDownStreak > 0;
+                adminPlaylistDownStreak = 0;
+                hideCctvOfflineOverlay();
+                if (!adminHls) {
+                    if (Date.now() - adminCctvLastRestartAt >= CCTV_RESTART_COOLDOWN) {
+                        adminCctvLastRestartAt = Date.now();
+                        adminStreamStarting = false;
+                        if (video) video._triedProxyHls = false;
+                        restartAdminHlsFromProxy();
+                    }
+                } else if (wasDown) {
+                    try { adminHls.startLoad(); } catch (e) {}
+                    if (video) video.play().catch(function () {});
+                } else if (video && video.videoWidth > 0) {
+                    video._frozenTicks = (video._frozenTicks || 0) + 1;
+                    if (video.paused) video.play().catch(function () {});
+                    if (video._frozenTicks >= 4) {
+                        video._frozenTicks = 0;
+                        try { adminHls.startLoad(); } catch (e) {}
+                    }
+                }
                 return;
             }
-            // Playlist not ready yet — JPEG snapshot can still prove the camera is back.
-            return new Promise(function (resolve) {
-                const jpegProbe = new Image();
-                jpegProbe.onload = function () { resolve(jpegProbe.naturalWidth > 0); };
-                jpegProbe.onerror = function () { resolve(false); };
-                jpegProbe.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + '_r=' + Date.now();
-            }).then(function (jpegUp) {
-                if (!adminWantsLive || !jpegUp) return;
-                adminCctvLastRestartAt = Date.now();
-                adminStreamStarting = false;
-                if (video) video._triedProxyHls = false;
-                restartAdminHlsFromProxy();
-            });
+            adminPlaylistDownStreak++;
+            if (adminPlaylistDownStreak >= CCTV_DOWN_STREAK_TO_SHOW) {
+                showCctvOfflineOverlay('camera');
+            }
         }).finally(function () {
             adminCctvReconnectBusy = false;
         });
@@ -1227,16 +1228,9 @@
         video._liveEdgeIv = setInterval(function () {
             if (!adminWantsLive || !adminHls) return;
             try {
-                const livePos = adminHls.liveSyncPosition;
-                if (isFinite(livePos) && isFinite(video.currentTime)) {
-                    const lag = livePos - video.currentTime;
-                    if (lag > 2.5) {
-                        video.currentTime = Math.max(0, livePos);
-                    }
-                }
-                if (video.paused) video.play().catch(function () {});
+                if (video.paused && !video.ended) video.play().catch(function () {});
             } catch (e) {}
-        }, 1500);
+        }, 2000);
     }
 
     function playNativeHlsAtLiveEdge(video, streamUrl) {
@@ -1319,13 +1313,10 @@
                             }
                         } catch (e) { cameraUp = false; cctvOfflineReason = 'camera'; }
 
-                        hideCctvOfflineOverlay();
-                        stopCctvReconnectWatchdog();
+                        if (cameraUp) hideCctvOfflineOverlay();
                         attachAdminHls(cctvVideo, livePlaylistUrl, null);
                         startAdminHlsWatchdog(cctvVideo);
-                        if (!cameraUp) {
-                            startCctvReconnectWatchdog();
-                        }
+                        startCctvReconnectWatchdog();
                     }
                 } else if (parsed && parsed.type === 'jpeg') {
                     if (cctvIframe) cctvIframe.classList.add('hidden');
@@ -1652,7 +1643,6 @@
         // and stale-HLS cleanup run on every resume.
         startAdminLiveJpeg();
         startLiveCameraStream();
-        setTimeout(function () { startCctvReconnectWatchdog(); }, 3000);
     }
 
     // Session keep-alive: lightweight ping every 4 minutes so a long-open
@@ -2043,4 +2033,9 @@
             if (btn.disabled) return;
             btn.dataset.originalHtml = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = btn.dataset.busyText || 'Processing
+            btn.innerHTML = btn.dataset.busyText || 'Processing...';
+        });
+    });
+</script>
+@endsection
+

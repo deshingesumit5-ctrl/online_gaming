@@ -100,6 +100,11 @@ class LowLatencyStreamService
             return null;
         }
 
+        $cached = $this->readPlaylistCache($room->id, 'player');
+        if ($cached !== null) {
+            return $cached;
+        }
+
         $body = $this->download($sourceUrl);
         if (!$body || !str_contains($body, '#EXTM3U')) {
             return null;
@@ -128,7 +133,7 @@ class LowLatencyStreamService
 
         $base = preg_replace('#/[^/]*$#', '/', $sourceUrl);
         $lines = preg_split('/\r\n|\n|\r/', $body) ?: [];
-        $header = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-START:TIME-OFFSET=-1,PRECISE=YES'];
+        $header = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-START:TIME-OFFSET=-6,PRECISE=YES'];
         $target = 2;
         $pairs = [];
         $pending = [];
@@ -193,7 +198,7 @@ class LowLatencyStreamService
             $pending = [];
         }
 
-        $keep = array_slice($pairs, -3); // keep last 3 segments for smooth HLS.js playback
+        $keep = array_slice($pairs, -8); // keep a short buffer so playback is not dropped at the live edge
         if ($keep === []) {
             return null;
         }
@@ -209,6 +214,8 @@ class LowLatencyStreamService
         foreach ($keep as $block) {
             $out .= implode("\n", $block) . "\n";
         }
+
+        $this->writePlaylistCache($room->id, 'player', $out);
 
         return $out;
     }
@@ -270,6 +277,11 @@ class LowLatencyStreamService
             return null;
         }
 
+        $cached = $this->readPlaylistCache($room->id, 'admin');
+        if ($cached !== null) {
+            return $cached;
+        }
+
         $body = $this->download($sourceUrl);
         if (!$body || !str_contains($body, '#EXTM3U')) {
             return null;
@@ -293,7 +305,7 @@ class LowLatencyStreamService
 
         $base    = preg_replace('#/[^/]*$#', '/', $sourceUrl);
         $lines   = preg_split('/\r\n|\n|\r/', $body) ?: [];
-        $header  = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-START:TIME-OFFSET=-1,PRECISE=YES'];
+        $header  = ['#EXTM3U', '#EXT-X-VERSION:3', '#EXT-X-START:TIME-OFFSET=-6,PRECISE=YES'];
         $target  = 2;
         $pairs   = [];
         $pending = [];
@@ -358,7 +370,7 @@ class LowLatencyStreamService
             $pending  = [];
         }
 
-        $keep = array_slice($pairs, -3); // keep last 3 segments for smoother playback
+        $keep = array_slice($pairs, -8); // keep a short buffer so playback is not dropped at the live edge
         if ($keep === []) {
             return null;
         }
@@ -374,6 +386,8 @@ class LowLatencyStreamService
         foreach ($keep as $block) {
             $out .= implode("\n", $block) . "\n";
         }
+
+        $this->writePlaylistCache($room->id, 'admin', $out);
 
         return $out;
     }
@@ -544,5 +558,37 @@ class LowLatencyStreamService
     private function dir(int $roomId): string
     {
         return storage_path('app/live/' . $roomId);
+    }
+
+    private function playlistCachePath(int $roomId, string $which): string
+    {
+        return $this->dir($roomId) . DIRECTORY_SEPARATOR . 'playlist-' . $which . '.m3u8';
+    }
+
+    /** Serve the last good playlist for about 1s so overlapping players do not stampede the camera. */
+    private function readPlaylistCache(int $roomId, string $which): ?string
+    {
+        $path = $this->playlistCachePath($roomId, $which);
+        if (!is_file($path)) {
+            return null;
+        }
+        if ((microtime(true) - filemtime($path)) > 1.2) {
+            return null;
+        }
+        $cached = @file_get_contents($path);
+        if (!is_string($cached) || !str_contains($cached, '#EXTINF')) {
+            return null;
+        }
+
+        return $cached;
+    }
+
+    private function writePlaylistCache(int $roomId, string $which, string $playlist): void
+    {
+        $dir = $this->dir($roomId);
+        if (!is_dir($dir)) {
+            mkdir($dir, 0777, true);
+        }
+        @file_put_contents($this->playlistCachePath($roomId, $which), $playlist);
     }
 }

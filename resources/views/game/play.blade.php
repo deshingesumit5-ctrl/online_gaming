@@ -1443,50 +1443,43 @@
                 enableWorker: true,
                 lowLatencyMode: false,
                 backBufferLength: 30,
-                maxBufferLength: 20,
-                maxMaxBufferLength: 40,
-                liveSyncDurationCount: 1,
-                liveMaxLatencyDurationCount: 4,
+                maxBufferLength: 30,
+                maxMaxBufferLength: 60,
+                liveSyncDurationCount: 3,
+                liveMaxLatencyDurationCount: 12,
+                maxLiveSyncPlaybackRate: 1,
                 liveDurationInfinity: true,
                 startFragPrefetch: true,
-                manifestLoadingMaxRetry: 6,
-                manifestLoadingRetryDelay: 1000,
-                levelLoadingMaxRetry: 6,
-                levelLoadingRetryDelay: 1000,
-                fragLoadingMaxRetry: 4,
-                fragLoadingRetryDelay: 1000
+                manifestLoadingMaxRetry: 10,
+                manifestLoadingRetryDelay: 500,
+                manifestLoadingTimeOut: 10000,
+                levelLoadingMaxRetry: 10,
+                levelLoadingRetryDelay: 500,
+                fragLoadingMaxRetry: 8,
+                fragLoadingRetryDelay: 500,
+                fragLoadingTimeOut: 20000
             });
         }
 
         function keepHlsAtLiveEdge(hls, video) {
             if (!hls || !video || video._liveEdgeIv) return;
-            let lastT = -1;
-            let stallTicks = 0;
             video._liveEdgeIv = setInterval(function () {
                 if (streamEndedByAdmin || !playerHls) return;
                 try {
-                    const livePos = playerHls.liveSyncPosition;
-                    if (isFinite(livePos) && isFinite(video.currentTime)) {
-                        const lag = livePos - video.currentTime;
-                        if (lag > 2.5) {
-                            video.currentTime = Math.max(0, livePos);
-                        }
-                    }
-                    if (video.paused) video.play().catch(function () {});
+                    if (video.paused && !video.ended) video.play().catch(function () {});
                     const t = video.currentTime || 0;
-                    if (video.videoWidth > 0 && t === lastT) {
-                        stallTicks++;
-                        if (stallTicks >= 3) {
-                            stallTicks = 0;
+                    if (video.videoWidth > 0 && t === video._edgeLastT) {
+                        video._edgeStall = (video._edgeStall || 0) + 1;
+                        if (video._edgeStall >= 4) {
+                            video._edgeStall = 0;
                             try { playerHls.startLoad(); } catch (e) {}
-                            video.play().catch(function () {});
                         }
                     } else {
-                        stallTicks = 0;
+                        video._edgeStall = 0;
                     }
-                    lastT = t;
+                    video._edgeLastT = t;
                 } catch (e) {}
-            }, 1500);
+            }, 2000);
         }
 
         function playNativeHlsAtLiveEdge(video, streamUrl) {
@@ -1615,15 +1608,23 @@
         }
 
         function startCctvLowLatency(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg) {
-            if (cctvMode === 'hls' && playerHls && cctvVideo && cctvVideo.videoWidth > 0 && !cctvVideo.paused) {
+            if (playerHls && cctvVideo) {
+                const t = cctvVideo.currentTime || 0;
+                const moved = cctvVideo.videoWidth > 0 && t > 0 && cctvVideo._pollT !== t;
+                cctvVideo._pollT = t;
+                if (moved) {
+                    cctvVideo._pollStall = 0;
+                    cctvVideo.play().catch(() => {});
+                    revealPlayerLiveFootage();
+                    return;
+                }
+                cctvVideo._pollStall = (cctvVideo._pollStall || 0) + 1;
                 cctvVideo.play().catch(() => {});
-                revealPlayerLiveFootage();
+                if (cctvVideo._pollStall >= 2) {
+                    cctvVideo._pollStall = 0;
+                    try { playerHls.startLoad(); } catch (e) {}
+                }
                 return;
-            }
-            if (playerHls) {
-                try { playerHls.destroy(); } catch (e) {}
-                playerHls = null;
-                if (cctvVideo) cctvVideo._triedProxyHls = false;
             }
             cctvMode = 'hls';
             startHlsPlayback(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
@@ -1646,6 +1647,7 @@
 
             const showVideoWhenReady = () => {
                 if (cctvVideo.videoWidth > 0) {
+                    cctvVideo._hlsNetFails = 0;
                     if (fallbackImg) fallbackImg.classList.add('hidden');
                     stopLiveJpeg();
                     cctvVideo.style.opacity = '1';
@@ -1667,7 +1669,6 @@
                     playerHls.on(Hls.Events.ERROR, function(_, data) {
                         if (streamEndedByAdmin || !data || !playerHls) return;
                         if (!data.fatal) {
-                            cctvVideo.play().catch(() => {});
                             return;
                         }
                         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
@@ -1680,14 +1681,20 @@
                                 keepHlsAtLiveEdge(playerHls, cctvVideo);
                                 return;
                             }
-                            try { playerHls.destroy(); } catch (e) {}
-                            playerHls = null;
-                            cctvMode = null;
-                            if (cctvVideo._hlsRetryTimer) clearTimeout(cctvVideo._hlsRetryTimer);
+                            cctvVideo._hlsNetFails = (cctvVideo._hlsNetFails || 0) + 1;
+                            if (cctvVideo._hlsRetryTimer) return;
                             cctvVideo._hlsRetryTimer = setTimeout(function () {
-                                if (streamEndedByAdmin) return;
-                                startCctvLowLatency(livePlaylistUrl || playUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
-                            }, 800);
+                                cctvVideo._hlsRetryTimer = null;
+                                if (streamEndedByAdmin || !playerHls) return;
+                                const t = cctvVideo.currentTime || 0;
+                                if (cctvVideo.videoWidth > 0 && t > 0 && t !== cctvVideo._hlsRetryT) {
+                                    cctvVideo._hlsRetryT = t;
+                                    cctvVideo._hlsNetFails = 0;
+                                    return;
+                                }
+                                try { playerHls.startLoad(); } catch (e) {}
+                                cctvVideo.play().catch(() => {});
+                            }, 1000);
                         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
                             playerHls.recoverMediaError();
                             cctvVideo.play().catch(() => {});
