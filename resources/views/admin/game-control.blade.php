@@ -928,9 +928,15 @@
         if (cctvContainer) cctvContainer.classList.remove('hidden');
         if (webcamVideo) webcamVideo.classList.add('hidden');
     }
-
     let adminCctvOfflineShown = false;
     const CCTV_OFFLINE_FAIL_THRESHOLD = 8; // consecutive JPEG failures before showing offline msg
+
+    // Tracks whether the video is actually advancing frame-by-frame, not just
+    // its .paused flag (which briefly flips true during normal HLS rebuffering
+    // even while the stream is healthy).
+    let adminVideoStallCount = 0;
+    let adminLastVideoTime = -1;
+    const VIDEO_STALL_THRESHOLD = 3; // consecutive stalled ticks (~1.2s) before falling back to JPEG
 
     function showCctvOfflineOverlay() {
         if (adminCctvOfflineShown) return;
@@ -955,11 +961,27 @@
             const probe = new Image();
             probe.onload = function () {
                 const liveVideo = document.getElementById('admin-cctv-video');
-                if (liveVideo && liveVideo.videoWidth > 0 && !liveVideo.paused) {
+                const hasFrame = liveVideo && liveVideo.videoWidth > 0;
+                const currentTime = hasFrame ? liveVideo.currentTime : -1;
+                const isAdvancing = hasFrame && (currentTime !== adminLastVideoTime || !liveVideo.paused);
+                adminLastVideoTime = currentTime;
+
+                if (isAdvancing) {
+                    adminVideoStallCount = 0;
                     img.classList.add('hidden');
                     hideCctvOfflineOverlay();
                     return;
                 }
+
+                if (hasFrame) {
+                    adminVideoStallCount++;
+                    if (adminVideoStallCount < VIDEO_STALL_THRESHOLD) {
+                        // Momentary stall — don't cover the video yet, give it a
+                        // couple more ticks to resume on its own.
+                        return;
+                    }
+                }
+
                 img._jpegFailCount = 0;
                 img.src = probe.src;
                 img.classList.remove('hidden');
