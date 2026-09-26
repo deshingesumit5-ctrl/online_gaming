@@ -1445,8 +1445,8 @@
                 backBufferLength: 30,
                 maxBufferLength: 20,
                 maxMaxBufferLength: 40,
-                liveSyncDurationCount: 3,
-                liveMaxLatencyDurationCount: 10,
+                liveSyncDurationCount: 1,
+                liveMaxLatencyDurationCount: 4,
                 liveDurationInfinity: true,
                 startFragPrefetch: true,
                 manifestLoadingMaxRetry: 6,
@@ -1459,7 +1459,20 @@
         }
 
         function keepHlsAtLiveEdge(hls, video) {
-            return;
+            if (!hls || !video || video._liveEdgeIv) return;
+            video._liveEdgeIv = setInterval(function () {
+                if (streamEndedByAdmin || !playerHls) return;
+                try {
+                    const livePos = playerHls.liveSyncPosition;
+                    if (isFinite(livePos) && isFinite(video.currentTime)) {
+                        const lag = livePos - video.currentTime;
+                        if (lag > 2.5) {
+                            video.currentTime = Math.max(0, livePos);
+                        }
+                    }
+                    if (video.paused) video.play().catch(function () {});
+                } catch (e) {}
+            }, 1500);
         }
 
         function playNativeHlsAtLiveEdge(video, streamUrl) {
@@ -1588,12 +1601,15 @@
         }
 
         function startCctvLowLatency(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg) {
-            if (cctvMode === 'hls' && playerHls) {
-                if (cctvVideo) {
-                    cctvVideo.play().catch(() => {});
-                    if (cctvVideo.videoWidth > 0) revealPlayerLiveFootage();
-                }
+            if (cctvMode === 'hls' && playerHls && cctvVideo && cctvVideo.videoWidth > 0 && !cctvVideo.paused) {
+                cctvVideo.play().catch(() => {});
+                revealPlayerLiveFootage();
                 return;
+            }
+            if (playerHls) {
+                try { playerHls.destroy(); } catch (e) {}
+                playerHls = null;
+                if (cctvVideo) cctvVideo._triedProxyHls = false;
             }
             cctvMode = 'hls';
             startHlsPlayback(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
@@ -1612,7 +1628,7 @@
             cctvVideo.classList.remove('hidden');
             keepVideoRunning(cctvVideo);
             bindLiveFootageReadyWatchers(cctvVideo, fallbackImg);
-            const playUrl = streamUrl;
+            const playUrl = livePlaylistUrl || streamUrl;
 
             const showVideoWhenReady = () => {
                 if (cctvVideo.videoWidth > 0) {
@@ -1629,6 +1645,7 @@
                     playerHls = createLowLatencyHls();
                     playerHls.loadSource(playUrl);
                     playerHls.attachMedia(cctvVideo);
+                    keepHlsAtLiveEdge(playerHls, cctvVideo);
                     playerHls.on(Hls.Events.MANIFEST_PARSED, () => {
                         cctvVideo.play().catch(() => {});
                     });
@@ -1645,9 +1662,9 @@
                                 playerHls = createLowLatencyHls();
                                 playerHls.loadSource(livePlaylistUrl);
                                 playerHls.attachMedia(cctvVideo);
+                                keepHlsAtLiveEdge(playerHls, cctvVideo);
                                 return;
                             }
-                            if (fallbackImg) startLiveJpeg(fallbackImg);
                             try { playerHls.destroy(); } catch (e) {}
                             playerHls = null;
                             cctvMode = null;
@@ -1655,7 +1672,7 @@
                             cctvVideo._hlsRetryTimer = setTimeout(function () {
                                 if (streamEndedByAdmin) return;
                                 startCctvLowLatency(livePlaylistUrl || playUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
-                            }, 2000);
+                            }, 1500);
                         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
                             playerHls.recoverMediaError();
                             cctvVideo.play().catch(() => {});
@@ -1717,7 +1734,7 @@
                         finishLiveFootageReveal();
                     } else if (streamUrl.toLowerCase().includes('.m3u8')) {
                         if (fallbackImg) fallbackImg.classList.add('hidden');
-                        startCctvLowLatency(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
+                        startCctvLowLatency(livePlaylistUrl || streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
                     } else {
                         // Direct video file/feed (MP4 / WebM)
                         if (fallbackImg) fallbackImg.classList.add('hidden');

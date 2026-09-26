@@ -30,7 +30,7 @@
         width: 100%;
         height: 100%;
         object-fit: cover;
-        z-index: 3;
+        z-index: 1;
     }
     #admin-cctv-video {
         position: relative;
@@ -198,7 +198,7 @@
                 * Note: Betting Window is repeatable multiple times during active session
             </span>
         </div>
-        <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin text-[10px] font-bold">
+        <div class="gc-workflow-row flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin text-[10px] font-bold">
             @foreach($workflowSteps as $idx => $step)
                 @php
                     $isPassed = ($idx < $currentStepIndex);
@@ -227,7 +227,7 @@
     </div>
 
     <!-- PRIMARY 4-STEP CONTROL MATRIX (Exact Ordered Sequence 1 -> 2 -> 3 -> 4) -->
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+    <div class="gc-control-matrix grid grid-cols-1 lg:grid-cols-2 gap-5">
         
         <!-- STEP 1: Assign Open First Card (Joker) -->
         <div class="glass-panel p-5 border-slate-800 flex flex-col justify-between">
@@ -855,8 +855,8 @@
             backBufferLength: 30,
             maxBufferLength: 20,
             maxMaxBufferLength: 40,
-            liveSyncDurationCount: 3,
-            liveMaxLatencyDurationCount: 10,
+            liveSyncDurationCount: 1,
+            liveMaxLatencyDurationCount: 4,
             liveDurationInfinity: true,
             startFragPrefetch: true,
             manifestLoadingMaxRetry: 6,
@@ -951,6 +951,11 @@
         if (overlay) overlay.classList.add('hidden');
     }
 
+    function hideAdminLiveJpeg() {
+        const img = document.getElementById('admin-cctv-live-jpg');
+        if (img) img.classList.add('hidden');
+    }
+
     function startAdminLiveJpeg() {
         const cctvContainer = document.getElementById('admin-cctv-stream-container');
         const img = document.getElementById('admin-cctv-live-jpg');
@@ -958,41 +963,30 @@
         if (cctvContainer) cctvContainer.classList.remove('hidden');
         const tick = () => {
             if (!adminWantsLive) return;
+            const liveVideo = document.getElementById('admin-cctv-video');
+            if (adminHls || isAdminVideoPlaying(liveVideo)) {
+                adminVideoStallCount = 0;
+                hideAdminLiveJpeg();
+                hideCctvOfflineOverlay();
+                return;
+            }
             const probe = new Image();
             probe.onload = function () {
-                const liveVideo = document.getElementById('admin-cctv-video');
-                const hasFrame = liveVideo && liveVideo.videoWidth > 0;
-                const currentTime = hasFrame ? liveVideo.currentTime : -1;
-                const isAdvancing = hasFrame && (currentTime !== adminLastVideoTime || !liveVideo.paused);
-                adminLastVideoTime = currentTime;
-
-                if (isAdvancing) {
-                    adminVideoStallCount = 0;
-                    img.classList.add('hidden');
-                    hideCctvOfflineOverlay();
-                    return;
-                }
-
-                if (hasFrame) {
-                    adminVideoStallCount++;
-                    if (adminVideoStallCount < VIDEO_STALL_THRESHOLD) {
-                        // Momentary stall — don't cover the video yet, give it a
-                        // couple more ticks to resume on its own.
-                        return;
-                    }
-                }
-
                 img._jpegFailCount = 0;
-                img.src = probe.src;
-                img.classList.remove('hidden');
                 hideCctvOfflineOverlay();
                 const whiteScreen = document.getElementById('admin-stream-white-screen');
                 if (whiteScreen) whiteScreen.classList.add('hidden');
+                if (adminHls || isAdminVideoPlaying(document.getElementById('admin-cctv-video'))) {
+                    hideAdminLiveJpeg();
+                    return;
+                }
+                img.src = probe.src;
+                img.classList.remove('hidden');
             };
             probe.onerror = function () {
                 img._jpegFailCount = (img._jpegFailCount || 0) + 1;
                 if (img._jpegFailCount >= CCTV_OFFLINE_FAIL_THRESHOLD) {
-                                       const lv = document.getElementById('admin-cctv-video');
+                    const lv = document.getElementById('admin-cctv-video');
                     if (lv && lv.videoWidth > 0 && !lv.paused) { hideCctvOfflineOverlay(); return; }
                     showCctvOfflineOverlay();
                 }
@@ -1033,6 +1027,7 @@
         adminHls = createLowLatencyHls();
         adminHls.loadSource(playUrl);
         adminHls.attachMedia(video);
+        keepHlsAtLiveEdge(adminHls, video);
         adminHls.on(Hls.Events.MANIFEST_PARSED, () => {
             video.play().catch(() => {});
         });
@@ -1041,8 +1036,7 @@
             video.addEventListener('playing', function () {
                 if (video.videoWidth > 0) {
                     adminHlsFatalFailCount = 0;
-                    const jpg = document.getElementById('admin-cctv-live-jpg');
-                    if (jpg) jpg.classList.add('hidden');
+                    hideAdminLiveJpeg();
                     hideCctvOfflineOverlay();
                     stopCctvReconnectWatchdog();
                 }
@@ -1084,8 +1078,6 @@
                 adminHlsFatalFailCount = 0;
                 try { adminHls.destroy(); } catch (e) {}
                 adminHls = null;
-                showCctvOfflineOverlay();
-                startAdminLiveJpeg();
                 startCctvReconnectWatchdog();
                 return;
             }
@@ -1094,9 +1086,10 @@
                 video.play().catch(() => {});
             }
         });
-        video.onclick = function() {
+            video.onclick = function() {
             video.play().catch(() => {});
         };
+        hideAdminLiveJpeg();
     }
 
     function startAdminHlsWatchdog(video) {
@@ -1211,7 +1204,20 @@
     }
 
     function keepHlsAtLiveEdge(hls, video) {
-        return;
+        if (!hls || !video || video._liveEdgeIv) return;
+        video._liveEdgeIv = setInterval(function () {
+            if (!adminWantsLive || !adminHls) return;
+            try {
+                const livePos = adminHls.liveSyncPosition;
+                if (isFinite(livePos) && isFinite(video.currentTime)) {
+                    const lag = livePos - video.currentTime;
+                    if (lag > 2.5) {
+                        video.currentTime = Math.max(0, livePos);
+                    }
+                }
+                if (video.paused) video.play().catch(function () {});
+            } catch (e) {}
+        }, 1500);
     }
 
     function playNativeHlsAtLiveEdge(video, streamUrl) {
@@ -1235,7 +1241,7 @@
             adminWantsLive = true;
             showAdminCctvStage();
             existingVideo.play().catch(() => {});
-            startAdminLiveJpeg();
+            hideAdminLiveJpeg();
             return;
         }
         // If HLS exists but is stalled, destroy it so attachAdminHls can re-init
@@ -1259,7 +1265,7 @@
 
             if (rawUrl || parsed) {
                 showAdminCctvStage();
-                startAdminLiveJpeg();
+                hideAdminLiveJpeg();
 
                 if (parsed && parsed.type === 'youtube') {
                     if (cctvVideo) cctvVideo.classList.add('hidden');
@@ -1288,15 +1294,11 @@
                             }
                         } catch (e) { cameraUp = false; }
 
-                        if (cameraUp) {
-                            hideCctvOfflineOverlay();
-                            stopCctvReconnectWatchdog();
-                            attachAdminHls(cctvVideo, livePlaylistUrl, null);
-                            startAdminHlsWatchdog(cctvVideo);
-                        } else {
-                            // CCTV is unreachable — show offline overlay and retry within seconds.
-                            showCctvOfflineOverlay();
-                            startAdminLiveJpeg();
+                        hideCctvOfflineOverlay();
+                        stopCctvReconnectWatchdog();
+                        attachAdminHls(cctvVideo, livePlaylistUrl, null);
+                        startAdminHlsWatchdog(cctvVideo);
+                        if (!cameraUp) {
                             startCctvReconnectWatchdog();
                         }
                     }
@@ -1352,8 +1354,7 @@
                 body: JSON.stringify({ action: 'start_stream' })
             });
 
-            setTimeout(startAdminLiveJpeg, 600);
-            setTimeout(startAdminLiveJpeg, 1600);
+            setTimeout(startAdminLiveJpeg, 2500);
 
             const activeVideoEl = parsed && parsed.type !== 'youtube' ? cctvVideo : (!parsed ? webcamVideo : null);
             if (frameBroadcastInterval) clearInterval(frameBroadcastInterval);

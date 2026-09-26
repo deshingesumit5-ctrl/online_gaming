@@ -160,7 +160,7 @@
         </div>
     </div>
 
-    <!    <!-- Centered Square Alert Banner in Center of Laptop -->
+    <!-- Centered Square Alert Banner in Center of Laptop -->
     @if(session('success') || session('error') || session('warning') || session('info'))
     <div id="alert-overlay" class="fixed inset-0 z-[9999] flex items-center justify-center p-4" style="background: rgba(0,0,0,0.65); backdrop-filter: blur(5px);">
         <div id="alert-banner" class="relative flex flex-col items-center justify-between p-6 sm:p-7 rounded-3xl shadow-2xl border transition-all"
@@ -260,6 +260,7 @@
             function openSidebar() {
                 if (sidebar && backdrop) {
                     sidebar.classList.remove('-translate-x-full');
+                    sidebar.style.transform = 'translateX(0)';
                     backdrop.classList.remove('hidden');
                 }
             }
@@ -267,6 +268,7 @@
             function closeSidebar() {
                 if (sidebar && backdrop) {
                     sidebar.classList.add('-translate-x-full');
+                    sidebar.style.transform = 'translateX(-100%)';
                     backdrop.classList.add('hidden');
                 }
             }
