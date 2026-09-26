@@ -722,7 +722,9 @@
     // Live Camera Streaming Setup
     let adminMediaStream = null;
     let frameBroadcastInterval = null;
-    let adminHls = null;
+        let adminHls = null;
+    let adminHlsFatalFailCount = 0;
+    const HLS_FATAL_FAIL_THRESHOLD = 3; // require 3 consecutive fatal errors before declaring offline
     let adminWantsLive = {{ $room->is_streaming ? 'true' : 'false' }};
     let adminHlsWatchdog = null;
     let adminStreamStarting = false;
@@ -926,7 +928,6 @@
         if (cctvContainer) cctvContainer.classList.remove('hidden');
         if (webcamVideo) webcamVideo.classList.add('hidden');
     }
-
     let adminCctvOfflineShown = false;
     const CCTV_OFFLINE_FAIL_THRESHOLD = 8; // consecutive JPEG failures before showing offline msg
 
@@ -965,11 +966,27 @@
             const probe = new Image();
             probe.onload = function () {
                 const liveVideo = document.getElementById('admin-cctv-video');
-                if (liveVideo && liveVideo.videoWidth > 0 && !liveVideo.paused) {
+                const hasFrame = liveVideo && liveVideo.videoWidth > 0;
+                const currentTime = hasFrame ? liveVideo.currentTime : -1;
+                const isAdvancing = hasFrame && (currentTime !== adminLastVideoTime || !liveVideo.paused);
+                adminLastVideoTime = currentTime;
+
+                if (isAdvancing) {
+                    adminVideoStallCount = 0;
                     img.classList.add('hidden');
                     hideCctvOfflineOverlay();
                     return;
                 }
+
+                if (hasFrame) {
+                    adminVideoStallCount++;
+                    if (adminVideoStallCount < VIDEO_STALL_THRESHOLD) {
+                        // Momentary stall — don't cover the video yet, give it a
+                        // couple more ticks to resume on its own.
+                        return;
+                    }
+                }
+
                 img._jpegFailCount = 0;
                 img.src = probe.src;
                 img.classList.remove('hidden');
@@ -1024,10 +1041,11 @@
         adminHls.on(Hls.Events.MANIFEST_PARSED, () => {
             video.play().catch(() => {});
         });
-        if (!video._hideOverlayOnPlayBound) {
+            if (!video._hideOverlayOnPlayBound) {
             video._hideOverlayOnPlayBound = true;
             video.addEventListener('playing', function () {
                 if (video.videoWidth > 0) {
+                    adminHlsFatalFailCount = 0;
                     const jpg = document.getElementById('admin-cctv-live-jpg');
                     if (jpg) jpg.classList.add('hidden');
                     hideCctvOfflineOverlay();
@@ -1051,8 +1069,24 @@
                     attachAdminHls(video, fallbackUrl, null);
                     return;
                 }
-                // Segments failing (CCTV offline) — show offline msg + start watchdog.
-                // Destroy HLS so it stops spawning 502 errors, then retry playlist quickly.
+
+                adminHlsFatalFailCount++;
+                if (adminHlsFatalFailCount < HLS_FATAL_FAIL_THRESHOLD) {
+                    // Transient blip — give it a moment to recover on its own
+                    // before tearing anything down or showing the offline overlay.
+                    setTimeout(() => {
+                        if (adminHls && adminWantsLive) {
+                            try {
+                                adminHls.loadSource(playUrl);
+                                adminHls.attachMedia(video);
+                            } catch (e) {}
+                        }
+                    }, 800);
+                    return;
+                }
+
+                // Sustained failure across several attempts — now treat as offline.
+                adminHlsFatalFailCount = 0;
                 try { adminHls.destroy(); } catch (e) {}
                 adminHls = null;
                 showCctvOfflineOverlay('stream');
@@ -1994,8 +2028,4 @@
             if (btn.disabled) return;
             btn.dataset.originalHtml = btn.innerHTML;
             btn.disabled = true;
-            btn.innerHTML = btn.dataset.busyText || 'Processing...';
-        });
-    });
-</script>
-@endsection
+            btn.innerHTML = btn.dataset.busyText || 'Processing
