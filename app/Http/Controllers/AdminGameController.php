@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Bet;
 use App\Models\BettingWindow;
+use App\Models\Card;
 use App\Models\GameRound;
 use App\Models\Room;
 use App\Models\User;
@@ -188,6 +189,7 @@ class AdminGameController extends Controller
         $sessionProcessed = (float) Bet::where('game_round_id', $currentRound->id)->whereIn('status', ['won', 'lost'])->sum('amount');
 
         $cardDeck = $this->getCardDeck();
+        $shortcutCards = $this->shortcutCards();
 
         return view('admin.game-control', compact(
             'room',
@@ -200,6 +202,7 @@ class AdminGameController extends Controller
             'totalBaharAmount',
             'recentRounds',
             'cardDeck',
+            'shortcutCards',
             'bettingWindows',
             'currentWindow',
             'auditLogs',
@@ -216,6 +219,7 @@ class AdminGameController extends Controller
         $request->validate([
             'action' => ['required', 'in:start_round,open_betting,close_betting,declare_result,create_new_round,update_stream,update_room_timings,start_stream,end_stream,update_first_card,hide_card_overlay,confirm_first_card'],
             'first_card' => ['nullable', 'string'],
+            'card_photo' => ['nullable', 'string', 'max:500'],
             'winning_side' => ['nullable', 'in:andar,bahar'],
             'first_card_matched' => ['nullable', 'boolean'],
             'live_stream_url' => ['nullable', 'string', 'max:500'],
@@ -316,7 +320,7 @@ class AdminGameController extends Controller
                 'first_card' => $firstCard,
             ]);
 
-            $this->storeCardOverlay($roomId, $firstCard, $request->input('x'), $request->input('y'), $request->input('scale'));
+            $this->storeCardOverlay($roomId, $firstCard, $request->input('x'), $request->input('y'), $request->input('scale'), $request->input('card_photo'));
 
             if ($request->wantsJson()) {
                 return response()->json([
@@ -583,17 +587,50 @@ class AdminGameController extends Controller
         ], 3600);
     }
 
-    private function storeCardOverlay(int $roomId, string $firstCard, $x = null, $y = null, $scale = null): void
+    private function storeCardOverlay(int $roomId, string $firstCard, $x = null, $y = null, $scale = null, $photo = null): void
     {
         $prev = \Illuminate\Support\Facades\Cache::get("room_card_overlay_{$roomId}");
+        $photoUrl = is_string($photo) ? trim($photo) : '';
         \Illuminate\Support\Facades\Cache::put("room_card_overlay_{$roomId}", [
             'first_card' => $firstCard,
             'hidden' => false,
+            'card_photo' => $photoUrl !== '' ? $photoUrl : (is_array($prev) ? ($prev['card_photo'] ?? null) : null),
             'x' => $x !== null ? (float) $x : (float) (is_array($prev) ? ($prev['x'] ?? 0.48) : 0.48),
             'y' => $y !== null ? (float) $y : (float) (is_array($prev) ? ($prev['y'] ?? 0.58) : 0.58),
             'scale' => $scale !== null ? (float) $scale : (float) (is_array($prev) ? ($prev['scale'] ?? 1) : 1),
             't' => (int) round(microtime(true) * 1000),
         ], 3600);
+    }
+
+    private function shortcutCards()
+    {
+        try {
+            if (!Schema::hasTable('cards')) {
+                return [];
+            }
+
+            return Card::query()
+                ->where('is_active', true)
+                ->whereNotNull('code')
+                ->where('code', '!=', '')
+                ->orderBy('code')
+                ->get()
+                ->map(function (Card $card) {
+                    $path = str_replace('\\', '/', ltrim((string) $card->photo_path, '/'));
+                    $photo = $path !== '' ? asset($path) : null;
+
+                    return [
+                        'shortcut' => strtoupper(trim((string) $card->code)),
+                        'name' => $card->name,
+                        'photo' => $photo,
+                    ];
+                })
+                ->filter(fn (array $card) => $card['shortcut'] !== '' && !empty($card['photo']))
+                ->values()
+                ->all();
+        } catch (\Throwable $e) {
+            return [];
+        }
     }
 
     private function getCardDeck(): array

@@ -1801,7 +1801,13 @@
         }
     }
 
-    function paintAdminOverlayCard(code, x, y, scale) {
+    const shortcutCards = @json($shortcutCards ?? []);
+    const defaultOverlayPhoto = @json(asset('images/overlay-9-hearts.jpg'));
+    let adminOverlayPhoto = defaultOverlayPhoto;
+    let shortcutBuffer = '';
+    let shortcutTimer = null;
+
+    function paintAdminOverlayCard(code, x, y, scale, photoUrl) {
         const overlay = document.getElementById('admin-live-card-overlay');
         const rankEl = document.getElementById('admin-live-card-rank');
         const rankB = document.getElementById('admin-live-card-rank-b');
@@ -1810,6 +1816,12 @@
         const pips = document.getElementById('admin-live-card-pips');
         if (!overlay || !code) return;
         adminOverlayCard = code;
+        adminOverlayPhoto = photoUrl || defaultOverlayPhoto;
+        const photo = overlay.querySelector('.card-photo');
+        if (photo) {
+            photo.src = adminOverlayPhoto;
+            photo.alt = code;
+        }
         if (x != null) adminOverlayX = Number(x);
         if (y != null) adminOverlayY = Number(y);
         if (scale != null && isFinite(Number(scale))) adminOverlayScale = Number(scale);
@@ -1864,6 +1876,7 @@
             streamChannel.postMessage({
                 type: 'overlay_card',
                 first_card: adminOverlayCard,
+                card_photo: adminOverlayPhoto,
                 card_x: adminOverlayX,
                 card_y: adminOverlayY,
                 card_scale: adminOverlayScale,
@@ -1882,6 +1895,7 @@
             body: JSON.stringify({
                 action: 'update_first_card',
                 first_card: adminOverlayCard,
+                card_photo: adminOverlayPhoto,
                 x: adminOverlayX,
                 y: adminOverlayY,
                 scale: adminOverlayScale
@@ -1930,6 +1944,40 @@
             return;
         }
 
+        if (!e.repeat && !e.ctrlKey && !e.altKey && !e.metaKey && /^[a-zA-Z0-9]$/.test(e.key) && shortcutCards.length) {
+            shortcutBuffer = (shortcutBuffer + e.key).toUpperCase().slice(-8);
+            if (shortcutTimer) clearTimeout(shortcutTimer);
+            const exact = shortcutCards.find(function (card) {
+                return String(card.shortcut || '').toUpperCase() === shortcutBuffer;
+            });
+            if (exact && exact.photo) {
+                shortcutBuffer = '';
+                e.preventDefault();
+                let placeX = adminOverlayX;
+                let placeY = adminOverlayY;
+                if (lastAdminPointer) {
+                    const atCursor = coverCoordsFromClient(lastAdminPointer.x, lastAdminPointer.y);
+                    if (atCursor) {
+                        placeX = atCursor.x;
+                        placeY = atCursor.y;
+                    }
+                }
+                adminOverlayScale = NEW_CARD_DEFAULT_SCALE;
+                paintAdminOverlayCard(exact.shortcut, placeX, placeY, NEW_CARD_DEFAULT_SCALE, exact.photo);
+                publishOverlayCard();
+                return;
+            }
+            const partial = shortcutCards.some(function (card) {
+                return String(card.shortcut || '').toUpperCase().indexOf(shortcutBuffer) === 0;
+            });
+            if (partial) {
+                shortcutTimer = setTimeout(function () { shortcutBuffer = ''; }, 900);
+                e.preventDefault();
+                return;
+            }
+            shortcutBuffer = '';
+        }
+
         const rankMap = {
             '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7', '8': '8', '9': '9', '0': '10'
         };
@@ -1955,7 +2003,7 @@
             }
         }
         adminOverlayScale = NEW_CARD_DEFAULT_SCALE;
-        paintAdminOverlayCard(newCode, placeX, placeY, NEW_CARD_DEFAULT_SCALE);
+        paintAdminOverlayCard(newCode, placeX, placeY, NEW_CARD_DEFAULT_SCALE, defaultOverlayPhoto);
         publishOverlayCard();
     });
 

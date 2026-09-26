@@ -66,17 +66,13 @@
 
     <div class="rounded-2xl border border-slate-700/70 bg-[#0c1324]/90 overflow-hidden" x-show="cards.length > 0">
         <div class="overflow-x-auto">
-            <table class="card-master-table w-full min-w-[860px]">
+            <table class="card-master-table w-full min-w-[640px]">
                 <thead>
                     <tr>
                         <th class="w-12">#</th>
                         <th class="w-24">Thumbnail</th>
                         <th>Card name</th>
-                        <th>Rank</th>
-                        <th>Suit</th>
-                        <th>Value</th>
-                        <th>Code</th>
-                        <th>Status</th>
+                        <th>Short Cut Key</th>
                         <th class="text-right">Actions</th>
                     </tr>
                 </thead>
@@ -91,27 +87,13 @@
                                          :alt="card.name"
                                          class="w-full h-full object-cover"
                                          @@error="onPhotoError(card)">
-                                    <span x-show="!card.photo_url" class="text-2xl text-amber-200" x-text="suitIcon(card.suit)"></span>
+                                    <span x-show="!card.photo_url" class="text-2xl text-amber-200">🂠</span>
                                 </div>
                             </td>
                             <td>
                                 <div class="font-semibold text-white" x-text="card.name"></div>
-                                <div class="text-[11px] text-slate-400 mt-0.5" x-show="card.description" x-text="card.description"></div>
                             </td>
-                            <td class="font-semibold text-amber-200" x-text="card.rank || '—'"></td>
-                            <td>
-                                <span class="inline-flex items-center gap-1.5">
-                                    <span x-text="suitIcon(card.suit)"></span>
-                                    <span x-text="card.suit || '—'"></span>
-                                </span>
-                            </td>
-                            <td class="font-mono" x-text="card.value ?? '—'"></td>
-                            <td class="font-mono text-slate-300" x-text="card.code || '—'"></td>
-                            <td>
-                                <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider"
-                                      :class="card.is_active ? 'bg-emerald-950 text-emerald-300 border border-emerald-500/40' : 'bg-slate-800 text-slate-400 border border-slate-700'"
-                                      x-text="card.is_active ? 'Active' : 'Inactive'"></span>
-                            </td>
+                            <td class="font-mono font-bold text-amber-200" x-text="card.code || '—'"></td>
                             <td>
                                 <div class="flex items-center justify-end gap-2">
                                     <button type="button" @click="openEdit(card)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold border border-slate-600">Edit</button>
@@ -139,34 +121,10 @@
                     <p class="text-red-400 text-xs mt-1" x-show="errors.name" x-text="errors.name"></p>
                 </div>
                 <div>
-                    <label class="block text-[11px] font-bold uppercase tracking-wider text-emerald-200/80 mb-1">Rank</label>
-                    <select x-model="form.rank" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white focus:border-amber-400">
-                        <option value="">Select rank</option>
-                        @foreach($ranks as $rank)
-                            <option value="{{ $rank }}">{{ $rank }}</option>
-                        @endforeach
-                    </select>
-                    <p class="text-red-400 text-xs mt-1" x-show="errors.rank" x-text="errors.rank"></p>
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold uppercase tracking-wider text-emerald-200/80 mb-1">Suit</label>
-                    <select x-model="form.suit" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white focus:border-amber-400">
-                        <option value="">Select suit</option>
-                        @foreach($suits as $suit)
-                            <option value="{{ $suit }}">{{ $suit }}</option>
-                        @endforeach
-                    </select>
-                    <p class="text-red-400 text-xs mt-1" x-show="errors.suit" x-text="errors.suit"></p>
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold uppercase tracking-wider text-emerald-200/80 mb-1">Value</label>
-                    <input type="number" x-model="form.value" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white focus:border-amber-400">
-                    <p class="text-red-400 text-xs mt-1" x-show="errors.value" x-text="errors.value"></p>
-                </div>
-                <div>
-                    <label class="block text-[11px] font-bold uppercase tracking-wider text-emerald-200/80 mb-1">Card code</label>
-                    <input type="text" x-model="form.code" maxlength="20" placeholder="AS-01" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white focus:border-amber-400">
-                    <p class="text-red-400 text-xs mt-1" x-show="errors.code" x-text="errors.code"></p>
+                    <label class="block text-[11px] font-bold uppercase tracking-wider text-emerald-200/80 mb-1">Short Cut Key</label>
+                    <input type="text" x-model="form.shortcut_key" maxlength="8" placeholder="A1" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white focus:border-amber-400 uppercase">
+                    <p class="text-[11px] text-slate-400 mt-1">Example: A1, A2. Press this on the live camera to show this card photo.</p>
+                    <p class="text-red-400 text-xs mt-1" x-show="errors.shortcut_key" x-text="errors.shortcut_key"></p>
                 </div>
                 <div>
                     <label class="block text-[11px] font-bold uppercase tracking-wider text-emerald-200/80 mb-1">Photo</label>
@@ -174,16 +132,6 @@
                     <img x-show="previewUrl" :src="previewUrl" alt="Preview" class="mt-2 h-28 rounded-xl object-cover border border-amber-500/30">
                     <p class="text-red-400 text-xs mt-1" x-show="errors.photo" x-text="errors.photo"></p>
                 </div>
-                <div>
-                    <label class="block text-[11px] font-bold uppercase tracking-wider text-emerald-200/80 mb-1">Description</label>
-                    <textarea x-model="form.description" rows="3" maxlength="1000" class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm text-white focus:border-amber-400"></textarea>
-                    <p class="text-red-400 text-xs mt-1" x-show="errors.description" x-text="errors.description"></p>
-                </div>
-                <label class="flex items-center gap-2 text-sm text-emerald-100">
-                    <input type="checkbox" x-model="form.is_active" class="rounded border-slate-600">
-                    Active
-                </label>
-                <p class="text-red-400 text-xs" x-show="errors.is_active" x-text="errors.is_active"></p>
 
                 <button type="submit"
                         :disabled="saving"
@@ -211,18 +159,10 @@
             errors: {},
             form: {
                 name: '',
-                rank: '',
-                suit: '',
-                value: '',
-                code: '',
-                description: '',
-                is_active: true
+                shortcut_key: ''
             },
             csrf() {
                 return document.querySelector('meta[name="csrf-token"]')?.content || '';
-            },
-            suitIcon(suit) {
-                return { Spades: '♠', Hearts: '♥', Diamonds: '♦', Clubs: '♣', None: '★' }[suit] || '🂠';
             },
             onPhotoError(card) {
                 if (!card || !card.photo_url) return;
@@ -234,7 +174,7 @@
                 card.photo_url = '';
             },
             resetForm() {
-                this.form = { name: '', rank: '', suit: '', value: '', code: '', description: '', is_active: true };
+                this.form = { name: '', shortcut_key: '' };
                 this.errors = {};
                 this.photoFile = null;
                 this.previewUrl = '';
@@ -248,12 +188,7 @@
                 this.resetForm();
                 this.editingId = card.id;
                 this.form.name = card.name || '';
-                this.form.rank = card.rank || '';
-                this.form.suit = card.suit || '';
-                this.form.value = card.value ?? '';
-                this.form.code = card.code || '';
-                this.form.description = card.description || '';
-                this.form.is_active = !!card.is_active;
+                this.form.shortcut_key = card.code || '';
                 this.previewUrl = card.photo_url || '';
                 this.modalOpen = true;
             },
@@ -282,12 +217,7 @@
                 this.errors = {};
                 const fd = new FormData();
                 fd.append('name', this.form.name);
-                fd.append('rank', this.form.rank);
-                fd.append('suit', this.form.suit || '');
-                if (this.form.value !== '' && this.form.value !== null) fd.append('value', this.form.value);
-                fd.append('code', this.form.code || '');
-                fd.append('description', this.form.description || '');
-                fd.append('is_active', this.form.is_active ? '1' : '0');
+                fd.append('shortcut_key', (this.form.shortcut_key || '').trim());
                 if (this.photoFile) fd.append('photo', this.photoFile);
 
                 let url = @json(route('admin.cards.store'));
@@ -311,13 +241,8 @@
                         const bag = data.errors || {};
                         this.errors = {
                             name: this.fieldError(bag, 'name'),
-                            rank: this.fieldError(bag, 'rank'),
-                            suit: this.fieldError(bag, 'suit'),
-                            value: this.fieldError(bag, 'value'),
-                            code: this.fieldError(bag, 'code'),
-                            description: this.fieldError(bag, 'description'),
-                            photo: this.fieldError(bag, 'photo'),
-                            is_active: this.fieldError(bag, 'is_active')
+                            shortcut_key: this.fieldError(bag, 'shortcut_key'),
+                            photo: this.fieldError(bag, 'photo')
                         };
                         return;
                     }

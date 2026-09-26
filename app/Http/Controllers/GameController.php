@@ -433,6 +433,7 @@ class GameController extends Controller
             'card_x' => is_array($overlay) ? ($overlay['x'] ?? 0.48) : null,
             'card_y' => is_array($overlay) ? ($overlay['y'] ?? 0.58) : null,
             'card_scale' => is_array($overlay) ? ($overlay['scale'] ?? 1) : null,
+            'card_photo' => is_array($overlay) ? ($overlay['card_photo'] ?? null) : null,
             'card_hidden' => is_array($overlay) ? !empty($overlay['hidden']) : false,
         ]);
     }

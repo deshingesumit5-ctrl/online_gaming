@@ -135,10 +135,11 @@ class CardController extends Controller
     public function store(Request $request): JsonResponse|RedirectResponse
     {
         $validated = $this->validatedPayload($request);
-        unset($validated['photo']);
+        unset($validated['photo'], $validated['shortcut_key']);
         $validated['photo_path'] = $this->storePhoto($request);
-        $validated['is_active'] = $request->boolean('is_active', true);
-        $validated['code'] = $this->nullableCode($request);
+        $validated['rank'] = 'Custom';
+        $validated['is_active'] = true;
+        $validated['code'] = $this->shortcutKey($request);
 
         $card = Card::create($validated);
 
@@ -156,9 +157,10 @@ class CardController extends Controller
     public function update(Request $request, Card $card): JsonResponse|RedirectResponse
     {
         $validated = $this->validatedPayload($request, $card);
-        unset($validated['photo']);
-        $validated['is_active'] = $request->boolean('is_active');
-        $validated['code'] = $this->nullableCode($request);
+        unset($validated['photo'], $validated['shortcut_key']);
+        $validated['rank'] = $card->rank ?: 'Custom';
+        $validated['is_active'] = true;
+        $validated['code'] = $this->shortcutKey($request);
 
         if ($request->hasFile('photo')) {
             $this->deletePhoto($card->photo_path);
@@ -195,20 +197,20 @@ class CardController extends Controller
 
     private function validatedPayload(Request $request, ?Card $card = null): array
     {
+        $request->merge([
+            'shortcut_key' => strtoupper(trim((string) $request->input('shortcut_key', ''))),
+        ]);
+
         return $request->validate([
             'name' => ['required', 'string', 'max:100'],
-            'rank' => ['required', Rule::in(self::RANKS)],
-            'suit' => ['nullable', Rule::in(self::SUITS)],
-            'value' => ['nullable', 'integer'],
-            'code' => [
-                'nullable',
+            'shortcut_key' => [
+                'required',
                 'string',
-                'max:20',
+                'max:8',
+                'regex:/^[A-Za-z][A-Za-z0-9]{1,7}$/',
                 Rule::unique('cards', 'code')->ignore($card?->id),
             ],
-            'description' => ['nullable', 'string', 'max:1000'],
-            'photo' => ['nullable', 'image', 'max:4096'],
-            'is_active' => ['nullable', 'boolean'],
+            'photo' => [$card ? 'nullable' : 'required', 'image', 'max:4096'],
         ]);
     }
 
@@ -250,11 +252,9 @@ class CardController extends Controller
         }
     }
 
-    private function nullableCode(Request $request): ?string
+    private function shortcutKey(Request $request): string
     {
-        $code = trim((string) $request->input('code', ''));
-
-        return $code === '' ? null : $code;
+        return strtoupper(trim((string) $request->input('shortcut_key', '')));
     }
 
     private function wantsCardJson(Request $request): bool

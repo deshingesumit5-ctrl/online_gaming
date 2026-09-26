@@ -1145,7 +1145,7 @@
                     if (msg.card_hidden || !msg.first_card) {
                         applyLiveCardOverlay(null);
                     } else {
-                        applyLiveCardOverlay(msg.first_card, msg.card_x, msg.card_y, msg.card_scale);
+                        applyLiveCardOverlay(msg.first_card, msg.card_x, msg.card_y, msg.card_scale, msg.card_photo);
                     }
                 }
             };
@@ -1227,7 +1227,7 @@
             if (pendingLiveCard !== undefined) {
                 const pending = pendingLiveCard;
                 pendingLiveCard = undefined;
-                applyLiveCardOverlay(pending.cardCode, pending.x, pending.y, pending.scale);
+                applyLiveCardOverlay(pending.cardCode, pending.x, pending.y, pending.scale, pending.photo);
             }
         }
 
@@ -1353,7 +1353,9 @@
             overlay.style.transform = 'translate(-50%, -50%)';
         }
 
-        function applyLiveCardOverlay(cardCode, x, y, scale) {
+        const defaultOverlayPhoto = @json(asset('images/overlay-9-hearts.jpg'));
+
+        function applyLiveCardOverlay(cardCode, x, y, scale, photo) {
             const overlay = document.getElementById('player-live-card-overlay');
             const rankEl = document.getElementById('player-live-card-rank');
             const rankB = document.getElementById('player-live-card-rank-b');
@@ -1364,11 +1366,11 @@
             if (!overlay) return;
             if (!cardCode) {
                 overlay.classList.remove('is-visible');
-                pendingLiveCard = liveFootageReady ? undefined : { cardCode: null, x: null, y: null, scale: null };
+                pendingLiveCard = liveFootageReady ? undefined : { cardCode: null, x: null, y: null, scale: null, photo: null };
                 return;
             }
             if (!liveFootageReady || !window._isStreamActive) {
-                pendingLiveCard = { cardCode, x, y, scale };
+                pendingLiveCard = { cardCode, x, y, scale, photo: photo || null };
                 overlay.classList.remove('is-visible');
                 if (hudRank) {
                     const rawHud = String(cardCode).split('_')[0].toUpperCase();
@@ -1387,6 +1389,8 @@
             if (indexSuit) indexSuit.textContent = symbol;
             if (indexSuitB) indexSuitB.textContent = symbol;
             fillOverlayPips(pips, symbol, overlayPipCount(raw), 'player-live-card-suit');
+            const photoEl = overlay.querySelector('.card-photo');
+            if (photoEl) photoEl.src = photo || defaultOverlayPhoto;
             overlay.classList.add('is-visible');
             overlay.classList.add('is-red');
             overlay.classList.remove('is-black');
@@ -1420,7 +1424,7 @@
             if (t && t < lastPenT) return;
             if (t) lastPenT = t;
             if (pos.card_hidden) applyLiveCardOverlay(null);
-            else if (pos.first_card) applyLiveCardOverlay(pos.first_card, pos.card_x, pos.card_y, pos.card_scale);
+            else if (pos.first_card) applyLiveCardOverlay(pos.first_card, pos.card_x, pos.card_y, pos.card_scale, pos.card_photo);
             // Yellow cursor mark is for admin only - do not show to players
             if (playerPenMarker) {
                 playerPenMarker.style.display = 'none';
