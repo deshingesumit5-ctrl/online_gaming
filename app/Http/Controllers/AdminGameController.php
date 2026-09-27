@@ -29,10 +29,11 @@ class AdminGameController extends Controller
     public static function ensureSchema(): void
     {
         try {
-            if (!Schema::hasTable('betting_windows') || 
-                !Schema::hasTable('audit_logs') || 
+            if (!Schema::hasTable('betting_windows') ||
+                !Schema::hasTable('audit_logs') ||
                 !Schema::hasColumn('game_rounds', 'payout_mode') ||
-                !Schema::hasColumn('bets', 'betting_window_id')) {
+                !Schema::hasColumn('bets', 'betting_window_id') ||
+                !Schema::hasColumn('betting_windows', 'payout_mode')) {
                 
                 try {
                     Artisan::call('migrate', ['--force' => true]);
@@ -48,6 +49,11 @@ class AdminGameController extends Controller
                         $table->string('status', 20)->default('open');
                         $table->timestamp('started_at')->nullable();
                         $table->timestamp('ended_at')->nullable();
+                        $table->boolean('first_card_matched')->nullable();
+                        $table->unsignedTinyInteger('payout_mode')->nullable();
+                        $table->boolean('payout_locked')->default(false);
+                        $table->boolean('payout_processed')->default(false);
+                        $table->string('winning_side', 20)->nullable();
                         $table->timestamps();
                     });
                 }
@@ -86,6 +92,26 @@ class AdminGameController extends Controller
                     }
                     if (!Schema::hasColumn('bets', 'profit_amount')) {
                         $table->decimal('profit_amount', 12, 2)->default(0)->after('payout_amount');
+                    }
+                });
+            }
+
+            if (Schema::hasTable('betting_windows') && !Schema::hasColumn('betting_windows', 'payout_mode')) {
+                Schema::table('betting_windows', function (\Illuminate\Database\Schema\Blueprint $table) {
+                    if (!Schema::hasColumn('betting_windows', 'first_card_matched')) {
+                        $table->boolean('first_card_matched')->nullable();
+                    }
+                    if (!Schema::hasColumn('betting_windows', 'payout_mode')) {
+                        $table->unsignedTinyInteger('payout_mode')->nullable();
+                    }
+                    if (!Schema::hasColumn('betting_windows', 'payout_locked')) {
+                        $table->boolean('payout_locked')->default(false);
+                    }
+                    if (!Schema::hasColumn('betting_windows', 'payout_processed')) {
+                        $table->boolean('payout_processed')->default(false);
+                    }
+                    if (!Schema::hasColumn('betting_windows', 'winning_side')) {
+                        $table->string('winning_side', 20)->nullable();
                     }
                 });
             }
@@ -145,7 +171,7 @@ class AdminGameController extends Controller
             ]);
         }
 
-        $activeBets = Bet::with('user')
+        $activeBets = Bet::with(['user', 'bettingWindow'])
             ->where('game_round_id', $currentRound->id)
             ->where('status', '!=', 'cancelled')
             ->latest('id')
@@ -164,7 +190,12 @@ class AdminGameController extends Controller
             ->get();
 
         try {
-            $bettingWindows = $currentRound->bettingWindows()->orderBy('window_number')->get();
+            $bettingWindows = $currentRound->bettingWindows()
+                ->with(['bets' => function ($query) {
+                    $query->where('status', '!=', 'cancelled')->with('user:id,name,username');
+                }])
+                ->orderBy('window_number')
+                ->get();
         } catch (\Throwable $e) {
             $bettingWindows = collect();
         }
@@ -333,18 +364,43 @@ class AdminGameController extends Controller
         }
 
         if ($action === 'confirm_first_card') {
-            if ($currentRound->payout_locked) {
-                $msg = 'Payout mode is already locked for this session.';
+            if (in_array($currentRound->status, ['result_declared', 'round_closed'], true)) {
+                $msg = 'This session is already complete.';
                 if ($request->wantsJson()) {
                     return response()->json(['success' => false, 'message' => $msg], 422);
                 }
                 return back()->with('error', $msg);
             }
 
-            $matched = filter_var($request->input('first_card_matched'), FILTER_VALIDATE_BOOLEAN);
+            if ($currentRound->status === 'betting_open') {
+                $msg = 'Close this betting round before recording its first card.';
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => $msg], 422);
+                }
+                return back()->with('error', $msg);
+            }
+
+            $window = $currentRound->bettingWindows()
+                ->where('status', 'closed')
+                ->where('payout_locked', false)
+                ->latest('id')
+                ->first();
+
+            if (!$window) {
+                $lockedWindow = $currentRound->bettingWindows()->where('status', 'closed')->latest('id')->first();
+                $msg = $lockedWindow
+                    ? 'Betting Round #' . $lockedWindow->window_number . ' payout is already saved. Open the next betting round to record a new first-card condition.'
+                    : 'Close a betting round before recording the first card.';
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => $msg], 422);
+                }
+                return back()->with('error', $msg);
+            }
+
+            $matched = $request->boolean('first_card_matched');
             $mode = $matched ? 25 : 100;
-            $prev = $currentRound->payoutLabel();
-            $currentRound->update([
+            $prev = $window->payoutLabel();
+            $window->update([
                 'first_card_matched' => $matched,
                 'payout_mode' => $mode,
                 'payout_locked' => true,
@@ -353,13 +409,13 @@ class AdminGameController extends Controller
                 $matched ? 'First Card Matched' : 'First Card Not Matched',
                 $currentRound,
                 $prev,
-                $mode . '% profit locked',
+                'Betting Round #' . $window->window_number . ' ' . $mode . '% profit locked',
                 $roomId
             );
 
             $msg = $matched
-                ? 'First card matched. Session payout locked at 25% profit.'
-                : 'First card not matched. Session payout locked at 100% profit.';
+                ? 'Betting Round #' . $window->window_number . ': first card matched. Payout locked at 25% for this round only.'
+                : 'Betting Round #' . $window->window_number . ': first card not matched. Payout locked at 100% for this round only.';
             if ($request->wantsJson()) {
                 return response()->json(['success' => true, 'payout_mode' => $mode, 'message' => $msg]);
             }
@@ -375,22 +431,44 @@ class AdminGameController extends Controller
                 return back()->with('error', $msg);
             }
 
-            $duration = $room->betting_duration ?: 10;
             $openWindow = $currentRound->bettingWindows()->where('status', 'open')->latest('id')->first();
             if ($openWindow) {
-                $openWindow->update(['status' => 'closed', 'ended_at' => now()]);
+                $msg = 'Close Betting Round #' . $openWindow->window_number . ' and record its first card before opening another round.';
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => $msg], 422);
+                }
+                return back()->with('error', $msg);
             }
+
+            $pendingWindow = $currentRound->bettingWindows()
+                ->where('status', 'closed')
+                ->where('payout_locked', false)
+                ->latest('id')
+                ->first();
+            if ($pendingWindow) {
+                $msg = 'Record the first card match for Betting Round #' . $pendingWindow->window_number . ' before opening the next round.';
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => $msg], 422);
+                }
+                return back()->with('error', $msg);
+            }
+
             $nextNumber = ((int) $currentRound->bettingWindows()->max('window_number')) + 1;
             $window = BettingWindow::create([
                 'game_round_id' => $currentRound->id,
                 'window_number' => max(1, $nextNumber),
                 'status' => 'open',
                 'started_at' => now(),
+                'first_card_matched' => null,
+                'payout_mode' => null,
+                'payout_locked' => false,
+                'payout_processed' => false,
+                'winning_side' => null,
             ]);
 
             $currentRound->update([
                 'status' => 'betting_open',
-                'betting_ends_at' => now()->addSeconds($duration),
+                'betting_ends_at' => null,
                 'started_at' => $currentRound->started_at ?: now(),
             ]);
 
@@ -411,9 +489,9 @@ class AdminGameController extends Controller
             }
 
             if ($request->wantsJson()) {
-                return response()->json(['success' => true, 'message' => "Betting window opened for {$duration} seconds."]);
+                return response()->json(['success' => true, 'message' => 'Betting Round #' . $window->window_number . ' opened. Close it manually when ready.']);
             }
-            return back()->with('success', "Betting window opened for {$duration} seconds.");
+            return back()->with('success', 'Betting Round #' . $window->window_number . ' opened. Close it manually when ready.');
         }
 
         if ($action === 'close_betting') {
@@ -423,13 +501,18 @@ class AdminGameController extends Controller
             }
             $currentRound->update([
                 'status' => 'betting_closed',
+                'betting_ends_at' => null,
             ]);
-            AuditLogService::record('Betting Closed', $currentRound, 'betting_open', 'betting_closed', $roomId);
+            $closedNumber = $openWindow?->window_number;
+            AuditLogService::record('Betting Closed', $currentRound, 'betting_open', $closedNumber ? 'window #' . $closedNumber . ' closed' : 'betting_closed', $roomId);
 
+            $msg = $closedNumber
+                ? 'Betting Round #' . $closedNumber . ' closed. Record that round\'s first card, then continue the table or open the next betting round.'
+                : 'Betting closed. Record this round\'s first card, then continue the table or open the next betting round.';
             if ($request->wantsJson()) {
-                return response()->json(['success' => true, 'message' => 'Betting closed.']);
+                return response()->json(['success' => true, 'message' => $msg]);
             }
-            return back()->with('success', 'Betting closed.');
+            return back()->with('success', $msg);
         }
 
         if ($action === 'declare_result') {
@@ -449,47 +532,63 @@ class AdminGameController extends Controller
                 return back()->with('error', 'Result has already been declared for this session.');
             }
 
-            if (!$currentRound->payout_locked || !$currentRound->payout_mode) {
-                $msg = 'Confirm first card condition (25% or 100%) before declaring the result.';
+            $sessionWindows = $currentRound->bettingWindows()->orderBy('window_number')->get();
+            if ($currentRound->status === 'betting_open' || $sessionWindows->contains(fn ($window) => $window->status === 'open')) {
+                $msg = 'Close the current betting round before declaring the session result.';
                 if ($request->wantsJson()) {
                     return response()->json(['success' => false, 'message' => $msg], 422);
                 }
                 return back()->with('error', $msg);
             }
 
-            $openWindow = $currentRound->bettingWindows()->where('status', 'open')->latest('id')->first();
-            if ($openWindow) {
-                $openWindow->update(['status' => 'closed', 'ended_at' => now()]);
+            if ($sessionWindows->isEmpty() || $sessionWindows->contains(fn ($window) => !$window->payout_locked || !in_array((int) $window->payout_mode, [25, 100], true))) {
+                $msg = 'Record the first card match for every betting round before declaring the result. Each round keeps its own 25% or 100% payout.';
+                if ($request->wantsJson()) {
+                    return response()->json(['success' => false, 'message' => $msg], 422);
+                }
+                return back()->with('error', $msg);
             }
 
+            $payoutSummary = $sessionWindows
+                ->map(fn ($window) => '#' . $window->window_number . ' ' . $window->payout_mode . '%')
+                ->implode(', ');
+
             // Run Settlement Engine
-            DB::transaction(function () use ($currentRound, $winningSide, $roomId) {
+            DB::transaction(function () use ($currentRound, $winningSide, $roomId, $payoutSummary) {
                 $currentRound->update([
                     'status' => 'result_declared',
                     'winning_side' => $winningSide,
                     'closed_at' => now(),
                 ]);
 
-                $bets = Bet::where('game_round_id', $currentRound->id)
+                $bets = Bet::with('bettingWindow')
+                    ->where('game_round_id', $currentRound->id)
                     ->where('status', 'active')
                     ->lockForUpdate()
                     ->get();
 
                 foreach ($bets as $bet) {
+                    $cycleMode = (int) ($bet->bettingWindow->payout_mode ?? 0);
+                    $cycleNumber = $bet->bettingWindow->window_number ?? null;
+                    if (!in_array($cycleMode, [25, 100], true)) {
+                        throw new \RuntimeException('Betting round payout is missing for bet #' . $bet->id . '.');
+                    }
+
                     if ($bet->selection === $winningSide) {
                         $stake = (float) $bet->amount;
-                        $payout = $currentRound->totalReturnForBet($stake);
-                        $profit = $currentRound->profitForBet($stake);
+                        $payout = BettingWindow::returnForMode($stake, $cycleMode);
+                        $profit = BettingWindow::profitForMode($stake, $cycleMode);
                         $bet->status = 'won';
                         $bet->payout_amount = $payout;
                         $bet->profit_amount = $profit;
                         $bet->save();
 
                         $player = User::findOrFail($bet->user_id);
+                        $cycleLabel = $cycleNumber ? "Betting Round #{$cycleNumber}" : 'Betting Round';
                         $this->walletService->addWinnings(
                             user: $player,
                             amount: $payout,
-                            remarks: "Won " . strtoupper($winningSide) . " session #{$currentRound->round_number} ({$currentRound->payout_mode}% profit on {$bet->amount} pts)",
+                            remarks: "Won " . strtoupper($winningSide) . " session #{$currentRound->round_number} {$cycleLabel} ({$cycleMode}% profit on {$bet->amount} pts)",
                             referenceType: Bet::class,
                             referenceId: $bet->id,
                             performedByAdminId: auth()->id()
@@ -500,7 +599,7 @@ class AdminGameController extends Controller
                                 user: $player,
                                 type: 'game_result',
                                 title: 'Game Result',
-                                message: strtoupper($winningSide) . " WON. You won " . number_format($profit) . " points profit. Total return " . number_format($payout) . " points.",
+                                message: strtoupper($winningSide) . " WON. {$cycleLabel} paid {$cycleMode}%. You won " . number_format($profit) . " points profit. Total return " . number_format($payout) . " points.",
                                 link: route('dashboard')
                             );
                         } catch (\Throwable $e) {
@@ -524,15 +623,20 @@ class AdminGameController extends Controller
                     }
                 }
 
-                AuditLogService::record('Result Declared – ' . strtoupper($winningSide), $currentRound, 'active', $winningSide . ' / ' . $currentRound->payout_mode . '%', $roomId);
-                AuditLogService::record('Payout Processed', $currentRound, null, 'wallets updated', $roomId);
+                BettingWindow::where('game_round_id', $currentRound->id)->update([
+                    'winning_side' => $winningSide,
+                    'payout_processed' => true,
+                ]);
+
+                AuditLogService::record('Result Declared – ' . strtoupper($winningSide), $currentRound, 'active', $winningSide . ' / ' . $payoutSummary, $roomId);
+                AuditLogService::record('Payout Processed', $currentRound, null, 'wallets updated ' . $payoutSummary, $roomId);
                 AuditLogService::record('Session Completed', $currentRound, 'active', 'result_declared', $roomId);
 
                 try {
                     app(\App\Services\NotificationService::class)->sendToAdmin(
                         type: 'admin_game_result',
                         title: 'Game Result Settled',
-                        message: "Session #{$currentRound->round_number} settled: " . strtoupper($winningSide) . " WON ({$currentRound->payout_mode}%).",
+                        message: "Session #{$currentRound->round_number} settled: " . strtoupper($winningSide) . " WON ({$payoutSummary}).",
                         link: route('admin.game.control.index')
                     );
                 } catch (\Throwable $e) {

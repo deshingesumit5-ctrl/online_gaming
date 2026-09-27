@@ -99,17 +99,11 @@ class GameRound extends Model
 
     public function isBettingOpen(): bool
     {
-        if ($this->status !== 'betting_open' || !$this->betting_ends_at) {
-            return false;
-        }
-        return now()->lessThanOrEqualTo($this->betting_ends_at);
+        return $this->status === 'betting_open';
     }
 
     public function remainingBettingSeconds(): int
     {
-        if (!$this->isBettingOpen()) {
-            return 0;
-        }
-        return max(0, (int) now()->diffInSeconds($this->betting_ends_at, false));
+        return 0;
     }
 }

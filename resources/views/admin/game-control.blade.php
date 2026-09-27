@@ -151,7 +151,7 @@
                         &bull; Started <strong class="text-slate-200">{{ $currentRound->started_at->format('h:i:s A') }}</strong>
                         &bull; Duration: <strong id="admin-session-duration" class="text-amber-300 font-mono" data-started="{{ $currentRound->started_at->timestamp }}">00:00</strong>
                     @endif
-                    &bull; Payout: <strong class="{{ $currentRound->payout_locked ? 'text-emerald-400 font-black' : 'text-amber-300 font-bold' }}">{{ $currentRound->payoutLabel() }}{{ $currentRound->payout_locked ? ' (LOCKED)' : '' }}</strong>
+                    &bull; Cycle payout: <strong class="{{ !empty($currentWindow) && $currentWindow->payout_locked ? 'text-emerald-400 font-black' : 'text-amber-300 font-bold' }}">{{ !empty($currentWindow) ? $currentWindow->payoutLabel() : 'Pending' }}{{ !empty($currentWindow) && $currentWindow->payout_locked ? ' (LOCKED)' : '' }}</strong>
                 </span>
             </div>
         </div>
@@ -182,14 +182,34 @@
     </div>
 
     @php
-        $firstCardMatchLabel = 'Not set';
-        if ($currentRound->payout_locked || $currentRound->first_card_matched !== null) {
-            $firstCardMatchLabel = $currentRound->first_card_matched ? 'Matched' : 'Not matched';
+        $latestWindow = $currentWindow ?? null;
+        $firstCardMatchLabel = $latestWindow ? $latestWindow->firstCardLabel() : 'Not set';
+        $currentCyclePayoutLabel = $latestWindow ? $latestWindow->payoutLabel() : 'Pending';
+        $currentCyclePayoutLocked = $latestWindow ? (bool) $latestWindow->payout_locked : false;
+        $bettingCycleLabel = 'Session #' . $currentRound->round_number;
+        if (!empty($latestWindow)) {
+            $bettingCycleLabel .= ' · Round #' . $latestWindow->window_number;
         }
-        $bettingCycleLabel = 'Round #' . $currentRound->round_number;
-        if (!empty($currentWindow)) {
-            $bettingCycleLabel .= ' · Window #' . $currentWindow->window_number;
-        }
+        $sessionFinished = in_array($currentRound->status, ['result_declared', 'round_closed'], true);
+        $awaitingFirstCard = $latestWindow
+            && $latestWindow->status === 'closed'
+            && !$latestWindow->payout_locked
+            && !$sessionFinished;
+        $cycleCollection = $bettingWindows ?? collect();
+        $cyclesReadyForResult = $cycleCollection->isNotEmpty()
+            && $cycleCollection->every(fn ($w) => $w->status === 'closed' && $w->payout_locked && in_array((int) $w->payout_mode, [25, 100], true))
+            && !$sessionFinished;
+        $cycleModes = $cycleCollection->pluck('payout_mode')->filter(fn ($mode) => in_array((int) $mode, [25, 100], true))->unique()->values();
+        $declarePayoutLabel = $cycleModes->count() > 1
+            ? 'Per betting round'
+            : ($cycleModes->count() === 1 ? ((int) $cycleModes->first() === 25 ? '25% Profit' : '100% Profit') : 'Pending');
+        $cycleSummary = $cycleCollection->map(function ($w) {
+            return [
+                'number' => $w->window_number,
+                'payout' => $w->payoutLabel(),
+                'first_card' => $w->firstCardLabel(),
+            ];
+        })->values();
     @endphp
 
     <div class="gc-control-matrix flex flex-col gap-4">
@@ -315,12 +335,12 @@
                         <strong class="text-white">{{ $bettingCycleLabel }}</strong>
                     </div>
                     <div class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
-                        <span class="block text-[10px] uppercase text-slate-500 font-bold">First Card Match</span>
+                        <span class="block text-[10px] uppercase text-slate-500 font-bold">This Round First Card</span>
                         <strong class="{{ $firstCardMatchLabel === 'Matched' ? 'text-emerald-400' : 'text-amber-300' }}">{{ $firstCardMatchLabel }}</strong>
                     </div>
                     <div class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
-                        <span class="block text-[10px] uppercase text-slate-500 font-bold">Current Payout %</span>
-                        <strong class="{{ $currentRound->payout_locked ? 'text-emerald-400' : 'text-amber-300' }}">{{ $currentRound->payoutLabel() }}{{ $currentRound->payout_locked ? ' · LOCKED' : '' }}</strong>
+                        <span class="block text-[10px] uppercase text-slate-500 font-bold">This Round Payout %</span>
+                        <strong class="{{ $currentCyclePayoutLocked ? 'text-emerald-400' : 'text-amber-300' }}">{{ $currentCyclePayoutLabel }}{{ $currentCyclePayoutLocked ? ' · LOCKED' : '' }}</strong>
                     </div>
                 </div>
                 <div class="grid grid-cols-2 gap-2 mt-2 text-center">
@@ -346,10 +366,7 @@
         </h3>
                 <span class="text-xs text-slate-400 font-mono">Status: <strong class="{{ $currentRound->status === 'betting_open' ? 'text-emerald-400' : 'text-amber-400' }}">{{ strtoupper($currentRound->status) }}</strong>
                     @if(!empty($currentWindow))
-                        &bull; Window #{{ $currentWindow->window_number }}
-                    @endif
-                    @if($currentRound->status === 'betting_open')
-                        &bull; <span id="admin-betting-countdown" class="text-emerald-300 font-bold" data-remaining="{{ $currentRound->remainingBettingSeconds() }}">{{ $currentRound->remainingBettingSeconds() }}s remaining</span>
+                        &bull; Round #{{ $currentWindow->window_number }}
                     @endif
                 </span>
             </div>
@@ -359,8 +376,8 @@
                     @csrf
                     <input type="hidden" name="action" value="open_betting">
                     <button type="submit" class="w-full py-3.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg shadow-emerald-600/30 transition flex flex-col items-center justify-center gap-0.5 js-busy-btn" data-busy-text="OPENING...">
-                        <span>⏱️ OPEN BETTING – 10 SEC</span>
-                        <small class="text-[9px] sm:text-[10px] font-normal opacity-80">Repeatable while session is active</small>
+                        <span>OPEN BETTING</span>
+                        <small class="text-[9px] sm:text-[10px] font-normal opacity-80">Stays open until you close it. Same session.</small>
                     </button>
                 </form>
 
@@ -370,6 +387,27 @@
                     <button type="submit" class="w-full py-3.5 bg-amber-700 hover:bg-amber-600 text-white rounded-xl font-black text-xs sm:text-sm uppercase tracking-wider shadow-lg transition flex flex-col items-center justify-center gap-0.5 js-busy-btn" data-busy-text="CLOSING...">
                         <span>🔒 CLOSE BETTING</span>
                         <small class="text-[9px] sm:text-[10px] font-normal opacity-80">Immediately locks placed bets</small>
+                    </button>
+                </form>
+            </div>
+            <p class="text-[10px] text-slate-500 mt-3">After this round closes, record the first card that follows it. That payout stays on this round only. Previous rounds are not reset.</p>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+                <form method="POST" action="{{ route('admin.game.action', $room->id) }}">
+                    @csrf
+                    <input type="hidden" name="action" value="confirm_first_card">
+                    <input type="hidden" name="first_card_matched" value="1">
+                    <button type="submit" class="w-full py-3 bg-emerald-700 hover:bg-emerald-600 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider transition flex flex-col items-center justify-center gap-0.5 js-busy-btn" data-busy-text="SAVING..." {{ $awaitingFirstCard ? '' : 'disabled' }}>
+                        <span>First card matched</span>
+                        <small class="text-[9px] font-normal opacity-80">25% on this betting round</small>
+                    </button>
+                </form>
+                <form method="POST" action="{{ route('admin.game.action', $room->id) }}">
+                    @csrf
+                    <input type="hidden" name="action" value="confirm_first_card">
+                    <input type="hidden" name="first_card_matched" value="0">
+                    <button type="submit" class="w-full py-3 bg-amber-800 hover:bg-amber-700 disabled:opacity-40 disabled:cursor-not-allowed text-white rounded-xl font-black text-[11px] sm:text-xs uppercase tracking-wider transition flex flex-col items-center justify-center gap-0.5 js-busy-btn" data-busy-text="SAVING..." {{ $awaitingFirstCard ? '' : 'disabled' }}>
+                        <span>First card not matched</span>
+                        <small class="text-[9px] font-normal opacity-80">100% on this betting round</small>
                     </button>
                 </form>
             </div>
@@ -397,7 +435,7 @@
                     <input type="hidden" name="winning_side" value="andar">
                     <button type="button" onclick="openConfirmResultModal('form-andar','andar')" class="btn-andar w-full py-3.5 text-center flex flex-col items-center justify-center gap-0.5" {{ $currentRound->status === 'result_declared' ? 'disabled' : '' }}>
                         <span class="text-base sm:text-lg font-black font-royal tracking-widest text-white">ANDAR WON</span>
-                        <span class="text-[10px] font-normal text-indigo-200">{{ $currentRound->payoutLabel() }} · Confirm & Process</span>
+                        <span class="text-[10px] font-normal text-indigo-200">{{ $declarePayoutLabel }} · Confirm & Process</span>
                     </button>
                 </form>
 
@@ -408,7 +446,7 @@
                     <input type="hidden" name="winning_side" value="bahar">
                     <button type="button" onclick="openConfirmResultModal('form-bahar','bahar')" class="btn-bahar w-full py-3.5 text-center flex flex-col items-center justify-center gap-0.5" {{ $currentRound->status === 'result_declared' ? 'disabled' : '' }}>
                         <span class="text-base sm:text-lg font-black font-royal tracking-widest text-white">BAHAR WON</span>
-                        <span class="text-[10px] font-normal text-red-200">{{ $currentRound->payoutLabel() }} · Confirm & Process</span>
+                        <span class="text-[10px] font-normal text-red-200">{{ $declarePayoutLabel }} · Confirm & Process</span>
                     </button>
                 </form>
             </div>
@@ -462,6 +500,9 @@
                                 {{ $bet->selection }}
                             </span>
                             <span class="text-slate-200 font-semibold truncate max-w-[110px]">{{ $bet->user->name ?? 'Player' }}</span>
+                            @if($bet->bettingWindow)
+                                <span class="text-[10px] text-slate-500 font-bold">R{{ $bet->bettingWindow->window_number }}</span>
+                            @endif
                         </div>
                         <div class="text-right">
                             <span class="text-white font-bold block">{{ number_format($bet->amount, 0) }} pts</span>
@@ -515,17 +556,38 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5 pt-1">
-        <div class="glass-panel p-5 border-slate-800">
-            <h4 class="text-xs font-bold uppercase text-slate-400 mb-2.5">Betting Window History</h4>
-            <div class="space-y-1.5 max-h-40 overflow-y-auto pr-1">
+        <div class="glass-panel p-5 border-slate-800 md:col-span-3">
+            <h4 class="text-xs font-bold uppercase text-slate-400 mb-2.5">Betting Round History</h4>
+            <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
                 @forelse(($bettingWindows ?? []) as $w)
-                    <div class="p-2 bg-slate-900 rounded-lg border border-slate-800 flex items-center justify-between text-xs">
-                        <span class="text-slate-200 font-bold">#{{ $w->window_number }}</span>
-                        <span class="text-slate-400">{{ $w->started_at ? $w->started_at->format('H:i:s') : '-' }} → {{ $w->ended_at ? $w->ended_at->format('H:i:s') : 'open' }}</span>
-                        <span class="uppercase font-bold {{ $w->status === 'open' ? 'text-emerald-400' : 'text-slate-400' }}">{{ $w->status }}</span>
+                    @php
+                        $cycleAndar = $w->bets->where('selection', 'andar')->sum('amount');
+                        $cycleBahar = $w->bets->where('selection', 'bahar')->sum('amount');
+                    @endphp
+                    <div class="p-3 bg-slate-900 rounded-lg border border-slate-800 text-xs space-y-1.5">
+                        <div class="flex flex-wrap items-center justify-between gap-2">
+                            <span class="text-slate-200 font-bold">Round #{{ $w->window_number }} <span class="text-slate-500 font-normal">ID {{ $w->id }}</span></span>
+                            <span class="uppercase font-bold {{ $w->status === 'open' ? 'text-emerald-400' : 'text-slate-400' }}">{{ $w->status }}</span>
+                        </div>
+                        <div class="text-slate-400">Open {{ $w->started_at ? $w->started_at->format('H:i:s') : '-' }} → Close {{ $w->ended_at ? $w->ended_at->format('H:i:s') : ($w->status === 'open' ? 'open' : '-') }}</div>
+                        <div class="flex flex-wrap gap-3 text-slate-300">
+                            <span>Andar <strong class="text-indigo-300">{{ number_format($cycleAndar, 0) }}</strong></span>
+                            <span>Bahar <strong class="text-red-300">{{ number_format($cycleBahar, 0) }}</strong></span>
+                            <span>First card <strong class="{{ $w->firstCardLabel() === 'Matched' ? 'text-emerald-400' : 'text-amber-300' }}">{{ $w->firstCardLabel() }}</strong></span>
+                            <span>Payout <strong class="text-amber-300">{{ $w->payoutLabel() }}</strong></span>
+                            <span>Result <strong class="text-white">{{ $w->winning_side ? strtoupper($w->winning_side) : 'Pending' }}</strong></span>
+                            <span>Payout status <strong class="{{ $w->payout_processed ? 'text-emerald-400' : 'text-slate-400' }}">{{ $w->payout_processed ? 'Processed' : 'Pending' }}</strong></span>
+                        </div>
+                        <div class="text-[10px] text-slate-400 space-y-0.5">
+                            @forelse($w->bets as $cycleBet)
+                                <div>{{ $cycleBet->user->name ?? 'Player' }} · {{ strtoupper($cycleBet->selection) }} · {{ number_format($cycleBet->amount, 0) }} pts · {{ $cycleBet->status }}</div>
+                            @empty
+                                <div>No bets in this round.</div>
+                            @endforelse
+                        </div>
                     </div>
                 @empty
-                    <div class="text-slate-500 text-xs text-center py-2">No betting windows yet.</div>
+                    <div class="text-slate-500 text-xs text-center py-2">No betting rounds yet.</div>
                 @endforelse
             </div>
         </div>
@@ -1473,12 +1535,12 @@
     }
 
     function openConfirmResultModal(formId, side) {
-        const payoutLocked = {{ $currentRound->payout_locked ? 'true' : 'false' }};
+        const payoutLocked = {{ $cyclesReadyForResult ? 'true' : 'false' }};
         if (!payoutLocked) {
             if (typeof window.showToast === 'function') {
-                window.showToast('Confirm first card condition (25% or 100%) before declaring the result.', 'error');
+                window.showToast('Record the first card for every closed betting round before declaring the result.', 'error');
             } else {
-                alert('Confirm first card condition (25% or 100%) before declaring the result.');
+                alert('Record the first card for every closed betting round before declaring the result.');
             }
             return;
         }
@@ -1486,7 +1548,8 @@
         _pendingWinningSide = side;
 
         const sideUpper = side.toUpperCase();
-        const payoutLabel = @json($currentRound->payoutLabel());
+        const payoutLabel = @json($declarePayoutLabel);
+        const cycleSummary = @json($cycleSummary);
         const totalAndar = @json(number_format($totalAndarAmount, 0));
         const totalBahar = @json(number_format($totalBaharAmount, 0));
         const sessionId = @json($currentRound->round_number);
@@ -1500,6 +1563,7 @@
                     <div class="flex justify-between"><span class="text-slate-400">SESSION:</span><strong class="text-white font-mono">#${sessionId}</strong></div>
                     <div class="flex justify-between"><span class="text-slate-400">Winning Side:</span><strong class="${side === 'andar' ? 'text-indigo-400' : 'text-red-400'} font-black text-sm uppercase">${sideUpper}</strong></div>
                     <div class="flex justify-between"><span class="text-slate-400">Payout Mode:</span><strong class="text-amber-300 font-bold">${payoutLabel}</strong></div>
+                    ${cycleSummary.map(cycle => `<div class="flex justify-between"><span class="text-slate-500">Round #${cycle.number}:</span><strong class="text-slate-200">${cycle.first_card} · ${cycle.payout}</strong></div>`).join('')}
                     <div class="flex justify-between border-t border-slate-800 pt-1.5"><span class="text-slate-400">Total Andar Bets:</span><strong class="text-white">${totalAndar} Points</strong></div>
                     <div class="flex justify-between"><span class="text-slate-400">Total Bahar Bets:</span><strong class="text-white">${totalBahar} Points</strong></div>
                 </div>

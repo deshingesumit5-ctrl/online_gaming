@@ -1101,9 +1101,13 @@
         gameEngineInstance.renderState = function(data) {
             oldRenderState(data);
             const timerBar = document.getElementById('hud-timer-bar');
-            if (timerBar && data.betting_duration > 0) {
+            if (timerBar && data.round_status === 'betting_open' && (data.remaining_seconds === null || data.remaining_seconds === undefined)) {
+                timerBar.style.width = '100%';
+            } else if (timerBar && data.betting_duration > 0 && data.remaining_seconds != null) {
                 const pct = Math.max(0, Math.min(100, (data.remaining_seconds / data.betting_duration) * 100));
                 timerBar.style.width = `${pct}%`;
+            } else if (timerBar && data.round_status !== 'betting_open') {
+                timerBar.style.width = '0%';
             }
 
             // Sync cancel countdown with active cancellable bet

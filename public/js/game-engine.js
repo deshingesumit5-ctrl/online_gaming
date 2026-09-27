@@ -131,7 +131,9 @@ class GameEngine {
         const statusBanner = document.getElementById('player-game-status-banner');
         if (statusBanner) {
             if (data.round_status === 'betting_open') {
-                statusBanner.textContent = 'BETTING OPEN – ' + String(data.remaining_seconds ?? 0).padStart(2, '0') + ' SEC';
+                statusBanner.textContent = data.remaining_seconds != null
+                    ? ('BETTING OPEN – ' + String(data.remaining_seconds).padStart(2, '0') + ' SEC')
+                    : 'BETTING OPEN';
             } else if (data.round_status === 'betting_closed') {
                 statusBanner.textContent = 'BETTING CLOSED · Bets locked · Live game in progress';
             } else if (data.round_status === 'result_pending') {
@@ -152,7 +154,7 @@ class GameEngine {
 
         if (this.currentStatus === 'betting_closed' && data.round_status === 'betting_open') {
             if (typeof window.showToast === 'function') {
-                window.showToast('BETTING OPEN. 10 seconds remaining. You can place/add bets for this betting window.', 'success');
+                window.showToast('BETTING OPEN. You can place bets for this betting round until the admin closes it.', 'success');
             }
         }
         if (this.currentStatus === 'betting_open' && data.round_status === 'betting_closed') {
@@ -279,6 +281,13 @@ class GameEngine {
         const timerBar = document.getElementById('betting-timer-progress');
         const timerRing = document.getElementById('betting-timer-ring');
 
+        if (isBettingOpen && (seconds === null || seconds === undefined)) {
+            if (timerText) timerText.textContent = 'OPEN';
+            if (timerBar) timerBar.style.width = '100%';
+            if (timerRing) timerRing.style.strokeDashoffset = '0';
+            return;
+        }
+
         if (!isBettingOpen || seconds <= 0) {
             if (timerText) timerText.textContent = '00';
             if (timerBar) timerBar.style.width = '0%';
@@ -362,6 +371,7 @@ class GameEngine {
                     <div class="flex items-center gap-2">
                         <span class="px-2 py-0.5 rounded font-bold uppercase ${badgeClass}">${bet.selection}</span>
                         <span class="text-white font-semibold">${bet.amount.toLocaleString()} pts</span>
+                        ${bet.betting_round ? `<span class="text-slate-500">R${bet.betting_round}</span>` : ''}
                     </div>
                     <div class="flex items-center gap-2">
                         <span class="${statusColors[bet.status] || 'text-slate-300'} uppercase">${bet.status}</span>
@@ -485,7 +495,12 @@ class GameEngine {
         const totalProfit = winningBets.reduce((acc, b) => acc + Number(b.profit_amount || 0), 0);
         const totalReturn = winningBets.reduce((acc, b) => acc + Number(b.payout_amount || (b.amount * 2) || 0), 0);
         const totalLost = losingBets.reduce((acc, b) => acc + Number(b.amount || 0), 0);
-        const payoutLabel = data.payout_label || ((Number(data.payout_mode) === 25) ? '25% Profit' : '100% Profit');
+        const winModes = [...new Set(winningBets.map(b => Number(b.payout_mode)).filter(mode => mode === 25 || mode === 100))];
+        const payoutLabel = winModes.length > 1
+            ? 'Per betting round'
+            : (winModes.length === 1
+                ? (winModes[0] === 25 ? '25% Profit' : '100% Profit')
+                : (data.payout_label || ((Number(data.payout_mode) === 25) ? '25% Profit' : '100% Profit')));
 
         const isAndar = winningSide === 'andar';
         const winTitle = isAndar ? 'ROYAL ANDAR WON!' : 'ROYAL BAHAR WON!';

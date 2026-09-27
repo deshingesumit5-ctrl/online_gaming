@@ -76,16 +76,8 @@ class GameController extends Controller
             ]);
         }
 
-        // Auto-close betting window if timer expired
-        if ($currentRound->status === 'betting_open' && $currentRound->betting_ends_at && now()->greaterThan($currentRound->betting_ends_at)) {
-            $currentRound->update(['status' => 'betting_closed']);
-            $openWindow = $currentRound->bettingWindows()->where('status', 'open')->latest('id')->first();
-            if ($openWindow) {
-                $openWindow->update(['status' => 'closed', 'ended_at' => now()]);
-            }
-        }
-
-        $userBets = Bet::where('game_round_id', $currentRound->id)
+        $userBets = Bet::with('bettingWindow')
+            ->where('game_round_id', $currentRound->id)
             ->where('user_id', $user->id)
             ->orderBy('id', 'desc')
             ->get()
@@ -101,6 +93,8 @@ class GameController extends Controller
                     'status' => $bet->status,
                     'payout_amount' => (float) $bet->payout_amount,
                     'profit_amount' => (float) $bet->profit_amount,
+                    'betting_round' => $bet->bettingWindow?->window_number,
+                    'payout_mode' => $bet->bettingWindow?->payout_mode,
                     'can_cancel' => $canCancel,
                     'remaining_cancel_seconds' => $remainingCancel,
                 ];
@@ -137,7 +131,7 @@ class GameController extends Controller
             'payout_label' => $currentRound->payoutLabel(),
             'payout_locked' => (bool) $currentRound->payout_locked,
             'betting_window_number' => $currentWindow?->window_number,
-            'remaining_seconds' => $currentRound->remainingBettingSeconds(),
+            'remaining_seconds' => null,
             'betting_duration' => $room->betting_duration,
             'cancellation_duration' => (int) $room->cancellation_duration,
             'user_bets' => $userBets,
@@ -192,6 +186,9 @@ class GameController extends Controller
                     }
 
                     $window = $currentRound->bettingWindows()->where('status', 'open')->latest('id')->first();
+                    if (!$window) {
+                        throw new Exception('Betting round is not open.');
+                    }
 
                     $betAndar = Bet::create([
                         'game_round_id' => $currentRound->id,
@@ -219,7 +216,7 @@ class GameController extends Controller
                     $transaction = $this->walletService->deductPoints(
                         user: $user,
                         amount: (int) $totalAmount,
-                        remarks: "Placed bet on BOTH: {$andarAmount} on ANDAR & {$baharAmount} on BAHAR (Round #{$currentRound->round_number})",
+                        remarks: "Placed bet on BOTH: {$andarAmount} on ANDAR & {$baharAmount} on BAHAR (Session #{$currentRound->round_number}, Betting Round #{$window->window_number})",
                         referenceType: Bet::class,
                         referenceId: $betAndar->id
                     );
@@ -230,7 +227,7 @@ class GameController extends Controller
                             user: $user,
                             type: 'bet_confirmation',
                             title: 'Bet Confirmation',
-                            message: "You placed bet on Both: " . number_format($andarAmount) . " on ANDAR and " . number_format($baharAmount) . " on BAHAR (Round #{$currentRound->round_number}).",
+                            message: "You placed bet on Both: " . number_format($andarAmount) . " on ANDAR and " . number_format($baharAmount) . " on BAHAR (Session #{$currentRound->round_number}, Betting Round #{$window->window_number}).",
                             link: route('dashboard')
                         );
                     } catch (\Throwable $e) {
@@ -241,7 +238,7 @@ class GameController extends Controller
                         app(\App\Services\NotificationService::class)->sendToAdmin(
                             type: 'bet_confirmation',
                             title: 'User Placed Bet on Both',
-                            message: "User {$user->username} placed bet on Both: " . number_format($andarAmount) . " on ANDAR and " . number_format($baharAmount) . " on BAHAR (Total " . number_format($totalAmount) . " pts) in Round #{$currentRound->round_number}.",
+                            message: "User {$user->username} placed bet on Both: " . number_format($andarAmount) . " on ANDAR and " . number_format($baharAmount) . " on BAHAR (Total " . number_format($totalAmount) . " pts) in Session #{$currentRound->round_number}, Betting Round #{$window->window_number}.",
                             link: route('admin.game.control', ['roomId' => $roomId])
                         );
                     } catch (\Throwable $e) {
@@ -285,6 +282,9 @@ class GameController extends Controller
                 }
 
                 $window = $currentRound->bettingWindows()->where('status', 'open')->latest('id')->first();
+                if (!$window) {
+                    throw new Exception('Betting round is not open.');
+                }
 
                 $bet = Bet::create([
                     'game_round_id' => $currentRound->id,
@@ -301,7 +301,7 @@ class GameController extends Controller
                 $transaction = $this->walletService->deductPoints(
                     user: $user,
                     amount: (int) $amount,
-                    remarks: "Placed bet of {$amount} on " . strtoupper($selection) . " (Round #{$currentRound->round_number})",
+                    remarks: "Placed bet of {$amount} on " . strtoupper($selection) . " (Session #{$currentRound->round_number}, Betting Round #{$window->window_number})",
                     referenceType: Bet::class,
                     referenceId: $bet->id
                 );
