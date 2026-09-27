@@ -624,7 +624,7 @@ class LowLatencyStreamService
             $headers['Range'] = $range;
         }
 
-        for ($attempt = 0; $attempt < 2; $attempt++) {
+              for ($attempt = 0; $attempt < 2; $attempt++) {
             try {
                 $response = Http::timeout(12)
                     ->connectTimeout(4)
@@ -650,7 +650,14 @@ class LowLatencyStreamService
 
                     return ['body' => $body, 'type' => $type, 'status' => $status];
                 }
-                   } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('CCTV fetchSegment() non-2xx', [
+                    'url' => $url,
+                    'attempt' => $attempt,
+                    'status' => $status,
+                    'body_len' => strlen($body),
+                    'body_snippet' => substr($body, 0, 200),
+                ]);
+            } catch (\Throwable $e) {
                 \Illuminate\Support\Facades\Log::warning('CCTV fetchSegment() exception', [
                     'url' => $url,
                     'attempt' => $attempt,
