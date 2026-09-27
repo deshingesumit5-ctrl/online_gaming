@@ -26,6 +26,9 @@
         white-space: nowrap;
         text-align: left;
     }
+    .card-master-table thead th.text-right {
+        text-align: right;
+    }
     .card-master-table tbody td {
         padding: 12px 14px;
         border-bottom: 1px solid rgba(148, 163, 184, 0.1);
