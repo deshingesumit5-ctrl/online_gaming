@@ -497,7 +497,7 @@ class LowLatencyStreamService
         }
     }
 
-    private function download(string $url): ?string
+        private function download(string $url): ?string
     {
         try {
             $response = Http::timeout(8)
@@ -514,11 +514,20 @@ class LowLatencyStreamService
                 ->get($url);
 
             if (!$response->successful()) {
+                \Illuminate\Support\Facades\Log::warning('CCTV download() non-2xx', [
+                    'url' => $url,
+                    'status' => $response->status(),
+                    'body_snippet' => substr($response->body(), 0, 300),
+                ]);
                 return null;
             }
 
             return $response->body();
         } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('CCTV download() exception', [
+                'url' => $url,
+                'error' => $e->getMessage(),
+            ]);
             return null;
         }
     }
@@ -641,11 +650,17 @@ class LowLatencyStreamService
 
                     return ['body' => $body, 'type' => $type, 'status' => $status];
                 }
-            } catch (\Throwable $e) {
-                // retry once
+                   } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('CCTV fetchSegment() exception', [
+                    'url' => $url,
+                    'attempt' => $attempt,
+                    'error' => $e->getMessage(),
+                ]);
             }
             usleep(150000);
         }
+
+        \Illuminate\Support\Facades\Log::warning('CCTV fetchSegment() gave up', ['url' => $url]);
 
         return null;
     }
