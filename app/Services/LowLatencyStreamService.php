@@ -600,7 +600,7 @@ class LowLatencyStreamService
         $cacheKey = substr(hash('sha256', $url), 0, 24);
         $cacheFile = storage_path('app/live/segs/' . $cacheKey . '.bin');
         $typeFile = $cacheFile . '.type';
-        if ($range === null && is_file($cacheFile) && filesize($cacheFile) > 32 && (time() - filemtime($cacheFile)) < 30) {
+        if ($range === null && is_file($cacheFile) && filesize($cacheFile) > 32 && (time() - filemtime($cacheFile)) < 3) {
             $type = is_file($typeFile) ? trim((string) file_get_contents($typeFile)) : $this->guessSegmentType($url, null);
 
             return ['body' => (string) file_get_contents($cacheFile), 'type' => $type, 'status' => 200];

@@ -95,7 +95,7 @@
                             </td>
                             <td class="font-mono font-bold text-amber-200" x-text="card.code || '—'"></td>
                             <td>
-                                <div class="flex flex-col items-center gap-2 pt-1">
+                                <div class="flex flex-row items-center justify-center gap-2">
                                     <button type="button" @click="openEdit(card)" title="Edit" aria-label="Edit card" class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-600 flex items-center justify-center">
                                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536M4 20h4.5L19.768 8.768a2.5 2.5 0 00-3.536-3.536L5 16.5V20z"/></svg>
                                     </button>

@@ -730,10 +730,12 @@ class AdminGameController extends Controller
 
     public function adminLiveJpeg(int $roomId, \App\Services\LowLatencyStreamService $liveStream)
     {
-        // Fast path 1: local file fresh within 2 seconds
+        // Only reuse a frame that was written in the last fraction of a second.
+        // An older file is one still photo, so fetch a new camera frame instead.
         $dir  = storage_path('app/live/' . $roomId);
         $path = $dir . DIRECTORY_SEPARATOR . 'latest.jpg';
-        if (is_file($path) && filesize($path) > 100 && (time() - filemtime($path)) <= 2) {
+        $fresh = is_file($path) && filesize($path) > 100 && (microtime(true) - filemtime($path)) <= 0.35;
+        if ($fresh) {
             return response()->file($path, [
                 'Content-Type'  => 'image/jpeg',
                 'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',

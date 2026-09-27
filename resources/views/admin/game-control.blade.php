@@ -30,13 +30,13 @@
         padding-right: 12px;
     }
     #admin-stream-preview.gc-video-stage {
-        height: min(78vh, 820px);
-        min-height: 480px;
+        height: min(82vh, 920px);
+        min-height: 560px;
     }
     @media (max-width: 1023px) {
         #admin-stream-preview.gc-video-stage {
-            height: 64vh;
-            min-height: 360px;
+            height: 70vh;
+            min-height: 420px;
         }
     }
     #admin-cctv-live-jpg {
@@ -51,7 +51,7 @@
     #admin-cctv-video {
         position: absolute;
         inset: 0;
-        z-index: 2;
+        z-index: 4;
         background: #000;
         object-fit: contain;
     }
@@ -192,8 +192,8 @@
         }
     @endphp
 
-    <div class="gc-control-matrix grid grid-cols-1 xl:grid-cols-12 gap-4">
-        <div class="xl:col-span-8 glass-panel p-3 sm:p-4 border-slate-800 flex flex-col">
+    <div class="gc-control-matrix flex flex-col gap-4">
+        <div class="w-full glass-panel p-3 sm:p-4 border-slate-800 flex flex-col">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold font-royal text-white flex items-center gap-2">
                     <span class="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">2</span>
@@ -293,7 +293,7 @@
             </div>
         </div>
 
-        <div class="xl:col-span-4 flex flex-col gap-4">
+        <div class="w-full grid grid-cols-1 xl:grid-cols-3 gap-4">
             <div class="glass-panel p-4 border-amber-500/30">
                 <h3 class="text-xs font-black uppercase tracking-wider text-amber-300 mb-3">Session</h3>
                 <div class="grid grid-cols-2 gap-2 text-[11px]">
@@ -792,12 +792,13 @@
         return new Hls({
             enableWorker: true,
             lowLatencyMode: false,
-            backBufferLength: 30,
-            maxBufferLength: 8,
-            maxMaxBufferLength: 20,
-            liveSyncDurationCount: 3,
-            liveMaxLatencyDurationCount: 12,
+            backBufferLength: 10,
+            maxBufferLength: 6,
+            maxMaxBufferLength: 12,
+            liveSyncDurationCount: 1,
+            liveMaxLatencyDurationCount: 6,
             maxLiveSyncPlaybackRate: 1.5,
+            startPosition: -1,
             liveDurationInfinity: true,
             startFragPrefetch: true,
             manifestLoadingMaxRetry: 10,
@@ -904,6 +905,23 @@
         if (img) img.classList.add('hidden');
     }
 
+    function adminVideoIsAdvancing(video) {
+        if (!video || video.classList.contains('hidden') || !(video.videoWidth > 0) || video.paused || video.ended) {
+            return false;
+        }
+        const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        if (video._advCheckAt && (now - video._advCheckAt) < 140) {
+            return !!video._advLast;
+        }
+        const t = video.currentTime || 0;
+        const prev = video._advCheckT;
+        video._advCheckAt = now;
+        video._advCheckT = t;
+        const advancing = prev !== undefined && (t > prev + 0.05);
+        video._advLast = advancing;
+        return advancing;
+    }
+
     function startAdminLiveJpeg() {
         const cctvContainer = document.getElementById('admin-cctv-stream-container');
         const img = document.getElementById('admin-cctv-live-jpg');
@@ -912,26 +930,26 @@
         const tick = () => {
             if (!adminWantsLive) return;
             const liveVideo = document.getElementById('admin-cctv-video');
-            const parsedLive = parseStreamUrl(sanitizeStreamUrl(configuredStreamUrl) || configuredStreamUrl);
-            if (parsedLive && parsedLive.type === 'hls') {
-                hideAdminLiveJpeg();
-                return;
-            }
-            if (isAdminVideoPlaying(liveVideo)) {
+            if (adminVideoIsAdvancing(liveVideo)) {
                 adminVideoStallCount = 0;
+                if (liveVideo) liveVideo.style.zIndex = '4';
                 hideAdminLiveJpeg();
                 hideCctvOfflineOverlay();
                 return;
             }
+            if (liveVideo && !liveVideo.classList.contains('hidden')) {
+                liveVideo.style.zIndex = '1';
+            }
             const probe = new Image();
             probe.onload = function () {
+                if (!adminWantsLive) return;
                 img._jpegFailCount = 0;
                 hideCctvOfflineOverlay();
                 const whiteScreen = document.getElementById('admin-stream-white-screen');
                 if (whiteScreen) whiteScreen.classList.add('hidden');
                 const playingNow = document.getElementById('admin-cctv-video');
-                const parsedNow = parseStreamUrl(sanitizeStreamUrl(configuredStreamUrl) || configuredStreamUrl);
-                if ((parsedNow && parsedNow.type === 'hls') || isAdminVideoPlaying(playingNow) || (playingNow && playingNow.videoWidth > 0 && !playingNow.classList.contains('hidden'))) {
+                if (adminVideoIsAdvancing(playingNow)) {
+                    if (playingNow) playingNow.style.zIndex = '4';
                     hideAdminLiveJpeg();
                     return;
                 }
@@ -940,14 +958,12 @@
             };
             probe.onerror = function () {
                 img._jpegFailCount = (img._jpegFailCount || 0) + 1;
-                // A missing JPEG snapshot is not a power cut. Camera Unreachable
-                // is shown only after the live playlist itself stays down.
             };
             probe.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
         };
         tick();
         if (!adminLiveJpegTimer) {
-            adminLiveJpegTimer = setInterval(tick, 400);
+            adminLiveJpegTimer = setInterval(tick, 180);
         }
     }
 
@@ -1198,7 +1214,7 @@
                         try { adminHls.startLoad(-1); } catch (e) {}
                         video.play().catch(function () {});
                     }
-                    if (video._edgeStall >= 5 && Date.now() - adminCctvLastRestartAt >= CCTV_RESTART_COOLDOWN) {
+                    if (video._edgeStall >= 3 && Date.now() - adminCctvLastRestartAt >= CCTV_RESTART_COOLDOWN) {
                         video._edgeStall = 0;
                         adminCctvLastRestartAt = Date.now();
                         restartAdminHlsFromProxy();
