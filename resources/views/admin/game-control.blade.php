@@ -338,12 +338,12 @@
             </div>
 
         <!-- STEP 3: Betting Window Control (PDF Pages 8 & 9) -->
-        <div class="glass-panel p-4 border-slate-800 flex flex-col justify-between">
-            <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-bold font-royal text-white flex items-center gap-2">
-                    <span class="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">3</span>
-                    <span>Betting Window Control</span>
-                </h3>
+    <div class="glass-panel p-4 border-slate-800 self-start">
+    <div class="flex items-center justify-between mb-3">
+        <h3 class="text-sm font-bold font-royal text-white flex items-center gap-2">
+            <span class="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">3</span>
+            <span>Betting Window Control</span>
+        </h3>
                 <span class="text-xs text-slate-400 font-mono">Status: <strong class="{{ $currentRound->status === 'betting_open' ? 'text-emerald-400' : 'text-amber-400' }}">{{ strtoupper($currentRound->status) }}</strong>
                     @if(!empty($currentWindow))
                         &bull; Window #{{ $currentWindow->window_number }}
@@ -354,7 +354,7 @@
                 </span>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 my-auto">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
                 <form method="POST" action="{{ route('admin.game.action', $room->id) }}">
                     @csrf
                     <input type="hidden" name="action" value="open_betting">
@@ -376,7 +376,7 @@
         </div>
 
         <!-- STEP 4: Declare Result and Execute (Andar and Bahar) -->
-        <div class="glass-panel p-4 border-amber-500/30 bg-amber-950/10 flex flex-col justify-between">
+       <div class="glass-panel p-4 border-amber-500/30 bg-amber-950/10 self-start">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold font-royal text-white flex items-center gap-2">
                     <span class="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">4</span>
@@ -389,7 +389,7 @@
                 @endif
             </div>
 
-            <div class="grid grid-cols-2 gap-3 my-auto">
+               <div class="grid grid-cols-2 gap-3 mt-3">
                 <!-- ANDAR WON -->
                 <form method="POST" action="{{ route('admin.game.action', $room->id) }}" id="form-andar" onsubmit="return false;">
                     @csrf
