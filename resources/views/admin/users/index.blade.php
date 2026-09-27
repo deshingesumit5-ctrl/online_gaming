@@ -28,10 +28,17 @@
                class="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition {{ $tab === 'blocked' ? 'bg-red-600 text-white font-black shadow-lg shadow-red-600/20' : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800' }}">
                 Blocked ({{ $counts['blocked'] }})
             </a>
+            <a href="{{ route('admin.users.index', ['tab' => 'admin_created']) }}" 
+               class="px-4 py-2 rounded-xl text-xs font-bold uppercase tracking-wider transition {{ $tab === 'admin_created' ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/20' : 'bg-slate-900 text-slate-400 hover:text-white border border-slate-800' }}">
+                Admin Created ({{ $counts['admin_created'] }})
+            </a>
         </div>
 
-        <!-- Search Box -->
-        <form method="GET" action="{{ route('admin.users.index') }}" class="flex items-center gap-2 w-full md:w-auto">
+        <div class="flex flex-col items-stretch md:items-end gap-2 w-full md:w-auto">
+            <button type="button" onclick="openAddUserModal()" class="self-end px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black uppercase tracking-wider shadow-lg shadow-amber-500/20">
+                + Add User
+            </button>
+            <form method="GET" action="{{ route('admin.users.index') }}" class="flex items-center gap-2 w-full md:w-auto">
             <input type="hidden" name="tab" value="{{ $tab }}">
             <input type="text" name="search" value="{{ $search }}" placeholder="Search ID, name, username, mobile..."
                    class="px-3.5 py-2 rounded-xl bg-slate-950 border border-slate-700 text-white text-xs w-full md:w-64 focus:border-amber-400">
@@ -39,6 +46,7 @@
                 Search
             </button>
         </form>
+        </div>
     </div>
 
     <!-- User Master Table Matching Image 2 Specs -->
@@ -311,6 +319,121 @@
     </div>
 </div>
 
+<!-- Modal: Add User (same fields as player registration) -->
+<div id="addUserModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm {{ ($errors->any() && old('form') === 'add_user') ? 'flex' : 'hidden' }} items-center justify-center p-4">
+    <div class="relative w-full max-w-2xl max-h-[92vh] overflow-y-auto rounded-2xl bg-[#0e1626] border border-slate-800 p-5 sm:p-7 shadow-2xl">
+        <button type="button" onclick="closeAddUserModal()" class="absolute top-4 right-4 w-8 h-8 rounded-full bg-white/10 text-white" aria-label="Close">&times;</button>
+        <div class="text-center mb-4 pr-8">
+            <div class="w-14 h-14 mx-auto mb-2 bg-black rounded-xl overflow-hidden flex items-center justify-center shadow-lg border border-slate-800/80">
+                <img src="{{ asset('images/logo.png') }}" alt="Fun 2 Win" class="w-full h-full object-contain">
+            </div>
+            <h2 class="text-xl sm:text-2xl font-bold font-royal text-white tracking-wide">CREATE PLAYER ACCOUNT</h2>
+            <p class="text-xs text-slate-400 mt-0.5">Register for exclusive access to live tables. Admin approval required.</p>
+        </div>
+
+        @if($errors->any() && old('form') === 'add_user')
+            <div class="p-3.5 rounded-xl bg-red-950/80 border border-red-500/70 text-red-200 text-xs mb-4">
+                <ul class="list-disc list-inside space-y-0.5">
+                    @foreach($errors->all() as $err)
+                        <li>{{ $err }}</li>
+                    @endforeach
+                </ul>
+            </div>
+        @endif
+
+        <form action="{{ route('admin.users.store') }}" method="POST" id="admin-add-user-form" class="needs-validation space-y-3" autocomplete="off">
+            @csrf
+            <input type="hidden" name="form" value="add_user">
+            <div style="position: absolute; opacity: 0; pointer-events: none; height: 0; width: 0; overflow: hidden;" aria-hidden="true">
+                <input type="text" name="decoy_username" tabindex="-1" autocomplete="username">
+                <input type="password" name="decoy_password" tabindex="-1" autocomplete="new-password">
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label for="admin-reg-name" class="block text-[11px] font-semibold tracking-wider text-slate-300 mb-1">Full Name <span class="text-red-500">*</span></label>
+                    <input type="text" id="admin-reg-name" name="name" value="{{ old('form') === 'add_user' ? old('name') : '' }}" required placeholder="e.g. Rahul Sharma" class="w-full bg-[#0a101d] border border-slate-700/60 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label for="admin-reg-username" class="block text-[11px] font-semibold tracking-wider text-slate-300 mb-1">Username <span class="text-red-500">*</span></label>
+                    <input type="text" id="admin-reg-username" name="username" value="{{ old('form') === 'add_user' ? old('username') : '' }}" required placeholder="e.g. rahul_king" autocomplete="off" class="w-full bg-[#0a101d] border border-slate-700/60 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label for="admin-reg-mobile" class="block text-[11px] font-semibold tracking-wider text-slate-300 mb-1">Mobile <span class="text-red-500">*</span></label>
+                    <input type="tel" id="admin-reg-mobile" name="mobile" value="{{ old('form') === 'add_user' ? old('mobile') : '' }}" required maxlength="10" inputmode="numeric" pattern="[6-9][0-9]{9}" placeholder="10-digit number" autocomplete="off" oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 10);" class="w-full bg-[#0a101d] border border-slate-700/60 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label for="admin-reg-email" class="block text-[11px] font-semibold tracking-wider text-slate-300 mb-1">Email(non mandatory)</label>
+                    <input type="email" id="admin-reg-email" name="email" value="{{ old('form') === 'add_user' ? old('email') : '' }}" placeholder="e.g. rahul@example.com" autocomplete="off" class="w-full bg-[#0a101d] border border-slate-700/60 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label for="admin-reg-password" class="block text-[11px] font-semibold tracking-wider text-slate-300 mb-1">Password <span class="text-red-500">*</span></label>
+                    <div class="relative">
+                        <input type="password" id="admin-reg-password" name="password" required placeholder="••••••••" autocomplete="new-password" class="w-full bg-[#0a101d] border border-slate-700/60 rounded-xl pl-3 pr-10 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                        <button type="button" onclick="toggleAdminPassword('admin-reg-password', this)" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-400 p-1" aria-label="Toggle password visibility">
+                            <svg class="w-4 h-4 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            <svg class="w-4 h-4 eye-icon-hide hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
+                        </button>
+                    </div>
+                </div>
+                <div>
+                    <label for="admin-reg-password-confirm" class="block text-[11px] font-semibold tracking-wider text-slate-300 mb-1">Confirm Password <span class="text-red-500">*</span></label>
+                    <div class="relative">
+                        <input type="password" id="admin-reg-password-confirm" name="password_confirmation" required placeholder="••••••••" autocomplete="new-password" class="w-full bg-[#0a101d] border border-slate-700/60 rounded-xl pl-3 pr-10 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                        <button type="button" onclick="toggleAdminPassword('admin-reg-password-confirm', this)" class="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-amber-400 p-1" aria-label="Toggle password visibility">
+                            <svg class="w-4 h-4 eye-icon-show" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                            <svg class="w-4 h-4 eye-icon-hide hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"/></svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label for="admin-reg-dob" class="block text-[11px] font-semibold tracking-wider text-slate-300 mb-1">DOB</label>
+                    <input type="date" id="admin-reg-dob" name="dob" value="{{ old('form') === 'add_user' ? old('dob') : '' }}" max="{{ date('Y-m-d') }}" class="w-full bg-[#0a101d] border border-slate-700/60 rounded-xl px-3 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label for="admin-reg-address" class="block text-[11px] font-semibold tracking-wider text-slate-300 mb-1">Address</label>
+                    <input type="text" id="admin-reg-address" name="address" value="{{ old('form') === 'add_user' ? old('address') : '' }}" placeholder="Street, landmark, pincode" class="w-full bg-[#0a101d] border border-slate-700/60 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label for="admin-reg-city" class="block text-[11px] font-semibold tracking-wider text-slate-300 mb-1">City</label>
+                    <input type="text" id="admin-reg-city" name="city" value="{{ old('form') === 'add_user' ? old('city') : '' }}" placeholder="e.g. Mumbai" class="w-full bg-[#0a101d] border border-slate-700/60 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label for="admin-reg-state" class="block text-[11px] font-semibold tracking-wider text-slate-300 mb-1">State</label>
+                    <input type="text" id="admin-reg-state" name="state" value="{{ old('form') === 'add_user' ? old('state') : '' }}" placeholder="e.g. Maharashtra" class="w-full bg-[#0a101d] border border-slate-700/60 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                </div>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                    <label for="admin-reg-country" class="block text-[11px] font-semibold tracking-wider text-slate-300 mb-1">Country</label>
+                    <input type="text" id="admin-reg-country" name="country" value="{{ old('form') === 'add_user' ? old('country', 'India') : 'India' }}" placeholder="Country" class="w-full bg-[#0a101d] border border-slate-700/60 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                </div>
+                <div>
+                    <label for="admin-reg-kyc" class="block text-[11px] font-semibold tracking-wider text-slate-300 mb-1">Required verification/ KYC details</label>
+                    <input type="text" id="admin-reg-kyc" name="kyc_info" value="{{ old('form') === 'add_user' ? old('kyc_info') : '' }}" placeholder="Aadhaar / PAN / ID number" class="w-full bg-[#0a101d] border border-slate-700/60 rounded-xl px-3 py-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+                </div>
+            </div>
+            <div class="pt-1">
+                <label class="flex items-start gap-2 cursor-pointer text-[11px] text-slate-300">
+                    <input type="checkbox" id="admin-reg-terms" name="terms" value="1" class="mt-0.5 rounded text-amber-500 focus:ring-amber-500 bg-slate-900 border-slate-700" {{ old('form') === 'add_user' && old('terms') ? 'checked' : '' }}>
+                    <span>Terms and conditions acceptance (I confirm that I am at least 18 years old and agree to the Terms of Service. Admin approval required.)</span>
+                </label>
+            </div>
+            <button type="submit" class="w-full py-3 px-4 rounded-xl font-black text-xs uppercase tracking-widest text-slate-950 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 shadow-lg shadow-amber-500/25 mt-2">
+                Add User
+            </button>
+        </form>
+    </div>
+</div>
+
 <!-- Modal: Add Points -->
 <div id="addPointsModal" class="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center p-4">
     <div class="bg-[#0f172a] border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
@@ -443,6 +566,34 @@
 
     function closeDeductPointsModal() {
         document.getElementById('deductPointsModal').classList.add('hidden');
+    }
+
+    function openAddUserModal() {
+        const modal = document.getElementById('addUserModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+    }
+
+    function closeAddUserModal() {
+        const modal = document.getElementById('addUserModal');
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+    }
+
+    function toggleAdminPassword(inputId, btn) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        const showIcon = btn.querySelector('.eye-icon-show');
+        const hideIcon = btn.querySelector('.eye-icon-hide');
+        if (input.type === 'password') {
+            input.type = 'text';
+            if (showIcon) showIcon.classList.add('hidden');
+            if (hideIcon) hideIcon.classList.remove('hidden');
+        } else {
+            input.type = 'password';
+            if (showIcon) showIcon.classList.remove('hidden');
+            if (hideIcon) hideIcon.classList.add('hidden');
+        }
     }
 </script>
 @endpush

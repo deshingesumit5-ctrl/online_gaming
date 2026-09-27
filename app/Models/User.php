@@ -32,6 +32,7 @@ class User extends Authenticatable
         'kyc_info',
         'status',
         'role',
+        'created_by_admin',
         'wallet_balance',
         'last_login_at',
     ];
@@ -59,6 +60,7 @@ class User extends Authenticatable
             'dob' => 'date',
             'password' => 'hashed',
             'wallet_balance' => 'integer',
+            'created_by_admin' => 'boolean',
         ];
     }
 

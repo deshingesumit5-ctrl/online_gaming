@@ -73,7 +73,7 @@
                         <th class="w-24">Thumbnail</th>
                         <th>Card name</th>
                         <th>Short Cut Key</th>
-                        <th class="text-right">Actions</th>
+                        <th class="text-center">Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -95,15 +95,35 @@
                             </td>
                             <td class="font-mono font-bold text-amber-200" x-text="card.code || '—'"></td>
                             <td>
-                                <div class="flex items-center justify-end gap-2">
-                                    <button type="button" @click="openEdit(card)" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 text-xs font-bold border border-slate-600">Edit</button>
-                                    <button type="button" @click="removeCard(card)" class="px-3 py-1.5 rounded-lg bg-red-800 hover:bg-red-700 text-white text-xs font-bold">Delete</button>
+                                <div class="flex flex-col items-center gap-2 pt-1">
+                                    <button type="button" @click="openEdit(card)" title="Edit" aria-label="Edit card" class="w-9 h-9 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-600 flex items-center justify-center">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536M4 20h4.5L19.768 8.768a2.5 2.5 0 00-3.536-3.536L5 16.5V20z"/></svg>
+                                    </button>
+                                    <button type="button" @click="askDelete(card)" title="Delete" aria-label="Delete card" class="w-9 h-9 rounded-lg bg-red-800 hover:bg-red-700 text-white flex items-center justify-center">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16"/></svg>
+                                    </button>
                                 </div>
                             </td>
                         </tr>
                     </template>
                 </tbody>
             </table>
+        </div>
+    </div>
+
+    <div x-show="deleteOpen" x-cloak class="fixed inset-0 z-[90] flex items-center justify-center p-4" style="background: rgba(0,0,0,0.72);">
+        <div class="flex flex-col items-center justify-center text-center rounded-3xl border border-red-500/40 shadow-2xl px-6"
+             style="width: min(88vw, 360px); aspect-ratio: 1 / 1; background: radial-gradient(circle at 50% 20%, #3f1212 0%, #140808 70%);"
+             @click.outside="deleteOpen = false">
+            <div class="w-14 h-14 rounded-2xl bg-red-500/15 border border-red-400/50 flex items-center justify-center text-red-300 mb-4">
+                <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6M9 7V4a1 1 0 011-1h4a1 1 0 011 1v3M4 7h16"/></svg>
+            </div>
+            <p class="card-name-serif text-xl text-white leading-snug px-2">Do you want to delete this card?</p>
+            <p class="text-xs text-red-200/80 mt-2" x-text="pendingDelete ? pendingDelete.name : ''"></p>
+            <div class="flex gap-3 w-full mt-6">
+                <button type="button" @click="deleteOpen = false" class="flex-1 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-sm font-bold">Cancel</button>
+                <button type="button" @click="confirmDelete()" class="flex-1 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-bold">Delete</button>
+            </div>
         </div>
     </div>
 
@@ -151,6 +171,8 @@
         return {
             cards: @json($cards),
             modalOpen: false,
+            deleteOpen: false,
+            pendingDelete: null,
             saving: false,
             editingId: null,
             flash: '',
@@ -255,8 +277,14 @@
                     this.saving = false;
                 }
             },
-            async removeCard(card) {
-                if (!confirm('Delete this card?')) return;
+            askDelete(card) {
+                this.pendingDelete = card;
+                this.deleteOpen = true;
+            },
+            async confirmDelete() {
+                const card = this.pendingDelete;
+                this.deleteOpen = false;
+                if (!card) return;
                 const res = await fetch(@json(url('admin/cards')) + '/' + card.id, {
                     method: 'DELETE',
                     headers: {
@@ -268,6 +296,7 @@
                 const data = await res.json().catch(() => ({}));
                 if (!res.ok) return;
                 this.flash = data.message || 'Card deleted.';
+                this.pendingDelete = null;
                 await this.refreshCards();
                 setTimeout(() => { this.flash = ''; }, 2500);
             }

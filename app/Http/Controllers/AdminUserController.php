@@ -3,14 +3,18 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\AddPointsRequest;
+use App\Http\Requests\AdminStoreUserRequest;
 use App\Http\Requests\ManualDebitRequest;
 use App\Models\User;
 use App\Services\UserStatusManager;
 use App\Services\WalletService;
 use Exception;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\View\View;
 
 class AdminUserController extends Controller
@@ -21,6 +25,8 @@ class AdminUserController extends Controller
 
     public function index(Request $request): View
     {
+        $this->ensureAdminCreatedColumn();
+
         $tab = $request->query('tab', 'all');
         $search = $request->query('search');
 
@@ -34,6 +40,8 @@ class AdminUserController extends Controller
             $query->where('status', 'inactive');
         } elseif ($tab === 'blocked') {
             $query->whereIn('status', ['blocked', 'rejected']);
+        } elseif ($tab === 'admin_created') {
+            $query->where('created_by_admin', true);
         }
 
         if ($search) {
@@ -53,10 +61,51 @@ class AdminUserController extends Controller
             'active' => User::where('role', 'player')->whereIn('status', ['active', 'approved'])->count(),
             'inactive' => User::where('role', 'player')->where('status', 'inactive')->count(),
             'blocked' => User::where('role', 'player')->whereIn('status', ['blocked', 'rejected'])->count(),
+            'admin_created' => User::where('role', 'player')->where('created_by_admin', true)->count(),
             'all' => User::where('role', 'player')->count(),
         ];
 
         return view('admin.users.index', compact('users', 'tab', 'search', 'counts'));
+    }
+
+    public function store(AdminStoreUserRequest $request): RedirectResponse
+    {
+        $this->ensureAdminCreatedColumn();
+        $validated = $request->validated();
+
+        $user = User::create([
+            'name' => $validated['name'],
+            'username' => strtolower($validated['username']),
+            'email' => !empty($validated['email']) ? strtolower($validated['email']) : null,
+            'mobile' => $validated['mobile'],
+            'password' => Hash::make($validated['password']),
+            'dob' => $validated['dob'] ?? null,
+            'address' => $validated['address'] ?? null,
+            'city' => $validated['city'] ?? null,
+            'state' => $validated['state'] ?? null,
+            'country' => $validated['country'] ?? 'India',
+            'kyc_info' => $validated['kyc_info'] ?? null,
+            'status' => 'approved',
+            'role' => 'player',
+            'created_by_admin' => true,
+            'wallet_balance' => 0,
+        ]);
+
+        return redirect()->route('admin.users.index', ['tab' => 'admin_created'])->with(
+            'success',
+            "Player @{$user->username} was added. They can log in with this username and password."
+        );
+    }
+
+    private function ensureAdminCreatedColumn(): void
+    {
+        if (Schema::hasColumn('users', 'created_by_admin')) {
+            return;
+        }
+
+        Schema::table('users', function (Blueprint $table) {
+            $table->boolean('created_by_admin')->default(false);
+        });
     }
 
     public function show(int $id): View

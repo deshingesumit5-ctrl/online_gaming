@@ -490,7 +490,7 @@ class LowLatencyStreamService
             . ' -fflags nobuffer+discardcorrupt -flags low_delay -probesize 32768 -analyzeduration 0'
             . ' -i ' . escapeshellarg($sourceUrl)
             . ' -an -vf fps=8 -q:v 5 -f image2 -update 1 ' . escapeshellarg($outFile)
-            . ' >>/var/www/online_gaming/storage/logs/ffmpeg-php.log 2>&1 & echo $!';
+            . ' >/dev/null 2>&1 & echo $!';
         $pid = trim((string) shell_exec($cmd));
         if ($pid !== '') {
             file_put_contents($this->dir($roomId) . DIRECTORY_SEPARATOR . 'ffmpeg.pid', $pid);

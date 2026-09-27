@@ -24,19 +24,36 @@
     #admin-stream-white-screen {
         z-index: 6;
     }
+    main.max-w-7xl {
+        max-width: 100%;
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+    #admin-stream-preview.gc-video-stage {
+        height: min(78vh, 820px);
+        min-height: 480px;
+    }
+    @media (max-width: 1023px) {
+        #admin-stream-preview.gc-video-stage {
+            height: 64vh;
+            min-height: 360px;
+        }
+    }
     #admin-cctv-live-jpg {
         position: absolute;
         inset: 0;
         width: 100%;
         height: 100%;
-        object-fit: cover;
+        object-fit: contain;
+        background: #000;
         z-index: 3;
     }
     #admin-cctv-video {
         position: absolute;
         inset: 0;
         z-index: 2;
-        background: transparent;
+        background: #000;
+        object-fit: contain;
     }
     #admin-live-card-overlay {
         position: absolute;
@@ -164,111 +181,19 @@
         </div>
     </div>
 
-    <!-- Step Guidance (PDF Pages 22 & 23) -->
     @php
-        $stepStatus = 'session_start';
-        if ($currentRound->status === 'result_declared' || $currentRound->status === 'round_closed') {
-            $currentStepIndex = 8; // declare result / completed
-        } elseif ($currentRound->payout_locked) {
-            $currentStepIndex = 5; // continue live game / match occurs
-        } elseif ($currentRound->status === 'betting_open' || $currentRound->status === 'betting_closed') {
-            $currentStepIndex = 3; // betting window
-        } elseif ($currentRound->first_card) {
-            $currentStepIndex = 2; // initial cards
-        } else {
-            $currentStepIndex = 1; // session start / ref card
+        $firstCardMatchLabel = 'Not set';
+        if ($currentRound->payout_locked || $currentRound->first_card_matched !== null) {
+            $firstCardMatchLabel = $currentRound->first_card_matched ? 'Matched' : 'Not matched';
         }
-
-        $workflowSteps = [
-            ['num' => 1, 'name' => 'SESSION START'],
-            ['num' => 2, 'name' => 'REFERENCE CARD'],
-            ['num' => 3, 'name' => 'INITIAL CARDS'],
-            ['num' => 4, 'name' => 'BETTING WINDOW (10s)'],
-            ['num' => 5, 'name' => 'FIRST CARD CONDITION'],
-            ['num' => 6, 'name' => 'CONTINUE LIVE GAME'],
-            ['num' => 7, 'name' => 'MATCH OCCURS'],
-            ['num' => 8, 'name' => 'DECLARE RESULT'],
-            ['num' => 9, 'name' => 'PAYOUT & COMPLETE'],
-        ];
+        $bettingCycleLabel = 'Round #' . $currentRound->round_number;
+        if (!empty($currentWindow)) {
+            $bettingCycleLabel .= ' · Window #' . $currentWindow->window_number;
+        }
     @endphp
-    <div class="glass-panel p-3.5 border-slate-800/80">
-        <div class="flex items-center justify-between mb-2">
-            <span class="text-[11px] font-black uppercase tracking-wider text-amber-400 font-royal flex items-center gap-1.5">
-                <span>📋</span> Step Guidance Workflow
-            </span>
-            <span class="text-[10px] text-slate-400 italic">
-                * Note: Betting Window is repeatable multiple times during active session
-            </span>
-        </div>
-        <div class="gc-workflow-row flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-thin text-[10px] font-bold">
-            @foreach($workflowSteps as $idx => $step)
-                @php
-                    $isPassed = ($idx < $currentStepIndex);
-                    $isCurrent = ($idx === $currentStepIndex);
-                    if ($isCurrent) {
-                        $badgeStyle = 'bg-amber-500 text-slate-950 border-amber-400 shadow-[0_0_10px_rgba(245,158,11,0.5)]';
-                    } elseif ($isPassed) {
-                        $badgeStyle = 'bg-emerald-950 text-emerald-300 border-emerald-700';
-                    } else {
-                        $badgeStyle = 'bg-slate-900 text-slate-500 border-slate-800';
-                    }
-                @endphp
-                <div class="flex items-center gap-1.5 shrink-0">
-                    <div class="px-2.5 py-1 rounded-lg border flex items-center gap-1.5 {{ $badgeStyle }}">
-                        <span class="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black {{ $isCurrent ? 'bg-slate-950 text-amber-400' : ($isPassed ? 'bg-emerald-600 text-white' : 'bg-slate-800 text-slate-400') }}">
-                            {{ $isPassed ? '✓' : $step['num'] }}
-                        </span>
-                        <span class="whitespace-nowrap uppercase tracking-wider">{{ $step['name'] }}</span>
-                    </div>
-                    @if(!$loop->last)
-                        <span class="text-slate-600 font-black text-xs">&rarr;</span>
-                    @endif
-                </div>
-            @endforeach
-        </div>
-    </div>
 
-    <!-- PRIMARY 4-STEP CONTROL MATRIX (Exact Ordered Sequence 1 -> 2 -> 3 -> 4) -->
-    <div class="gc-control-matrix grid grid-cols-1 lg:grid-cols-2 gap-5">
-        
-        <!-- STEP 1: Assign Open First Card (Joker) -->
-        <div class="glass-panel p-5 border-slate-800 flex flex-col justify-between">
-            <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-bold font-royal text-white flex items-center gap-2">
-                    <span class="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">1</span>
-                    <span>Assign Open First Card (Joker)</span>
-                </h3>
-                <span id="admin-first-card-set-label" class="text-xs font-bold text-emerald-400">
-                    @if($currentRound->first_card)
-                        Card Set: {{ strtoupper(str_replace('_', ' ', $currentRound->first_card)) }}
-                    @endif
-                </span>
-            </div>
-
-            <form method="POST" action="{{ route('admin.game.action', $room->id) }}" class="space-y-3">
-                @csrf
-                <input type="hidden" name="action" value="start_round">
-
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-44 overflow-y-auto p-2 bg-slate-900/80 rounded-xl border border-slate-800 scrollbar-thin">
-                    @foreach($cardDeck as $card)
-                        <label class="cursor-pointer">
-                            <input type="radio" name="first_card" value="{{ $card['code'] }}" class="peer hidden" {{ $currentRound->first_card === $card['code'] ? 'checked' : '' }}>
-                            <div class="p-2 text-center rounded-lg bg-slate-800 peer-checked:bg-amber-500 peer-checked:text-slate-950 hover:bg-slate-700 text-xs font-bold transition">
-                                <span class="{{ $card['color'] }} peer-checked:text-slate-950">{{ $card['label'] }}</span>
-                            </div>
-                        </label>
-                    @endforeach
-                </div>
-
-                <p class="text-[10px] text-slate-500">Or keep this page focused and tap 2–9 / 0 — the card appears on the live camera table, not in a corner box.</p>
-                <button type="submit" class="btn-gold w-full py-2.5 text-xs font-bold uppercase tracking-wider">
-                    Set Dealer First Card & Start Round
-                </button>
-            </form>
-        </div>
-
-        <!-- STEP 2: Start Live Stream and below Start and End button -->
-        <div class="glass-panel p-5 border-slate-800 flex flex-col justify-between">
+    <div class="gc-control-matrix grid grid-cols-1 xl:grid-cols-12 gap-4">
+        <div class="xl:col-span-8 glass-panel p-3 sm:p-4 border-slate-800 flex flex-col">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold font-royal text-white flex items-center gap-2">
                     <span class="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">2</span>
@@ -294,14 +219,14 @@
             </div>
 
             <!-- Live Camera Screen (Matching User Panel: Video when running, White Screen when ended) -->
-            <div id="admin-stream-preview" class="relative w-full rounded-xl overflow-hidden border border-slate-700/80 bg-white shadow-inner flex items-center justify-center" style="height: 175px;">
+            <div id="admin-stream-preview" class="gc-video-stage relative w-full rounded-xl overflow-hidden border border-slate-700/80 bg-black shadow-inner flex items-center justify-center">
                 <!-- Live Camera Video Element (Local Device Webcam) -->
-                <video id="admin-live-camera" class="w-full h-full object-cover hidden" autoplay muted playsinline></video>
+                <video id="admin-live-camera" class="w-full h-full object-contain bg-black hidden" autoplay muted playsinline></video>
 
                 <!-- External / CCTV Live Stream Player Container -->
                 <div id="admin-cctv-stream-container" class="w-full h-full absolute inset-0 bg-black {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}">
-                    <video id="admin-cctv-video" class="w-full h-full object-cover {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}" autoplay muted playsinline></video>
-                    <img id="admin-cctv-live-jpg" class="w-full h-full object-cover hidden" alt="Live CCTV">
+                    <video id="admin-cctv-video" class="w-full h-full object-contain bg-black {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}" autoplay muted playsinline></video>
+                    <img id="admin-cctv-live-jpg" class="w-full h-full object-contain bg-black hidden" alt="Live CCTV">
                     <iframe id="admin-cctv-iframe" class="w-full h-full border-0 hidden" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                     {{-- CCTV Switched Off Overlay --}}
                     <div id="admin-cctv-offline-overlay" class="absolute inset-0 flex flex-col items-center justify-center bg-black/85 z-10 hidden" style="backdrop-filter:blur(2px);">
@@ -368,8 +293,52 @@
             </div>
         </div>
 
+        <div class="xl:col-span-4 flex flex-col gap-4">
+            <div class="glass-panel p-4 border-amber-500/30">
+                <h3 class="text-xs font-black uppercase tracking-wider text-amber-300 mb-3">Session</h3>
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                    <div class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                        <span class="block text-[10px] uppercase text-slate-500 font-bold">Session ID / Table</span>
+                        <strong class="text-white">#{{ $currentRound->id }}</strong>
+                        <span class="block text-amber-300 font-semibold truncate">{{ $room->name }}</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                        <span class="block text-[10px] uppercase text-slate-500 font-bold">Session Status</span>
+                        <strong class="text-emerald-300 uppercase">{{ str_replace('_', ' ', $currentRound->status) }}</strong>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                        <span class="block text-[10px] uppercase text-slate-500 font-bold">Betting Status</span>
+                        <strong class="{{ $currentRound->status === 'betting_open' ? 'text-emerald-400' : 'text-amber-300' }} uppercase">{{ str_replace('_', ' ', $currentRound->status) }}</strong>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                        <span class="block text-[10px] uppercase text-slate-500 font-bold">Betting Round / Cycle</span>
+                        <strong class="text-white">{{ $bettingCycleLabel }}</strong>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                        <span class="block text-[10px] uppercase text-slate-500 font-bold">First Card Match</span>
+                        <strong class="{{ $firstCardMatchLabel === 'Matched' ? 'text-emerald-400' : 'text-amber-300' }}">{{ $firstCardMatchLabel }}</strong>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
+                        <span class="block text-[10px] uppercase text-slate-500 font-bold">Current Payout %</span>
+                        <strong class="{{ $currentRound->payout_locked ? 'text-emerald-400' : 'text-amber-300' }}">{{ $currentRound->payoutLabel() }}{{ $currentRound->payout_locked ? ' · LOCKED' : '' }}</strong>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 gap-2 mt-2 text-center">
+                    <div class="p-2.5 rounded-xl bg-indigo-950/70 border border-indigo-700/50">
+                        <span class="text-[10px] uppercase font-bold text-indigo-300 block">Andar</span>
+                        <span class="text-lg font-black text-white">{{ number_format($totalAndarAmount, 0) }}</span>
+                        <span class="text-[10px] text-slate-400 block">{{ count($andarBets) }} bet(s)</span>
+                    </div>
+                    <div class="p-2.5 rounded-xl bg-red-950/70 border border-red-700/50">
+                        <span class="text-[10px] uppercase font-bold text-red-300 block">Bahar</span>
+                        <span class="text-lg font-black text-white">{{ number_format($totalBaharAmount, 0) }}</span>
+                        <span class="text-[10px] text-slate-400 block">{{ count($baharBets) }} bet(s)</span>
+                    </div>
+                </div>
+            </div>
+
         <!-- STEP 3: Betting Window Control (PDF Pages 8 & 9) -->
-        <div class="glass-panel p-5 border-slate-800 flex flex-col justify-between">
+        <div class="glass-panel p-4 border-slate-800 flex flex-col justify-between">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold font-royal text-white flex items-center gap-2">
                     <span class="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">3</span>
@@ -406,40 +375,8 @@
             </div>
         </div>
 
-        <!-- STEP 3B: First Card Payout Condition -->
-        <div class="glass-panel p-5 border-slate-800 flex flex-col justify-between">
-            <div class="flex items-center justify-between mb-3">
-                <h3 class="text-sm font-bold font-royal text-white flex items-center gap-2">
-                    <span class="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">3b</span>
-                    <span>First Card Payout Condition</span>
-                </h3>
-                <span class="text-xs font-bold {{ $currentRound->payout_locked ? 'text-emerald-400' : 'text-amber-300' }}">
-                    {{ $currentRound->payoutLabel() }}{{ $currentRound->payout_locked ? ' · LOCKED' : '' }}
-                </span>
-            </div>
-            <p class="text-[10px] text-slate-500 mb-3">Locks 25% or 100% profit for this entire session. Required before declaring a winner. Resets on the next session.</p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <form method="POST" action="{{ route('admin.game.action', $room->id) }}">
-                    @csrf
-                    <input type="hidden" name="action" value="confirm_first_card">
-                    <input type="hidden" name="first_card_matched" value="1">
-                    <button type="submit" class="w-full py-3.5 bg-emerald-700 hover:bg-emerald-600 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow transition js-busy-btn" data-busy-text="LOCKING 25%..." {{ $currentRound->payout_locked ? 'disabled' : '' }}>
-                        First Card Matched – 25%
-                    </button>
-                </form>
-                <form method="POST" action="{{ route('admin.game.action', $room->id) }}">
-                    @csrf
-                    <input type="hidden" name="action" value="confirm_first_card">
-                    <input type="hidden" name="first_card_matched" value="0">
-                    <button type="submit" class="w-full py-3.5 bg-indigo-700 hover:bg-indigo-600 text-white rounded-xl font-black text-xs uppercase tracking-wider shadow transition js-busy-btn" data-busy-text="LOCKING 100%..." {{ $currentRound->payout_locked ? 'disabled' : '' }}>
-                        First Card Not Matched – 100%
-                    </button>
-                </form>
-            </div>
-        </div>
-
         <!-- STEP 4: Declare Result and Execute (Andar and Bahar) -->
-        <div class="glass-panel p-5 border-amber-500/30 bg-amber-950/10 flex flex-col justify-between">
+        <div class="glass-panel p-4 border-amber-500/30 bg-amber-950/10 flex flex-col justify-between">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold font-royal text-white flex items-center gap-2">
                     <span class="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">4</span>
@@ -475,6 +412,7 @@
                     </button>
                 </form>
             </div>
+        </div>
         </div>
 
     </div>

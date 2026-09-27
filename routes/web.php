@@ -109,6 +109,7 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
 
     // User Master & Approvals
     Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
+    Route::post('/users', [AdminUserController::class, 'store'])->name('users.store');
     Route::get('/users/{id}', [AdminUserController::class, 'show'])->name('users.show');
     Route::post('/users/{id}/status', [AdminUserController::class, 'updateStatus'])->name('users.status');
     Route::post('/users/{id}/points/add', [AdminUserController::class, 'addPoints'])->name('users.points.add');
