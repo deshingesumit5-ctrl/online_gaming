@@ -13,6 +13,15 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="{{ asset('css/gaming-theme.css') }}">
     @stack('styles')
+    <style>
+        #mobile-sidebar { position: fixed !important; top: 0; bottom: 0; left: 0; width: 288px; z-index: 99999 !important; transform: translateX(-100%) !important; transition: transform .3s ease; overflow-y: auto; }
+        #mobile-sidebar.is-open { transform: translateX(0) !important; }
+        #mobile-sidebar-backdrop { position: fixed !important; inset: 0; z-index: 99998 !important; display: none !important; background: rgba(0,0,0,.6); }
+        #mobile-sidebar-backdrop.is-open { display: block !important; }
+        @media (min-width: 768px) {
+            #mobile-sidebar, #mobile-sidebar-backdrop { display: none !important; }
+        }
+    </style>
 </head>
 <body class="bg-[#070b14] text-slate-100 min-h-screen flex flex-col justify-between selection:bg-yellow-500 selection:text-black">
     @if(!request()->routeIs('login') && !request()->routeIs('register') && !request()->routeIs('terms.*') && !request()->routeIs('game.play'))
@@ -90,10 +99,9 @@
 
     @auth
     <!-- Mobile Drawer Backdrop -->
-    <div id="mobile-sidebar-backdrop" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden md:hidden transition-opacity"></div>
-
+    <div id="mobile-sidebar-backdrop"></div>
     <!-- Mobile Left-Side Sidebar (Shown on left side in mobile) -->
-    <aside id="mobile-sidebar" class="fixed inset-y-0 left-0 z-50 w-72 bg-[#0d1322] border-r border-slate-800 p-5 flex flex-col justify-between transform -translate-x-full md:hidden transition-transform duration-300 ease-in-out shadow-2xl">
+   <aside id="mobile-sidebar" class="bg-[#0d1322] border-r border-slate-800 p-5 flex flex-col justify-between shadow-2xl">
         <div>
             <!-- Brand & Close button -->
             <div class="flex items-center justify-between pb-5 border-b border-slate-800">
@@ -266,18 +274,14 @@
             const sidebar = document.getElementById('mobile-sidebar');
             const backdrop = document.getElementById('mobile-sidebar-backdrop');
 
-            function openSidebar() {
-                if (sidebar && backdrop) {
-                    sidebar.classList.remove('-translate-x-full');
-                    backdrop.classList.remove('hidden');
-                }
+               function openSidebar() {
+                if (sidebar) sidebar.classList.add('is-open');
+                if (backdrop) backdrop.classList.add('is-open');
             }
 
             function closeSidebar() {
-                if (sidebar && backdrop) {
-                    sidebar.classList.add('-translate-x-full');
-                    backdrop.classList.add('hidden');
-                }
+                if (sidebar) sidebar.classList.remove('is-open');
+                if (backdrop) backdrop.classList.remove('is-open');
             }
 
             if (toggleBtn) toggleBtn.addEventListener('click', openSidebar);
