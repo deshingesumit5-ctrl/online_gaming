@@ -161,6 +161,7 @@
         width: 100%;
         height: 100%;
         object-fit: fill;
+        filter: brightness(1.2) contrast(1.05);
         display: block;
         pointer-events: none;
         border-radius: 8%;
@@ -430,7 +431,8 @@
                     <div class="index-suit" id="player-live-card-index-suit-b"></div>
                 </div>
             </div>
-            <div id="player-live-wait-cover" class="absolute inset-0 z-40 bg-black {{ $room->is_streaming ? '' : 'hidden' }}"></div>
+        
+
 
             <!-- Live Streaming Indicator Badge -->
             <div class="absolute top-2.5 left-[clamp(120px,18vw,220px)] ml-2 sm:ml-3 z-10 flex items-center gap-1.5 sm:gap-2 bg-black/70 backdrop-blur-sm border border-red-500/40 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-[10px]">
@@ -1121,7 +1123,16 @@
             }
 
             // Sync Live Stream vs White Screen
-            syncLiveStreamView(data.is_streaming, data.live_stream_url);
+         if (data.is_streaming) {
+    clearTimeout(window._endDebounce);
+    window._endDebounce = null;
+    syncLiveStreamView(true, data.live_stream_url);
+} else if (!window._endDebounce) {
+    window._endDebounce = setTimeout(function () {
+        window._endDebounce = null;
+        syncLiveStreamView(false, data.live_stream_url);
+    }, 4000);
+}
         };
 
         // BroadcastChannel Receiver for Real-Time Camera Stream
@@ -1456,8 +1467,8 @@ const coverScale = (fit === 'contain')
                 enableWorker: true,
                 lowLatencyMode: false,
                 backBufferLength: 30,
-                maxBufferLength: 8,
-                maxMaxBufferLength: 20,
+             maxBufferLength: 15,
+maxMaxBufferLength: 30,
                 liveSyncDurationCount: 3,
                 liveMaxLatencyDurationCount: 12,
                 maxLiveSyncPlaybackRate: 1.5,
@@ -1521,7 +1532,7 @@ const coverScale = (fit === 'contain')
                             try { playerHls.startLoad(-1); } catch (e) {}
                             video.play().catch(function () {});
                         }
-                        if (video._edgeStall >= 5 && Date.now() - playerHlsLastRestartAt >= 4000) {
+                        if (video._edgeStall >= 15 && Date.now() - playerHlsLastRestartAt >= 4000) {
                             video._edgeStall = 0;
                             playerHlsLastRestartAt = Date.now();
                             restartPlayerHls(video);
@@ -1691,7 +1702,7 @@ const coverScale = (fit === 'contain')
             cctvVideo.setAttribute('muted', '');
             cctvVideo.autoplay = true;
             cctvVideo.playsInline = true;
-            cctvVideo.style.opacity = liveFootageReady ? '1' : '0';
+        cctvVideo.style.opacity = '1';
             cctvVideo.classList.remove('hidden');
             keepVideoRunning(cctvVideo);
             bindLiveFootageReadyWatchers(cctvVideo, fallbackImg);
@@ -1817,7 +1828,7 @@ const coverScale = (fit === 'contain')
                         if (fallbackImg) fallbackImg.classList.add('hidden');
                         if (ytIframe) ytIframe.classList.add('hidden');
                         if (cctvVideo) {
-                            cctvVideo.style.opacity = liveFootageReady ? '1' : '0';
+                           cctvVideo.style.opacity = '1';
                             cctvVideo.classList.remove('hidden');
                             keepVideoRunning(cctvVideo);
                             bindLiveFootageReadyWatchers(cctvVideo, fallbackImg);

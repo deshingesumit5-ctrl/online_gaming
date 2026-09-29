@@ -52,7 +52,7 @@
         position: absolute;
         inset: 0;
         z-index: 4;
-        background: #000;
+        background: transparent;
         object-fit: contain;
     }
     #admin-live-card-overlay {
@@ -126,6 +126,7 @@
         width: 100%;
         height: 100%;
         object-fit: fill;
+        filter: brightness(1.2) contrast(1.05);
         display: block;
         pointer-events: none;
         border-radius: 8%;
@@ -245,7 +246,7 @@
 
                 <!-- External / CCTV Live Stream Player Container -->
                 <div id="admin-cctv-stream-container" class="w-full h-full absolute inset-0 bg-black {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}">
-                    <video id="admin-cctv-video" class="w-full h-full object-contain bg-black {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}" autoplay muted playsinline></video>
+                   <video id="admin-cctv-video" class="w-full h-full object-contain {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}" autoplay muted playsinline></video>
                     <img id="admin-cctv-live-jpg" class="w-full h-full object-contain bg-black hidden" alt="Live CCTV">
                     <iframe id="admin-cctv-iframe" class="w-full h-full border-0 hidden" allow="accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe>
                     {{-- CCTV Switched Off Overlay --}}
@@ -855,10 +856,10 @@
             enableWorker: true,
             lowLatencyMode: false,
             backBufferLength: 10,
-            maxBufferLength: 6,
-            maxMaxBufferLength: 12,
-            liveSyncDurationCount: 1,
-            liveMaxLatencyDurationCount: 6,
+        maxBufferLength: 10,
+maxMaxBufferLength: 20,
+liveSyncDurationCount: 3,
+liveMaxLatencyDurationCount: 10,
             maxLiveSyncPlaybackRate: 1.5,
             startPosition: -1,
             liveDurationInfinity: true,
@@ -998,9 +999,6 @@
                 hideAdminLiveJpeg();
                 hideCctvOfflineOverlay();
                 return;
-            }
-            if (liveVideo && !liveVideo.classList.contains('hidden')) {
-                liveVideo.style.zIndex = '1';
             }
             const probe = new Image();
             probe.onload = function () {
@@ -1276,7 +1274,7 @@
                         try { adminHls.startLoad(-1); } catch (e) {}
                         video.play().catch(function () {});
                     }
-                    if (video._edgeStall >= 3 && Date.now() - adminCctvLastRestartAt >= CCTV_RESTART_COOLDOWN) {
+                    if (video._edgeStall >= 15 && Date.now() - adminCctvLastRestartAt >= CCTV_RESTART_COOLDOWN) {
                         video._edgeStall = 0;
                         adminCctvLastRestartAt = Date.now();
                         restartAdminHlsFromProxy();
