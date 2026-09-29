@@ -1703,7 +1703,7 @@ liveMaxLatencyDurationCount: 10,
     let adminOverlayScale = 1;
     let adminOverlayVisible = false;
     const OVERLAY_SCALE_KEY = 'fun2win_overlay_default_scale_' + currentRoomId;
-const OVERLAY_BASE_VIDEO_FRAC = 0.05;
+const OVERLAY_BASE_VIDEO_FRAC = 0.048;
     function readDefaultOverlayScale() {
         try {
             const v = parseFloat(localStorage.getItem(OVERLAY_SCALE_KEY));
@@ -1713,10 +1713,10 @@ const OVERLAY_BASE_VIDEO_FRAC = 0.05;
     }
     function saveDefaultOverlayScale(scale) {
         adminOverlayScale = scale;
-        try { localStorage.setItem(OVERLAY_SCALE_KEY, String(scale)); } catch (e) {}
+
     }
     const NEW_CARD_DEFAULT_SCALE = 1;
-    adminOverlayScale = readDefaultOverlayScale();
+   adminOverlayScale = NEW_CARD_DEFAULT_SCALE;
 
     if (adminPreview) {
         adminPreview.addEventListener('pointermove', function (e) {
