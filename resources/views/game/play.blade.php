@@ -1448,7 +1448,7 @@ const coverScale = (fit === 'contain')
             }
         }
 
-        async function pollPenPosition() {
+               async function pollPenPosition() {
             if (penPollBusy) return;
             penPollBusy = true;
             try {
@@ -1458,7 +1458,11 @@ const coverScale = (fit === 'contain')
                 applyPenPosition(data);
             } catch (e) {
             } finally {
-                  function createLowLatencyHls() {
+                penPollBusy = false;
+            }
+        }
+
+        function createLowLatencyHls() {
             return new Hls({
                 enableWorker: true,
                 lowLatencyMode: false,
@@ -1507,7 +1511,7 @@ const coverScale = (fit === 'contain')
             }
             video._triedProxyHls = false;
             video._edgeStall = 0;
-            attachPlayerHls(video, livePlaylistUrl, null);
+            attachPlayerHls(video, livePlaylistUrl);
         }
 
         function keepHlsAtLiveEdge(hls, video) {
@@ -1538,10 +1542,8 @@ const coverScale = (fit === 'contain')
                     video._edgeLastT = video.currentTime || 0;
                 } catch (e) {}
             }, 1000);
-        }      } catch (e) {}
-            }, 1000);
         }
-
+        
         function playNativeHlsAtLiveEdge(video, streamUrl) {
             if (video.src !== streamUrl) video.src = streamUrl;
             const seekLive = () => {
