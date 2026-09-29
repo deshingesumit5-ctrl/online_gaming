@@ -1705,7 +1705,7 @@
     let adminOverlayScale = 1;
     let adminOverlayVisible = false;
     const OVERLAY_SCALE_KEY = 'fun2win_overlay_default_scale_' + currentRoomId;
-    const OVERLAY_BASE_VIDEO_FRAC = 0.048;
+const OVERLAY_BASE_VIDEO_FRAC = 0.05;
     function readDefaultOverlayScale() {
         try {
             const v = parseFloat(localStorage.getItem(OVERLAY_SCALE_KEY));
@@ -1728,55 +1728,28 @@
             lastAdminPointer = { x: e.clientX, y: e.clientY };
         });
     }
-
-    function overlayMediaSize(media) {
-        if (!media) return { mw: 0, mh: 0 };
-        if (media.videoWidth) return { mw: media.videoWidth, mh: media.videoHeight };
-        if (media.naturalWidth) return { mw: media.naturalWidth, mh: media.naturalHeight };
-        return { mw: 0, mh: 0 };
+function overlayCoverMetrics(container, media) {
+    const cw = Math.max(1, container.clientWidth);
+    const ch = Math.max(1, container.clientHeight);
+    const sz = overlayMediaSize(media);
+    if (!sz.mw || !sz.mh) {
+        return { coverScale: 1, displayW: cw, displayH: ch, offsetX: 0, offsetY: 0, mw: cw, mh: ch };
     }
-
-    function adminOverlayMedia() {
-        const cctv = document.getElementById('admin-cctv-video');
-        if (cctv && cctv.videoWidth > 0 && !cctv.classList.contains('hidden')) return cctv;
-        const cam = document.getElementById('admin-live-camera');
-        if (cam && cam.videoWidth > 0 && !cam.classList.contains('hidden')) return cam;
-        const jpg = document.getElementById('admin-cctv-live-jpg');
-        if (jpg && jpg.naturalWidth > 0 && !jpg.classList.contains('hidden')) return jpg;
-        return cctv || cam || jpg;
-    }
-
-    function overlayCoverMetrics(container, media) {
-        const cw = Math.max(1, container.clientWidth);
-        const ch = Math.max(1, container.clientHeight);
-        const sz = overlayMediaSize(media);
-        if (!sz.mw || !sz.mh) {
-            return {
-                coverScale: 1,
-                displayW: cw,
-                displayH: ch,
-                offsetX: 0,
-                offsetY: 0,
-                mw: cw,
-                mh: ch
-            };
-        }
-        const mw = sz.mw;
-        const mh = sz.mh;
-        const coverScale = Math.max(cw / mw, ch / mh);
-        const displayW = mw * coverScale;
-        const displayH = mh * coverScale;
-        return {
-            coverScale,
-            displayW,
-            displayH,
-            offsetX: (cw - displayW) / 2,
-            offsetY: (ch - displayH) / 2,
-            mw,
-            mh
-        };
-    }
-
+    const mw = sz.mw, mh = sz.mh;
+    const fit = media ? getComputedStyle(media).objectFit : 'contain';
+    const scale = (fit === 'cover')
+        ? Math.max(cw / mw, ch / mh)
+        : Math.min(cw / mw, ch / mh);
+    const displayW = mw * scale;
+    const displayH = mh * scale;
+    return {
+        coverScale: scale,
+        displayW, displayH,
+        offsetX: (cw - displayW) / 2,
+        offsetY: (ch - displayH) / 2,
+        mw, mh
+    };
+}
     function applyAdminOverlayBox(overlay) {
         if (!overlay || !adminPreview) return;
         const metrics = overlayCoverMetrics(adminPreview, adminOverlayMedia());

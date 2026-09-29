@@ -1293,8 +1293,7 @@
         }
 
         let lastLiveOverlayLayout = { x: 0.48, y: 0.58, scale: 1 };
-        const OVERLAY_BASE_VIDEO_FRAC = 0.048;
-
+     const OVERLAY_BASE_VIDEO_FRAC = 0.05;
         function overlayMediaSize(media) {
             if (!media) return { mw: 0, mh: 0 };
             if (media.videoWidth) return { mw: media.videoWidth, mh: media.videoHeight };
@@ -1327,7 +1326,10 @@
             }
             const mw = sz.mw;
             const mh = sz.mh;
-            const coverScale = Math.max(cw / mw, ch / mh);
+           const fit = media ? getComputedStyle(media).objectFit : 'cover';
+const coverScale = (fit === 'contain')
+    ? Math.min(cw / mw, ch / mh)
+    : Math.max(cw / mw, ch / mh);
             const displayW = mw * coverScale;
             const displayH = mh * coverScale;
             return {
