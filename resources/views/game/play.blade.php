@@ -161,7 +161,7 @@
         width: 100%;
         height: 100%;
         object-fit: fill;
-        filter: brightness(1.2) contrast(1.05);
+        filter: brightness(1.75) contrast(1.15);
         display: block;
         pointer-events: none;
         border-radius: 8%;
