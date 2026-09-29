@@ -405,13 +405,13 @@
         
         <!-- Live Stream Video / Camera Broadcast Container (Overlaid when stream is active) -->
         <div id="player-live-stream-box" class="absolute inset-0 z-0 bg-black flex items-center justify-center overflow-hidden {{ $room->is_streaming ? '' : 'hidden' }}">
-            <!-- Live Camera Frame Image (broadcasted from Admin Live Camera) -->
-<img id="player-live-camera-img" class="w-full h-full object-cover hidden" style="position:absolute;inset:0;z-index:5;" alt="Live Dealer Stream" src="">
+            <!-- Live Camera Frame Image (broadcasted from Admin Live Camera or CCTV Live) -->
+            <img id="player-live-camera-img" class="w-full h-full object-contain hidden" style="position:absolute;inset:0;z-index:3;background:#000;" alt="Live Dealer Stream" src="">
 
             <!-- External / CCTV Live Stream Player Container -->
-            <div id="player-external-stream-wrap" class="hidden absolute inset-0 bg-black">
-                <video id="live-cctv-stream" class="w-full h-full object-cover hidden" autoplay muted playsinline disablepictureinpicture></video>
-                <iframe id="live-youtube-stream" class="w-full h-full border-0 hidden pointer-events-auto"
+            <div id="player-external-stream-wrap" class="w-full h-full absolute inset-0 bg-black {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}">
+                <video id="live-cctv-stream" class="w-full h-full object-contain {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}" style="position:absolute;inset:0;z-index:4;background:transparent;" autoplay muted playsinline disablepictureinpicture></video>
+                <iframe id="live-youtube-stream" class="w-full h-full border-0 hidden pointer-events-auto" style="position:absolute;inset:0;z-index:4;"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowfullscreen></iframe>
             </div>
@@ -1458,20 +1458,17 @@ const coverScale = (fit === 'contain')
                 applyPenPosition(data);
             } catch (e) {
             } finally {
-                penPollBusy = false;
-            }
-        }
-
-        function createLowLatencyHls() {
+                  function createLowLatencyHls() {
             return new Hls({
                 enableWorker: true,
                 lowLatencyMode: false,
-                backBufferLength: 30,
-             maxBufferLength: 15,
-maxMaxBufferLength: 30,
+                backBufferLength: 10,
+                maxBufferLength: 10,
+                maxMaxBufferLength: 20,
                 liveSyncDurationCount: 3,
-                liveMaxLatencyDurationCount: 12,
+                liveMaxLatencyDurationCount: 10,
                 maxLiveSyncPlaybackRate: 1.5,
+                startPosition: -1,
                 liveDurationInfinity: true,
                 startFragPrefetch: true,
                 manifestLoadingMaxRetry: 10,
@@ -1510,10 +1507,7 @@ maxMaxBufferLength: 30,
             }
             video._triedProxyHls = false;
             video._edgeStall = 0;
-            const fallbackImg = document.getElementById('player-live-camera-img');
-            const ytIframe = document.getElementById('live-youtube-stream');
-            const externalWrap = document.getElementById('player-external-stream-wrap');
-            startHlsPlayback(livePlaylistUrl, video, ytIframe, externalWrap, fallbackImg);
+            attachPlayerHls(video, livePlaylistUrl, null);
         }
 
         function keepHlsAtLiveEdge(hls, video) {
@@ -1539,9 +1533,12 @@ maxMaxBufferLength: 30,
                         }
                     } else {
                         video._edgeStall = 0;
+                        if (video.videoWidth > 0) hidePlayerLiveJpeg();
                     }
                     video._edgeLastT = video.currentTime || 0;
                 } catch (e) {}
+            }, 1000);
+        }      } catch (e) {}
             }, 1000);
         }
 
@@ -1566,52 +1563,93 @@ maxMaxBufferLength: 30,
             }
         }
 
-        function snapshotCandidates(streamUrl) {
+        function sanitizeStreamUrl(url) {
+            if (!url) return '';
+            const raw = String(url).trim();
+            const m = raw.match(/https?:\/\/[^\s"'<>\\]+/i) || raw.match(/rtsp:\/\/[^\s"'<>\\]+/i);
+            const candidate = m ? m[0] : raw;
             try {
-                const u = new URL(streamUrl);
-                const origin = u.origin;
-                const dir = u.pathname.replace(/\/[^/]*$/, '');
-                return [
-                    streamUrl.replace(/\.m3u8(\?.*)?$/i, '/snapshot.jpg'),
-                    streamUrl.replace(/\.m3u8(\?.*)?$/i, '.jpg'),
-                    origin + dir + '/snapshot.jpg',
-                    origin + dir + '/latest.jpg',
-                    origin + dir + '/preview.jpg',
-                    origin + '/cgi-bin/snapshot.cgi',
-                    origin + '/axis-cgi/jpg/image.cgi',
-                    origin + '/ISAPI/Streaming/channels/101/picture',
-                    origin + '/jpg/image.jpg',
-                    origin + '/snapshot.jpg',
-                    liveJpegUrl
-                ].filter((v, i, a) => v && a.indexOf(v) === i);
+                const u = new URL(candidate);
+                const host = (u.hostname || '').toLowerCase();
+                if (!host) return candidate;
+                return u.href;
             } catch (e) {
-                return [liveJpegUrl];
+                return candidate;
             }
         }
 
-        function startLiveJpegFromUrl(img, url) {
-            if (liveJpegTimer) return;
-            let busy = false;
-            liveJpegTimer = setInterval(() => {
-                if (busy) return;
-                busy = true;
-                const tmp = new Image();
-                tmp.onload = () => { img.src = tmp.src; busy = false; };
-                tmp.onerror = () => { busy = false; };
-                tmp.src = url + (url.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
-            }, 120);
+        function parseStreamUrl(url) {
+            if (!url) return null;
+            url = String(url).trim();
+            if (!url) return null;
+            const ytMatch = /(?:youtube\.com\/(?:watch\?v=|embed\/|live\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/i.exec(url);
+            if (ytMatch) {
+                return {
+                    type: 'youtube',
+                    embedUrl: 'https://www.youtube.com/embed/' + ytMatch[1] + '?autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0'
+                };
+            }
+            if (url.toLowerCase().includes('.m3u8') || /^rtsp:\/\//i.test(url)) {
+                return { type: 'hls', streamUrl: url };
+            }
+            if (/\.(jpe?g|png|mjpeg)(\?|$)/i.test(url) || /snapshot|image\.cgi|jpg\/image|picture/i.test(url)) {
+                return { type: 'jpeg', streamUrl: url };
+            }
+            return { type: 'video', streamUrl: url };
         }
 
-        function startLiveJpeg(img) {
-            if (!img || liveJpegTimer) return;
-            const probe = new Image();
-            probe.onload = function () {
-                img.classList.remove('hidden');
-                img.src = probe.src;
-                revealPlayerLiveFootage();
-                startLiveJpegFromUrl(img, liveJpegUrl);
+        function playerVideoIsAdvancing(video) {
+            if (!video || video.classList.contains('hidden') || !(video.videoWidth > 0) || video.paused || video.ended) {
+                return false;
+            }
+            const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+            if (video._advCheckAt && (now - video._advCheckAt) < 140) {
+                return !!video._advLast;
+            }
+            const t = video.currentTime || 0;
+            const prev = video._advCheckT;
+            video._advCheckAt = now;
+            video._advCheckT = t;
+            const advancing = prev !== undefined && (t > prev + 0.05);
+            video._advLast = advancing;
+            return advancing;
+        }
+
+        function hidePlayerLiveJpeg() {
+            const img = document.getElementById('player-live-camera-img');
+            if (img) img.classList.add('hidden');
+        }
+
+        function startPlayerLiveJpeg() {
+            const img = document.getElementById('player-live-camera-img');
+            if (!img || !window._isStreamActive) return;
+            const tick = () => {
+                if (!window._isStreamActive) return;
+                const liveVideo = document.getElementById('live-cctv-stream');
+                if (playerVideoIsAdvancing(liveVideo)) {
+                    if (liveVideo) liveVideo.style.zIndex = '4';
+                    hidePlayerLiveJpeg();
+                    finishLiveFootageReveal();
+                    return;
+                }
+                const probe = new Image();
+                probe.onload = function () {
+                    if (!window._isStreamActive) return;
+                    img.src = probe.src;
+                    img.classList.remove('hidden');
+                    finishLiveFootageReveal();
+                    const playingNow = document.getElementById('live-cctv-stream');
+                    if (playerVideoIsAdvancing(playingNow)) {
+                        if (playingNow) playingNow.style.zIndex = '4';
+                        hidePlayerLiveJpeg();
+                    }
+                };
+                probe.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
             };
-            probe.src = liveJpegUrl + (liveJpegUrl.indexOf('?') >= 0 ? '&' : '?') + 't=' + Date.now();
+            tick();
+            if (!liveJpegTimer) {
+                liveJpegTimer = setInterval(tick, 180);
+            }
         }
 
         function whepUrlFromHls(hlsUrl) {
@@ -1670,110 +1708,66 @@ maxMaxBufferLength: 30,
             });
         }
 
-        function startCctvLowLatency(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg) {
-            if (playerHls && cctvVideo) {
-                const t = cctvVideo.currentTime || 0;
-                const moved = cctvVideo.videoWidth > 0 && t > 0 && cctvVideo._pollT !== t;
-                cctvVideo._pollT = t;
-                if (moved) {
-                    cctvVideo._pollStall = 0;
-                    cctvVideo.play().catch(() => {});
-                    revealPlayerLiveFootage();
-                    return;
-                }
-                cctvVideo._pollStall = (cctvVideo._pollStall || 0) + 1;
-                cctvVideo.play().catch(() => {});
-                if (cctvVideo._pollStall >= 2) {
-                    cctvVideo._pollStall = 0;
-                    try { playerHls.startLoad(); } catch (e) {}
-                }
-                return;
-            }
-            cctvMode = 'hls';
-            startHlsPlayback(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
-        }
-
-        function startHlsPlayback(streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg) {
-            if (ytIframe) ytIframe.classList.add('hidden');
-            if (fallbackImg) fallbackImg.classList.add('hidden');
-            if (externalWrap) externalWrap.classList.remove('hidden');
-            if (!cctvVideo) return;
-            cctvVideo.muted = true;
-            cctvVideo.setAttribute('muted', '');
-            cctvVideo.autoplay = true;
-            cctvVideo.playsInline = true;
-        cctvVideo.style.opacity = '1';
-            cctvVideo.classList.remove('hidden');
-            keepVideoRunning(cctvVideo);
-            bindLiveFootageReadyWatchers(cctvVideo, fallbackImg);
-            const playUrl = livePlaylistUrl || streamUrl;
+        function attachPlayerHls(video, playUrl) {
+            if (!video) return;
+            video.muted = true;
+            video.setAttribute('muted', '');
+            video.autoplay = true;
+            video.playsInline = true;
+            video.style.opacity = '1';
+            video.classList.remove('hidden');
+            keepVideoRunning(video);
 
             const showVideoWhenReady = () => {
-                if (cctvVideo.videoWidth > 0) {
-                    cctvVideo._hlsNetFails = 0;
-                    if (fallbackImg) fallbackImg.classList.add('hidden');
-                    stopLiveJpeg();
-                    cctvVideo.style.opacity = '1';
+                if (playerVideoIsAdvancing(video)) {
+                    video.style.zIndex = '4';
+                    hidePlayerLiveJpeg();
+                    video.style.opacity = '1';
                     revealPlayerLiveFootage();
                 }
             };
-            if (!cctvVideo._hlsReadyBound) {
-                cctvVideo._hlsReadyBound = true;
-                cctvVideo.addEventListener('playing', showVideoWhenReady);
-                cctvVideo.addEventListener('loadeddata', showVideoWhenReady);
+            if (!video._hlsReadyBound) {
+                video._hlsReadyBound = true;
+                video.addEventListener('playing', showVideoWhenReady);
+                video.addEventListener('loadeddata', showVideoWhenReady);
+                video.addEventListener('timeupdate', showVideoWhenReady);
             }
 
             if (Hls.isSupported()) {
                 if (!playerHls) {
                     playerHls = createLowLatencyHls();
                     playerHls.loadSource(playUrl);
-                    playerHls.attachMedia(cctvVideo);
-                    keepHlsAtLiveEdge(playerHls, cctvVideo);
+                    playerHls.attachMedia(video);
+                    keepHlsAtLiveEdge(playerHls, video);
                     playerHls.on(Hls.Events.MANIFEST_PARSED, () => {
-                        cctvVideo.play().catch(() => {});
+                        video.play().catch(() => {});
                     });
                     playerHls.on(Hls.Events.ERROR, function(_, data) {
                         if (streamEndedByAdmin || !data || !playerHls) return;
-                        if (!data.fatal) {
-                            return;
-                        }
+                        if (!data.fatal) return;
                         if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-                            if (livePlaylistUrl && livePlaylistUrl !== playUrl && !cctvVideo._triedProxyHls) {
-                                cctvVideo._triedProxyHls = true;
+                            if (livePlaylistUrl && livePlaylistUrl !== playUrl && !video._triedProxyHls) {
+                                video._triedProxyHls = true;
                                 try { playerHls.destroy(); } catch (e) {}
-                                playerHls = createLowLatencyHls();
-                                playerHls.loadSource(livePlaylistUrl);
-                                playerHls.attachMedia(cctvVideo);
-                                keepHlsAtLiveEdge(playerHls, cctvVideo);
+                                playerHls = null;
+                                attachPlayerHls(video, livePlaylistUrl);
                                 return;
                             }
-                            cctvVideo._hlsNetFails = (cctvVideo._hlsNetFails || 0) + 1;
-                            if (cctvVideo._hlsRetryTimer) return;
-                            cctvVideo._hlsRetryTimer = setTimeout(function () {
-                                cctvVideo._hlsRetryTimer = null;
-                                if (streamEndedByAdmin || !playerHls) return;
-                                const t = cctvVideo.currentTime || 0;
-                                if (cctvVideo.videoWidth > 0 && t > 0 && t !== cctvVideo._hlsRetryT) {
-                                    cctvVideo._hlsRetryT = t;
-                                    cctvVideo._hlsNetFails = 0;
-                                    return;
-                                }
-                                try { playerHls.startLoad(); } catch (e) {}
-                                cctvVideo.play().catch(() => {});
-                            }, 1000);
+                            try { playerHls.startLoad(); } catch (e) {}
+                            video.play().catch(() => {});
                         } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
                             playerHls.recoverMediaError();
-                            cctvVideo.play().catch(() => {});
+                            video.play().catch(() => {});
                         }
                     });
-                    cctvVideo.onclick = function() {
-                        cctvVideo.play().catch(() => {});
+                    video.onclick = function() {
+                        video.play().catch(() => {});
                     };
                 } else {
-                    cctvVideo.play().catch(() => {});
+                    video.play().catch(() => {});
                 }
-            } else if (cctvVideo.canPlayType('application/vnd.apple.mpegurl')) {
-                playNativeHlsAtLiveEdge(cctvVideo, playUrl);
+            } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+                playNativeHlsAtLiveEdge(video, playUrl);
             }
         }
 
@@ -1785,7 +1779,8 @@ maxMaxBufferLength: 30,
             const ytIframe = document.getElementById('live-youtube-stream');
             const fallbackImg = document.getElementById('player-live-camera-img');
 
-            const streamUrl = (externalUrl || @json($room->live_stream_url ?? ''))?.trim();
+            const rawUrl = String(externalUrl !== undefined ? externalUrl : (@json($room->live_stream_url ?? '')) || '').trim();
+            const parsed = parseStreamUrl(sanitizeStreamUrl(rawUrl) || rawUrl);
 
             if (isStreaming) {
                 streamEndedByAdmin = false;
@@ -1799,50 +1794,53 @@ maxMaxBufferLength: 30,
                 if (whiteScreen) whiteScreen.classList.add('hidden');
                 bindLiveFootageReadyWatchers(cctvVideo, fallbackImg);
 
-                if (streamUrl) {
-                    if (cctvMode === 'jpeg') {
-                        if (externalWrap) externalWrap.classList.add('hidden');
-                        if (fallbackImg) fallbackImg.classList.remove('hidden');
-                        if (fallbackImg && fallbackImg.naturalWidth > 0) revealPlayerLiveFootage();
-                    } else {
+                if (rawUrl || parsed) {
                     if (externalWrap) {
                         externalWrap.classList.remove('hidden');
                         externalWrap.classList.add('bg-black');
                     }
 
-                    const ytMatch = /(?:youtube\.com\/(?:watch\?v=|embed\/|live\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]+)/i.exec(streamUrl);
-                    if (ytMatch) {
+                    if (parsed && parsed.type === 'youtube') {
+                        hidePlayerLiveJpeg();
                         if (fallbackImg) fallbackImg.classList.add('hidden');
-                        const ytSrc = 'https://www.youtube.com/embed/' + ytMatch[1] + '?autoplay=1&mute=1&playsinline=1&enablejsapi=1&rel=0';
+                        if (cctvVideo) cctvVideo.classList.add('hidden');
                         if (ytIframe) {
-                            if (ytIframe.src !== ytSrc) ytIframe.src = ytSrc;
+                            if (ytIframe.src !== parsed.embedUrl) ytIframe.src = parsed.embedUrl;
                             ytIframe.classList.remove('hidden');
                         }
-                        if (cctvVideo) cctvVideo.classList.add('hidden');
                         finishLiveFootageReveal();
-                                      } else if (streamUrl.toLowerCase().includes('.m3u8')) {
-                        startCctvLowLatency(livePlaylistUrl || streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
-                        if (!cctvVideo || !(cctvVideo.videoWidth > 0)) startLiveJpeg(fallbackImg);
-                    } else {
-                        // Direct video file/feed (MP4 / WebM)
-                        if (fallbackImg) fallbackImg.classList.add('hidden');
+                    } else if (parsed && parsed.type === 'hls') {
+                        if (ytIframe) ytIframe.classList.add('hidden');
+                        startPlayerLiveJpeg();
+                        const playUrl = livePlaylistUrl || parsed.streamUrl;
+                        attachPlayerHls(cctvVideo, playUrl);
+                    } else if (parsed && parsed.type === 'jpeg') {
+                        if (ytIframe) ytIframe.classList.add('hidden');
+                        if (cctvVideo) cctvVideo.classList.add('hidden');
+                        startPlayerLiveJpeg();
+                    } else if (parsed && parsed.type === 'video') {
                         if (ytIframe) ytIframe.classList.add('hidden');
                         if (cctvVideo) {
-                           cctvVideo.style.opacity = '1';
+                            cctvVideo.style.opacity = '1';
                             cctvVideo.classList.remove('hidden');
                             keepVideoRunning(cctvVideo);
                             bindLiveFootageReadyWatchers(cctvVideo, fallbackImg);
-                            if (cctvVideo.src !== streamUrl) cctvVideo.src = streamUrl;
+                            if (cctvVideo.src !== parsed.streamUrl) cctvVideo.src = parsed.streamUrl;
                             cctvVideo.play().catch(() => {});
                         }
-                    }
+                    } else {
+                        // Fallback generic stream
+                        if (ytIframe) ytIframe.classList.add('hidden');
+                        startPlayerLiveJpeg();
+                        const playUrl = livePlaylistUrl || rawUrl;
+                        attachPlayerHls(cctvVideo, playUrl);
                     }
                 } else {
                     // Local admin webcam broadcast mode
-                    if (externalWrap) externalWrap.classList.add('hidden');
-                    if (fallbackImg) fallbackImg.classList.remove('hidden');
-                    bindLiveFootageReadyWatchers(cctvVideo, fallbackImg);
-                    if (fallbackImg && fallbackImg.naturalWidth > 0) revealPlayerLiveFootage();
+                    if (externalWrap) externalWrap.classList.remove('hidden');
+                    if (ytIframe) ytIframe.classList.add('hidden');
+                    if (cctvVideo) cctvVideo.classList.add('hidden');
+                    startPlayerLiveJpeg();
                 }
             } else {
                 streamEndedByAdmin = true;
@@ -1868,7 +1866,7 @@ maxMaxBufferLength: 30,
                     playerRtc = null;
                 }
                 if (playerHls) {
-                    playerHls.destroy();
+                    try { playerHls.destroy(); } catch (e) {}
                     playerHls = null;
                 }
                 if (cctvVideo && cctvVideo._liveEdgeIv) {

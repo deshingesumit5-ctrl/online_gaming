@@ -56,20 +56,22 @@ class LowLatencyStreamService
     public function latestJpegPath(int $roomId): ?string
     {
         $path = $this->dir($roomId) . DIRECTORY_SEPARATOR . 'latest.jpg';
-        if (is_file($path) && filesize($path) > 100 && (time() - filemtime($path)) <= 1) {
+        if (is_file($path) && filesize($path) > 100 && (microtime(true) - filemtime($path)) <= 0.35) {
             return $path;
         }
 
         $snapFile = $this->dir($roomId) . DIRECTORY_SEPARATOR . 'snapshot.url';
         if (is_file($snapFile)) {
             $url = trim((string) file_get_contents($snapFile));
-            $bytes = $this->download($url);
-            if ($this->isJpeg($bytes)) {
-                if (!is_dir($this->dir($roomId))) {
-                    mkdir($this->dir($roomId), 0777, true);
+            if ($url !== '') {
+                $bytes = $this->download($url);
+                if ($this->isJpeg($bytes)) {
+                    if (!is_dir($this->dir($roomId))) {
+                        mkdir($this->dir($roomId), 0777, true);
+                    }
+                    file_put_contents($path, $bytes);
+                    return $path;
                 }
-                file_put_contents($path, $bytes);
-                return $path;
             }
         }
 
@@ -90,7 +92,7 @@ class LowLatencyStreamService
             }
         }
 
-        return is_file($path) && filesize($path) > 100 ? $path : null;
+        return null;
     }
 
     public function rewrittenPlaylist(Room $room): ?string
