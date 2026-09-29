@@ -406,7 +406,7 @@
         <!-- Live Stream Video / Camera Broadcast Container (Overlaid when stream is active) -->
         <div id="player-live-stream-box" class="absolute inset-0 z-0 bg-black flex items-center justify-center overflow-hidden {{ $room->is_streaming ? '' : 'hidden' }}">
             <!-- Live Camera Frame Image (broadcasted from Admin Live Camera) -->
-            <img id="player-live-camera-img" class="w-full h-full object-cover hidden" alt="Live Dealer Stream" src="">
+<img id="player-live-camera-img" class="w-full h-full object-cover hidden" style="position:absolute;inset:0;z-index:5;" alt="Live Dealer Stream" src="">
 
             <!-- External / CCTV Live Stream Player Container -->
             <div id="player-external-stream-wrap" class="hidden absolute inset-0 bg-black">
@@ -1820,9 +1820,9 @@ maxMaxBufferLength: 30,
                         }
                         if (cctvVideo) cctvVideo.classList.add('hidden');
                         finishLiveFootageReveal();
-                    } else if (streamUrl.toLowerCase().includes('.m3u8')) {
-                        if (fallbackImg) fallbackImg.classList.add('hidden');
+                                      } else if (streamUrl.toLowerCase().includes('.m3u8')) {
                         startCctvLowLatency(livePlaylistUrl || streamUrl, cctvVideo, ytIframe, externalWrap, fallbackImg);
+                        if (!cctvVideo || !(cctvVideo.videoWidth > 0)) startLiveJpeg(fallbackImg);
                     } else {
                         // Direct video file/feed (MP4 / WebM)
                         if (fallbackImg) fallbackImg.classList.add('hidden');
