@@ -1728,6 +1728,23 @@ const OVERLAY_BASE_VIDEO_FRAC = 0.05;
             lastAdminPointer = { x: e.clientX, y: e.clientY };
         });
     }
+function overlayMediaSize(media) {
+    if (!media) return { mw: 0, mh: 0 };
+    if (media.videoWidth) return { mw: media.videoWidth, mh: media.videoHeight };
+    if (media.naturalWidth) return { mw: media.naturalWidth, mh: media.naturalHeight };
+    return { mw: 0, mh: 0 };
+}
+
+function adminOverlayMedia() {
+    const cctv = document.getElementById('admin-cctv-video');
+    if (cctv && cctv.videoWidth > 0 && !cctv.classList.contains('hidden')) return cctv;
+    const cam = document.getElementById('admin-live-camera');
+    if (cam && cam.videoWidth > 0 && !cam.classList.contains('hidden')) return cam;
+    const jpg = document.getElementById('admin-cctv-live-jpg');
+    if (jpg && jpg.naturalWidth > 0 && !jpg.classList.contains('hidden')) return jpg;
+    return cctv || cam || jpg;
+}
+
 function overlayCoverMetrics(container, media) {
     const cw = Math.max(1, container.clientWidth);
     const ch = Math.max(1, container.clientHeight);
