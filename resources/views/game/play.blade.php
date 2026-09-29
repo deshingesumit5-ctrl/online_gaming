@@ -1304,7 +1304,7 @@
         }
 
         let lastLiveOverlayLayout = { x: 0.48, y: 0.58, scale: 1 };
-   const OVERLAY_BASE_VIDEO_FRAC = 0.048;
+  const OVERLAY_BASE_VIDEO_FRAC = 0.043;
         function overlayMediaSize(media) {
             if (!media) return { mw: 0, mh: 0 };
             if (media.videoWidth) return { mw: media.videoWidth, mh: media.videoHeight };
