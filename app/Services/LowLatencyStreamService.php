@@ -139,7 +139,7 @@ class LowLatencyStreamService
         $rawSegments = [];
         $pending = [];
         $mapLine = null;
-        $mediaSequence = 0;
+      $mediaSequence = preg_match('/#EXT-X-MEDIA-SEQUENCE:\s*(\d+)/', $body, $msm) ? (int) $msm[1] : 0;
 
         foreach ($lines as $line) {
             $line = trim($line);
@@ -295,7 +295,7 @@ class LowLatencyStreamService
         $rawSegments = [];
         $pending = [];
         $mapLine = null;
-        $mediaSequence = 0;
+    $mediaSequence = preg_match('/#EXT-X-MEDIA-SEQUENCE:\s*(\d+)/', $body, $msm) ? (int) $msm[1] : 0;
 
         foreach ($lines as $line) {
             $line = trim($line);

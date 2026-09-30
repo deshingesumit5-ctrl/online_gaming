@@ -859,7 +859,7 @@
             maxBufferLength: 30,
             maxMaxBufferLength: 40,
             liveSyncDurationCount: 3,
-            liveMaxLatencyDurationCount: 12,
+           liveMaxLatencyDurationCount: Infinity,
             maxLiveSyncPlaybackRate: 1,
             maxBufferHole: 1.5,
             nudgeMaxRetry: 10,
