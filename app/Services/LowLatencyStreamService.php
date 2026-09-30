@@ -150,8 +150,7 @@ class LowLatencyStreamService
                 $target = max(1, (int) substr($line, 22));
                 continue;
             }
-            if (str_starts_with($line, '#EXT-X-MEDIA-SEQUENCE:')) {
-                $mediaSequence = max(0, (int) substr($line, 22));
+                    if (str_starts_with($line, '#EXT-X-PART') || str_starts_with($line, '#EXT-X-PRELOAD-HINT') || str_starts_with($line, '#EXT-X-SERVER-CONTROL') || str_starts_with($line, '#EXT-X-RENDITION-REPORT')) {
                 continue;
             }
             if (str_starts_with($line, '#') && !str_starts_with($line, '#EXTINF') && !str_starts_with($line, '#EXT-X-DISCONTINUITY') && !str_starts_with($line, '#EXT-X-KEY') && !str_starts_with($line, '#EXT-X-MAP') && !str_starts_with($line, '#EXT-X-BYTERANGE') && !str_starts_with($line, '#EXT-X-PROGRAM-DATE-TIME') && !str_starts_with($line, '#EXT-X-PART')) {
@@ -183,7 +182,7 @@ class LowLatencyStreamService
             $pending = [];
         }
 
-        $keep = array_slice($pairs, -8);
+        $keep = array_slice($pairs, -4);
         if ($keep === []) {
             return null;
         }
@@ -307,8 +306,7 @@ class LowLatencyStreamService
                 $target = max(1, (int) substr($line, 22));
                 continue;
             }
-            if (str_starts_with($line, '#EXT-X-MEDIA-SEQUENCE:')) {
-                $mediaSequence = max(0, (int) substr($line, 22));
+                    if (str_starts_with($line, '#EXT-X-PART') || str_starts_with($line, '#EXT-X-PRELOAD-HINT') || str_starts_with($line, '#EXT-X-SERVER-CONTROL') || str_starts_with($line, '#EXT-X-RENDITION-REPORT')) {
                 continue;
             }
             if (str_starts_with($line, '#') && !str_starts_with($line, '#EXTINF') && !str_starts_with($line, '#EXT-X-DISCONTINUITY') && !str_starts_with($line, '#EXT-X-KEY') && !str_starts_with($line, '#EXT-X-MAP') && !str_starts_with($line, '#EXT-X-BYTERANGE') && !str_starts_with($line, '#EXT-X-PROGRAM-DATE-TIME') && !str_starts_with($line, '#EXT-X-PART')) {
@@ -340,7 +338,7 @@ class LowLatencyStreamService
             $pending  = [];
         }
 
-        $keep = array_slice($pairs, -8);
+            $keep = array_slice($pairs, -4);
         if ($keep === []) {
             return null;
         }
