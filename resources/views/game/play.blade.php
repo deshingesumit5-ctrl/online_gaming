@@ -406,11 +406,11 @@
         <!-- Live Stream Video / Camera Broadcast Container (Overlaid when stream is active) -->
         <div id="player-live-stream-box" class="absolute inset-0 z-0 bg-black flex items-center justify-center overflow-hidden {{ $room->is_streaming ? '' : 'hidden' }}">
             <!-- Live Camera Frame Image (broadcasted from Admin Live Camera or CCTV Live) -->
-            <img id="player-live-camera-img" class="w-full h-full object-contain hidden" style="position:absolute;inset:0;z-index:3;background:#000;" alt="Live Dealer Stream" src="">
+          <img id="player-live-camera-img" class="w-full h-full object-cover hidden" style="position:absolute;inset:0;z-index:3;background:#000;" alt="Live Dealer Stream" src="">
 
             <!-- External / CCTV Live Stream Player Container -->
             <div id="player-external-stream-wrap" class="w-full h-full absolute inset-0 bg-black {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}">
-                <video id="live-cctv-stream" class="w-full h-full object-contain {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}" style="position:absolute;inset:0;z-index:4;background:transparent;" autoplay muted playsinline disablepictureinpicture></video>
+                <video id="live-cctv-stream" class="w-full h-full object-cover {{ ($room->is_streaming && $room->live_stream_url) ? '' : 'hidden' }}" style="position:absolute;inset:0;z-index:4;background:transparent;" autoplay muted playsinline disablepictureinpicture></video>
                 <iframe id="live-youtube-stream" class="w-full h-full border-0 hidden pointer-events-auto" style="position:absolute;inset:0;z-index:4;"
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                         allowfullscreen></iframe>
