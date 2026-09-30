@@ -12,10 +12,9 @@ class LowLatencyStreamService
         $this->stop($room);
 
         $sourceUrl = trim((string) $room->live_stream_url);
-        if ($sourceUrl === '' || preg_match('/youtube\.com|youtu\.be/i', $sourceUrl)) {
+            if ($sourceUrl === '' || preg_match('/youtube\.com|youtu\.be/i', $sourceUrl) || str_contains(strtolower($sourceUrl), '.m3u8')) {
             return;
         }
-
         $dir = $this->dir($room->id);
         if (!is_dir($dir)) {
             mkdir($dir, 0777, true);
@@ -107,9 +106,9 @@ class LowLatencyStreamService
             return $cached;
         }
 
-        $body = $this->download($sourceUrl);
+    
         if (!$body || !str_contains($body, '#EXTM3U')) {
-            return null;
+            return $this->readPlaylistCache($room->id, 'player', 15.0);
         }
 
         // If this is a master/multivariant playlist, drill into the best media
@@ -269,9 +268,9 @@ class LowLatencyStreamService
             return $cached;
         }
 
-        $body = $this->download($sourceUrl);
+    
         if (!$body || !str_contains($body, '#EXTM3U')) {
-            return null;
+            return $this->readPlaylistCache($room->id, 'admin', 15.0);
         }
 
         if (str_contains($body, '#EXT-X-STREAM-INF')) {
@@ -550,13 +549,13 @@ class LowLatencyStreamService
     }
 
     /** Serve the last good playlist for about 1s so overlapping players do not stampede the camera. */
-    private function readPlaylistCache(int $roomId, string $which): ?string
+    private function readPlaylistCache(int $roomId, string $which, float $maxAge = 1.2): ?string
     {
         $path = $this->playlistCachePath($roomId, $which);
         if (!is_file($path)) {
             return null;
         }
-        if ((microtime(true) - filemtime($path)) > 1.2) {
+        if ((microtime(true) - filemtime($path)) > $maxAge) {
             return null;
         }
         $cached = @file_get_contents($path);

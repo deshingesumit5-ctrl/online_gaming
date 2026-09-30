@@ -1467,9 +1467,9 @@ const coverScale = (fit === 'contain')
                 enableWorker: true,
                 lowLatencyMode: false,
                 backBufferLength: 10,
-                maxBufferLength: 10,
+                maxBufferLength: 20,
                 maxMaxBufferLength: 20,
-                liveSyncDurationCount: 3,
+                liveSyncDurationCount: 4,
                 liveMaxLatencyDurationCount: 10,
                 maxLiveSyncPlaybackRate: 1.5,
                 startPosition: -1,
@@ -1543,7 +1543,7 @@ const coverScale = (fit === 'contain')
                 } catch (e) {}
             }, 1000);
         }
-        
+
         function playNativeHlsAtLiveEdge(video, streamUrl) {
             if (video.src !== streamUrl) video.src = streamUrl;
             const seekLive = () => {
@@ -1757,9 +1757,12 @@ const coverScale = (fit === 'contain')
                             }
                             try { playerHls.startLoad(); } catch (e) {}
                             video.play().catch(() => {});
-                        } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+                                          } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
                             playerHls.recoverMediaError();
                             video.play().catch(() => {});
+                        } else {
+                            // manifest parsing / other fatal errors: rebuild player
+                            setTimeout(() => restartPlayerHls(video), 1000);
                         }
                     });
                     video.onclick = function() {
@@ -1811,9 +1814,10 @@ const coverScale = (fit === 'contain')
                             ytIframe.classList.remove('hidden');
                         }
                         finishLiveFootageReveal();
-                    } else if (parsed && parsed.type === 'hls') {
+                                } else if (parsed && parsed.type === 'hls') {
                         if (ytIframe) ytIframe.classList.add('hidden');
-                        startPlayerLiveJpeg();
+                        stopLiveJpeg();
+                        hidePlayerLiveJpeg();
                         const playUrl = livePlaylistUrl || parsed.streamUrl;
                         attachPlayerHls(cctvVideo, playUrl);
                     } else if (parsed && parsed.type === 'jpeg') {
@@ -1832,8 +1836,8 @@ const coverScale = (fit === 'contain')
                         }
                     } else {
                         // Fallback generic stream
-                        if (ytIframe) ytIframe.classList.add('hidden');
-                        startPlayerLiveJpeg();
+                                            if (ytIframe) ytIframe.classList.add('hidden');
+                        stopLiveJpeg();
                         const playUrl = livePlaylistUrl || rawUrl;
                         attachPlayerHls(cctvVideo, playUrl);
                     }
@@ -1983,7 +1987,7 @@ const coverScale = (fit === 'contain')
         });
 
         (function runPenLoop() {
-            pollPenPosition().finally(() => setTimeout(runPenLoop, 20));
+pollPenPosition().finally(() => setTimeout(runPenLoop, 400));
         })();
 
         @if($room->is_streaming)

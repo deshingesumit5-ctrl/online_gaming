@@ -406,20 +406,6 @@ class GameController extends Controller
         $payload = \Illuminate\Support\Facades\Cache::get("room_pen_position_{$roomId}");
         $overlay = \Illuminate\Support\Facades\Cache::get("room_card_overlay_{$roomId}");
 
-        if ($after > 0) {
-            $waited = 0;
-            while ($waited < 800) {
-                $payload = \Illuminate\Support\Facades\Cache::get("room_pen_position_{$roomId}");
-                $overlay = \Illuminate\Support\Facades\Cache::get("room_card_overlay_{$roomId}");
-                $t = is_array($payload) ? (int) ($payload['t'] ?? 0) : 0;
-                $ot = is_array($overlay) ? (int) ($overlay['t'] ?? 0) : 0;
-                if ($t > $after || $ot > $after) {
-                    break;
-                }
-                usleep(25000);
-                $waited += 25;
-            }
-        }
 
         return response()->json([
             'x' => is_array($payload) ? ($payload['x'] ?? null) : null,
