@@ -106,7 +106,7 @@ class LowLatencyStreamService
             return $cached;
         }
 
-    
+        $body = $this->download($sourceUrl);
         if (!$body || !str_contains($body, '#EXTM3U')) {
             return $this->readPlaylistCache($room->id, 'player', 15.0);
         }
@@ -263,12 +263,12 @@ class LowLatencyStreamService
             return null;
         }
 
-        $cached = $this->readPlaylistCache($room->id, 'admin');
+           $cached = $this->readPlaylistCache($room->id, 'admin');
         if ($cached !== null) {
             return $cached;
         }
 
-    
+        $body = $this->download($sourceUrl);
         if (!$body || !str_contains($body, '#EXTM3U')) {
             return $this->readPlaylistCache($room->id, 'admin', 15.0);
         }
