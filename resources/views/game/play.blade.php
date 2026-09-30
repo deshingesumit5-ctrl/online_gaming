@@ -1467,11 +1467,13 @@ const coverScale = (fit === 'contain')
                 enableWorker: true,
                 lowLatencyMode: false,
                 backBufferLength: 10,
-                maxBufferLength: 20,
-                maxMaxBufferLength: 20,
-                liveSyncDurationCount: 4,
-                liveMaxLatencyDurationCount: 10,
-                maxLiveSyncPlaybackRate: 1.5,
+                maxBufferLength: 30,
+                maxMaxBufferLength: 40,
+                liveSyncDurationCount: 3,
+                liveMaxLatencyDurationCount: 12,
+                maxLiveSyncPlaybackRate: 1,
+                maxBufferHole: 1.5,
+                nudgeMaxRetry: 10,
                 startPosition: -1,
                 liveDurationInfinity: true,
                 startFragPrefetch: true,
@@ -1525,12 +1527,12 @@ const coverScale = (fit === 'contain')
                     const t = video.currentTime || 0;
                     if (video.videoWidth > 0 && t === video._edgeLastT) {
                         video._edgeStall = (video._edgeStall || 0) + 1;
-                        if (video._edgeStall === 2) {
+                       if (video._edgeStall === 4) {
                             jumpVideoToLiveEdge(video);
                             try { playerHls.startLoad(-1); } catch (e) {}
                             video.play().catch(function () {});
                         }
-                        if (video._edgeStall >= 15 && Date.now() - playerHlsLastRestartAt >= 4000) {
+                                          if (video._edgeStall >= 45 && Date.now() - playerHlsLastRestartAt >= 15000) {
                             video._edgeStall = 0;
                             playerHlsLastRestartAt = Date.now();
                             restartPlayerHls(video);

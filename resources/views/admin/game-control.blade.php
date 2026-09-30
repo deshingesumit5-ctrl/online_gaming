@@ -855,12 +855,15 @@
         return new Hls({
             enableWorker: true,
             lowLatencyMode: false,
-            backBufferLength: 10,
-        maxBufferLength: 10,
-maxMaxBufferLength: 10,
-liveSyncDurationCount: 4,
-liveMaxLatencyDurationCount: 10,
-            maxLiveSyncPlaybackRate: 1.5,
+                  backBufferLength: 10,
+            maxBufferLength: 30,
+            maxMaxBufferLength: 40,
+            liveSyncDurationCount: 3,
+            liveMaxLatencyDurationCount: 12,
+            maxLiveSyncPlaybackRate: 1,
+            maxBufferHole: 1.5,
+            nudgeMaxRetry: 10,
+            nudgeMaxRetry: 10,
             startPosition: -1,
             liveDurationInfinity: true,
             startFragPrefetch: true,
@@ -986,6 +989,7 @@ liveMaxLatencyDurationCount: 10,
     }
 
     function startAdminLiveJpeg() {
+        if (/\.m3u8/i.test(String(configuredStreamUrl || ''))) return;
         const cctvContainer = document.getElementById('admin-cctv-stream-container');
         const img = document.getElementById('admin-cctv-live-jpg');
         if (!img || !adminWantsLive) return;
@@ -1139,7 +1143,7 @@ liveMaxLatencyDurationCount: 10,
     let adminCctvReconnectBusy = false;
     let adminPlaylistDownStreak = 0;
     const CCTV_RECONNECT_INTERVAL = 1000;   // while stalled, recheck the camera every second
-    const CCTV_RESTART_COOLDOWN   = 4000;   // do not tear down a stream that is still starting
+    const CCTV_RESTART_COOLDOWN   = 15000;  // do not tear down a stream that is still starting
     const CCTV_DOWN_STREAK_TO_SHOW = 3;     // ~3s of a dead playlist before Camera Unreachable
 
     function playlistLooksLive(text) {
@@ -1269,12 +1273,12 @@ liveMaxLatencyDurationCount: 10,
                 const frozen = video.videoWidth > 0 && t === video._edgeLastT;
                 if (frozen) {
                     video._edgeStall = (video._edgeStall || 0) + 1;
-                    if (video._edgeStall === 2) {
+                    if (video._edgeStall === 4) {
                         jumpVideoToLiveEdge(video);
                         try { adminHls.startLoad(-1); } catch (e) {}
                         video.play().catch(function () {});
                     }
-                    if (video._edgeStall >= 15 && Date.now() - adminCctvLastRestartAt >= CCTV_RESTART_COOLDOWN) {
+                    if (video._edgeStall >= 45 && Date.now() - adminCctvLastRestartAt >= CCTV_RESTART_COOLDOWN) {
                         video._edgeStall = 0;
                         adminCctvLastRestartAt = Date.now();
                         restartAdminHlsFromProxy();

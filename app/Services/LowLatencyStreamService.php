@@ -133,7 +133,7 @@ class LowLatencyStreamService
         }
 
         $lines = preg_split('/\r\n|\n|\r/', $body) ?: [];
-        $header = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-2,PRECISE=YES'];
+        $header = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-6,PRECISE=NO'];
         $target = 2;
         $pairs = [];
         $rawSegments = [];
@@ -182,7 +182,7 @@ class LowLatencyStreamService
             $pending = [];
         }
 
-        $keep = array_slice($pairs, -4);
+              $keep = array_slice($pairs, -8);
         if ($keep === []) {
             return null;
         }
@@ -289,7 +289,7 @@ class LowLatencyStreamService
         }
 
         $lines   = preg_split('/\r\n|\n|\r/', $body) ?: [];
-        $header  = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-2,PRECISE=YES'];
+        $header  = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-6,PRECISE=NO'];
         $target  = 2;
         $pairs   = [];
         $rawSegments = [];
@@ -337,8 +337,7 @@ class LowLatencyStreamService
             $pairs[]  = array_merge($pending, [$this->proxiedAdminSegmentUrl($room->id, $seg)]);
             $pending  = [];
         }
-
-            $keep = array_slice($pairs, -4);
+        $keep = array_slice($pairs, -8);
         if ($keep === []) {
             return null;
         }
