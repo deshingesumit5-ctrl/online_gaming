@@ -316,19 +316,19 @@ class WalletService
         return DB::transaction(function () use ($user, $amount, $settlementDetails) {
             $lockedUser = User::where('id', $user->id)->lockForUpdate()->firstOrFail();
 
-            $pendingAmount = (int) Withdrawal::where('user_id', $lockedUser->id)
-                ->where('status', 'pending')
-                ->sum('amount_requested');
-
-            $availableBalance = (int) $lockedUser->wallet_balance - $pendingAmount;
+                $availableBalance = (int) $lockedUser->wallet_balance;
 
             if ($availableBalance < $amount) {
                 throw new InsufficientBalanceException(
-                    "Insufficient available balance. You have {$availableBalance} PTS available for withdrawal ({$pendingAmount} PTS currently in pending requests).",
+                    "Insufficient balance. You have {$availableBalance} PTS available for withdrawal.",
                     $availableBalance,
                     $amount
                 );
             }
+
+            $newBalance = $availableBalance - $amount;
+            $lockedUser->wallet_balance = $newBalance;
+            $lockedUser->save();
 
             $requestId = Withdrawal::generateRequestId();
 
@@ -339,7 +339,24 @@ class WalletService
                 'amount_requested' => $amount,
                 'amount' => $amount,
                 'settlement_details' => $settlementDetails,
-                'status' => 'pending',
+                      'status' => 'pending',
+            ]);
+
+            $txnId = WalletTransaction::generateId('WD');
+
+            WalletTransaction::create([
+                'transaction_id' => $txnId,
+                'transaction_code' => $txnId,
+                'user_id' => $lockedUser->id,
+                'type' => 'withdrawal',
+                'amount' => -$amount,
+                'balance_after' => $newBalance,
+                'previous_balance' => $availableBalance,
+                'updated_balance' => $newBalance,
+                'remarks' => "Withdrawal request #{$requestId} submitted (points held)",
+                'reference_type' => Withdrawal::class,
+                'reference_id' => $withdrawal->id,
+                'performed_by' => $lockedUser->id,
             ]);
 
             // Send withdrawal notifications
@@ -370,7 +387,7 @@ class WalletService
     /**
      * Process/Approve withdrawal and atomically deduct points from user.
      */
-    public function processWithdrawal(Withdrawal $withdrawal, int $adminId): WalletTransaction
+        public function processWithdrawal(Withdrawal $withdrawal, int $adminId): Withdrawal
     {
         return DB::transaction(function () use ($withdrawal, $adminId) {
             $lockedWithdrawal = Withdrawal::where('id', $withdrawal->id)->lockForUpdate()->firstOrFail();
@@ -382,36 +399,7 @@ class WalletService
             $amount = (int) $lockedWithdrawal->amount_requested;
             $lockedUser = User::where('id', $lockedWithdrawal->user_id)->lockForUpdate()->firstOrFail();
 
-            $currentBalance = (int) $lockedUser->wallet_balance;
-            if ($currentBalance < $amount) {
-                throw new InsufficientBalanceException(
-                    "User balance has fallen below requested withdrawal amount. Balance: {$currentBalance} PTS, Requested: {$amount} PTS.",
-                    $currentBalance,
-                    $amount
-                );
-            }
-
-            $newBalance = $currentBalance - $amount;
-            $lockedUser->wallet_balance = $newBalance;
-            $lockedUser->save();
-
-            $txnId = WalletTransaction::generateId('WD');
-
-            $transaction = WalletTransaction::create([
-                'transaction_id' => $txnId,
-                'transaction_code' => $txnId,
-                'user_id' => $lockedUser->id,
-                'type' => 'withdrawal',
-                'amount' => -$amount,
-                'balance_after' => $newBalance,
-                'previous_balance' => $currentBalance,
-                'updated_balance' => $newBalance,
-                'remarks' => "Withdrawal request #{$lockedWithdrawal->request_id} approved and processed",
-                'reference_type' => Withdrawal::class,
-                'reference_id' => $lockedWithdrawal->id,
-                'performed_by' => $adminId,
-            ]);
-
+          
             $lockedWithdrawal->update([
                 'status' => 'approved',
                 'processed_by' => $adminId,
@@ -428,9 +416,9 @@ class WalletService
                     link: route('withdrawals.index')
                 );
             } catch (\Throwable $e) {
-            }
+              }
 
-            return $transaction;
+            return $lockedWithdrawal;
         });
     }
 
@@ -443,8 +431,32 @@ class WalletService
             $lockedWithdrawal = Withdrawal::where('id', $withdrawal->id)->lockForUpdate()->firstOrFail();
 
             if (!in_array($lockedWithdrawal->status, ['pending'])) {
-                throw new Exception('This withdrawal request cannot be rejected as it is already ' . $lockedWithdrawal->status);
+                     throw new Exception('This withdrawal request cannot be rejected as it is already ' . $lockedWithdrawal->status);
             }
+
+            $refundAmount = (int) $lockedWithdrawal->amount_requested;
+            $refundUser = User::where('id', $lockedWithdrawal->user_id)->lockForUpdate()->firstOrFail();
+            $prevBalance = (int) $refundUser->wallet_balance;
+            $newBalance = $prevBalance + $refundAmount;
+            $refundUser->wallet_balance = $newBalance;
+            $refundUser->save();
+
+            $refundTxnId = WalletTransaction::generateId('REF');
+
+            WalletTransaction::create([
+                'transaction_id' => $refundTxnId,
+                'transaction_code' => $refundTxnId,
+                'user_id' => $refundUser->id,
+                'type' => 'adjustment',
+                'amount' => $refundAmount,
+                'balance_after' => $newBalance,
+                'previous_balance' => $prevBalance,
+                'updated_balance' => $newBalance,
+                'remarks' => "Withdrawal request #{$lockedWithdrawal->request_id} rejected, points refunded",
+                'reference_type' => Withdrawal::class,
+                'reference_id' => $lockedWithdrawal->id,
+                'performed_by' => $adminId,
+            ]);
 
             $lockedWithdrawal->update([
                 'status' => 'rejected',
