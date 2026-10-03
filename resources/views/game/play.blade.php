@@ -1469,7 +1469,7 @@ const coverScale = (fit === 'contain')
                 backBufferLength: 10,
                 maxBufferLength: 30,
                 maxMaxBufferLength: 40,
-                liveSyncDurationCount: 3,
+               liveSyncDurationCount: 2,
              liveMaxLatencyDurationCount: Infinity,
                 maxLiveSyncPlaybackRate: 1,
                 maxBufferHole: 1.5,
