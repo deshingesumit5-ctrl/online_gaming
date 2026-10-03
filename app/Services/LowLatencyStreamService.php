@@ -133,7 +133,7 @@ class LowLatencyStreamService
         }
 
         $lines = preg_split('/\r\n|\n|\r/', $body) ?: [];
-        $header = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-6,PRECISE=NO'];
+        $header = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-3,PRECISE=NO'];
         $target = 2;
         $pairs = [];
         $rawSegments = [];
@@ -289,7 +289,7 @@ class LowLatencyStreamService
         }
 
         $lines   = preg_split('/\r\n|\n|\r/', $body) ?: [];
-        $header  = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-6,PRECISE=NO'];
+        $header  = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-3,PRECISE=NO'];
         $target  = 2;
         $pairs   = [];
         $rawSegments = [];
