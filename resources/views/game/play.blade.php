@@ -2019,9 +2019,8 @@ const coverScale = (fit === 'contain')
                 freeze.style.display = ok ? 'block' : 'none';
             } else if (freeze && freeze.style.display === 'block') {
                 freeze.style.display = 'none';
-                if (v) { jumpVideoToLiveEdge(v); v.play().catch(function () {}); }
+                       if (v) { jumpVideoToLiveEdge(v); v.play().catch(function () {}); }
             }
-        }
         }
         (function runPausePoll() {
             fetch(pauseStateUrl, { headers: { 'Accept': 'application/json' }, cache: 'no-store' })
