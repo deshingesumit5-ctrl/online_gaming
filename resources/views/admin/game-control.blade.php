@@ -311,6 +311,7 @@
                 <button type="button" id="btn-overlay-card-smaller" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider border border-slate-700 cursor-pointer">− Size</button>
                 <button type="button" id="btn-overlay-card-larger" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider border border-slate-700 cursor-pointer">+ Size</button>
                 <button type="button" id="btn-overlay-card-delete" class="px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white text-[10px] font-black uppercase tracking-wider border border-red-500 cursor-pointer">Delete</button>
+                <button type="button" id="btn-stream-pause" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider border border-amber-400 cursor-pointer">⏸ Pause</button>
             </div>
         </div>
 
@@ -2035,6 +2036,38 @@ function overlayCoverMetrics(container, media) {
             publishOverlayCard();
         });
     }
+        const pauseUrl = @json(url('/admin/game-control/' . $room->id . '/stream-pause'));
+    let streamPaused = false;
+    const btnPause = document.getElementById('btn-stream-pause');
+
+    function paintPauseButton() {
+        if (!btnPause) return;
+        btnPause.textContent = streamPaused ? '▶ Resume' : '⏸ Pause';
+        btnPause.className = streamPaused
+            ? 'px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wider border border-emerald-400 cursor-pointer'
+            : 'px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider border border-amber-400 cursor-pointer';
+    }
+
+    if (btnPause) {
+        btnPause.addEventListener('click', function () {
+            const tokenMeta = document.querySelector('meta[name="csrf-token"]');
+            const token = tokenMeta ? tokenMeta.content : '';
+            btnPause.disabled = true;
+            fetch(pauseUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-TOKEN': token },
+                body: JSON.stringify({ paused: !streamPaused })
+            }).then(function (r) { return r.ok ? r.json() : null; })
+              .then(function (d) { if (d) { streamPaused = !!d.paused; paintPauseButton(); } })
+              .catch(function () {})
+              .finally(function () { btnPause.disabled = false; });
+        });
+        fetch(pauseUrl, { headers: { 'Accept': 'application/json' }, cache: 'no-store' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (d) { if (d) { streamPaused = !!d.paused; paintPauseButton(); } })
+            .catch(function () {});
+    }
+
     const btnDelete = document.getElementById('btn-overlay-card-delete');
     if (btnDelete) {
         btnDelete.addEventListener('click', function () {

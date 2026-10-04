@@ -16,6 +16,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PointRequestController;
 use App\Http\Controllers\WalletController;
 use App\Http\Controllers\WithdrawalController;
+use App\Http\Controllers\StreamPauseController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -83,7 +84,8 @@ Route::middleware(['auth', 'approved'])->group(function () {
     Route::get('/game/{roomId}', [GameController::class, 'play'])->name('game.play');
     Route::get('/game/{roomId}/state', [GameController::class, 'getState'])->name('game.state');
     Route::get('/game/{roomId}/stream-frame', [GameController::class, 'getStreamFrame'])->name('game.stream.frame.get');
-    Route::get('/game/{roomId}/pen-position', [GameController::class, 'getPenPosition'])->name('game.pen.position.get');
+      Route::get('/game/{roomId}/pen-position', [GameController::class, 'getPenPosition'])->name('game.pen.position.get');
+    Route::get('/game/{room}/stream-pause', [StreamPauseController::class, 'get'])->name('game.stream.pause.get');
     Route::post('/game/{roomId}/bet', [GameController::class, 'placeBet'])->name('game.bet');
     Route::post('/game/bet/{betId}/cancel', [GameController::class, 'cancelBet'])->name('game.cancel.bet');
 
@@ -130,6 +132,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/game-control/{roomId}/action', [AdminGameController::class, 'handleAction'])->name('game.action');
     Route::post('/game-control/{roomId}/stream-frame', [AdminGameController::class, 'uploadStreamFrame'])->name('game.stream.frame.upload');
     Route::post('/game-control/{roomId}/pen-position', [AdminGameController::class, 'updatePenPosition'])->name('game.pen.position.update');
+    Route::get('/game-control/{room}/stream-pause', [StreamPauseController::class, 'get'])->name('game.stream.pause.get');
+    Route::post('/game-control/{room}/stream-pause', [StreamPauseController::class, 'set'])->name('game.stream.pause.set');
     // Admin HLS proxy routes (avoids relying on player-auth middleware for stream)
     Route::get('/game-control/{roomId}/live.m3u8', [AdminGameController::class, 'adminLivePlaylist'])->name('game.admin.live.playlist');
     Route::get('/game-control/{roomId}/live-seg', [AdminGameController::class, 'adminLiveSegment'])->name('game.admin.live.segment');
