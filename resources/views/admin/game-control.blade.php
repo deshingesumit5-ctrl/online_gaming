@@ -660,8 +660,8 @@
 
 {{-- Custom Square Confirm Modal --}}
 <div id="confirmModal" class="fixed inset-0 z-50 flex items-center justify-center hidden" style="background:rgba(0,0,0,0.65);backdrop-filter:blur(4px);">
-    <div id="confirmBox" class="relative flex flex-col items-center justify-center gap-5 rounded-2xl shadow-2xl border border-slate-700"
-         style="width:420px;height:420px;background:linear-gradient(135deg,#0f172a 60%,#1e293b 100%);padding:2.5rem;">
+       <div id="confirmBox" class="relative flex flex-col items-center justify-center gap-4 rounded-2xl shadow-2xl border border-slate-700"
+         style="width:420px;max-width:92vw;height:auto;max-height:94vh;overflow-y:auto;background:linear-gradient(135deg,#0f172a 60%,#1e293b 100%);padding:1.75rem;">
 
         {{-- Icon --}}
         <div id="confirmIcon" class="w-16 h-16 rounded-2xl flex items-center justify-center text-4xl shadow-lg"></div>
@@ -673,11 +673,11 @@
         <p id="confirmBody" class="text-sm text-slate-300 text-center"></p>
 
         {{-- Buttons --}}
-        <div class="flex gap-4 mt-2 w-full">
-            <button onclick="closeConfirmModal()" class="flex-1 py-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-sm transition">
+          <div class="grid grid-cols-2 gap-3 mt-1 w-full shrink-0">
+            <button type="button" onclick="closeConfirmModal()" class="min-h-[52px] px-3 rounded-xl bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs uppercase tracking-wider transition active:scale-95 flex items-center justify-center text-center">
                 Cancel
             </button>
-            <button id="confirmOkBtn" onclick="submitConfirmedForm()" class="flex-1 py-3 rounded-xl font-bold text-sm text-white transition shadow-lg">
+            <button type="button" id="confirmOkBtn" onclick="submitConfirmedForm()" class="min-h-[52px] px-3 rounded-xl font-bold text-xs uppercase tracking-wider text-white transition shadow-lg active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center text-center leading-tight">
                 Confirm & Process Result
             </button>
         </div>
