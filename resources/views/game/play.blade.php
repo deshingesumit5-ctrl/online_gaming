@@ -436,7 +436,7 @@
 
                        <div id="player-pause-cover" class="hidden absolute inset-0 z-30 bg-black flex flex-col items-center justify-center gap-3">
                 <svg class="animate-spin h-10 w-10 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-                <span class="text-[11px] font-black uppercase tracking-widest text-slate-300">Stream paused…</span>
+            
             </div>
             <!-- Live Streaming Indicator Badge -->
             <div class="absolute top-2.5 left-[clamp(120px,18vw,220px)] ml-2 sm:ml-3 z-10 flex items-center gap-1.5 sm:gap-2 bg-black/70 backdrop-blur-sm border border-red-500/40 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-[10px]">
