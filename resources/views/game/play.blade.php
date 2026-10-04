@@ -1106,6 +1106,7 @@
         const oldRenderState = gameEngineInstance.renderState.bind(gameEngineInstance);
         gameEngineInstance.renderState = function(data) {
             oldRenderState(data);
+            renderBeadRoad(data.bead_history);
             const timerBar = document.getElementById('hud-timer-bar');
             if (timerBar && data.round_status === 'betting_open' && (data.remaining_seconds === null || data.remaining_seconds === undefined)) {
                 timerBar.style.width = '100%';

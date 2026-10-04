@@ -116,6 +116,15 @@ class GameController extends Controller
             ->latest('id')
             ->take(12)
             ->get(['id', 'round_number', 'first_card', 'winning_side']);
+        // Last 21 declared results (oldest first) for the bead road
+        $beadHistory = GameRound::where('room_id', $roomId)
+            ->whereIn('status', ['result_declared', 'round_closed'])
+            ->whereNotNull('winning_side')
+            ->latest('id')
+            ->take(21)
+            ->pluck('winning_side')
+            ->reverse()
+            ->values();
 
         // Refresh user to get fresh balance
         $freshUser = User::find($user->id);
@@ -143,7 +152,8 @@ class GameController extends Controller
             'session_limit' => $sessionLimit,
             'session_remaining' => max(0, $sessionLimit - $sessionTotal),
             'wallet_balance' => (float) $freshUser->wallet_balance,
-            'recent_history' => $recentRounds,
+                        'recent_history' => $recentRounds,
+            'bead_history' => $beadHistory,
             'is_streaming' => (bool) $room->is_streaming,
             'live_stream_url' => $room->live_stream_url,
             'active_users' => (int) $room->active_users_count,
