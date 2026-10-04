@@ -857,11 +857,11 @@
             enableWorker: true,
             lowLatencyMode: false,
                   backBufferLength: 10,
-            maxBufferLength: 30,
+            maxBufferLength: 6,
             maxMaxBufferLength: 40,
-      liveSyncDurationCount: 2,
-           liveMaxLatencyDurationCount: Infinity,
-            maxLiveSyncPlaybackRate: 1,
+      liveSyncDuration: 1,
+           liveMaxLatencyDuration: 3,
+            maxLiveSyncPlaybackRate: 1.5,
             maxBufferHole: 1.5,
             nudgeMaxRetry: 10,
             nudgeMaxRetry: 10,
@@ -1720,7 +1720,7 @@ const OVERLAY_BASE_VIDEO_FRAC = 0.043;
         adminOverlayScale = scale;
 
     }
-    const NEW_CARD_DEFAULT_SCALE = 1;
+    const NEW_CARD_DEFAULT_SCALE = 1.1;
    adminOverlayScale = NEW_CARD_DEFAULT_SCALE;
 
     if (adminPreview) {
@@ -1813,6 +1813,7 @@ function overlayCoverMetrics(container, media) {
     }
 
     const shortcutCards = @json($shortcutCards ?? []);
+shortcutCards.forEach(function (c) { if (c.photo) { (new Image()).src = c.photo; } });
     const defaultOverlayPhoto = @json(asset('images/overlay-9-hearts.jpg'));
     let adminOverlayPhoto = defaultOverlayPhoto;
     let shortcutBuffer = '';
@@ -1830,7 +1831,7 @@ function overlayCoverMetrics(container, media) {
         adminOverlayPhoto = photoUrl || defaultOverlayPhoto;
         const photo = overlay.querySelector('.card-photo');
         if (photo) {
-            photo.src = adminOverlayPhoto;
+            if (photo.getAttribute("src") !== adminOverlayPhoto) { photo.style.visibility = "hidden"; photo.onload = photo.onerror = function () { photo.style.visibility = "visible"; }; photo.src = adminOverlayPhoto; }
             photo.alt = code;
         }
         if (x != null) adminOverlayX = Number(x);
