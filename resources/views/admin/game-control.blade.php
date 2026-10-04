@@ -527,10 +527,11 @@
                     @forelse($recentRounds as $r)
                         <div class="p-2 bg-slate-900 rounded-lg border border-slate-800 flex items-center justify-between text-xs">
                             <span class="text-slate-300 font-bold">Round #{{ $r->round_number }}</span>
-                            <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase {{ $r->winning_side === 'andar' ? 'badge-andar' : 'badge-bahar' }}">
+                           <span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase {{ $r->winning_side === 'andar' ? 'badge-andar' : ($r->winning_side === 'bahar' ? 'badge-bahar' : 'bg-slate-800 text-slate-400 border border-slate-600') }}">
                                 {{ $r->winning_side }} WON
                             </span>
-                            <span class="text-slate-500 text-[10px]">{{ $r->closed_at ? $r->closed_at->format('h:i A') : '-' }}</span>
+                          @php $closedAt = $r->closed_at ?? $r->updated_at; @endphp
+<span class="text-slate-500 text-[10px] text-right leading-tight">{{ $closedAt ? $closedAt->copy()->timezone('Asia/Kolkata')->format('d M Y, h:i A') : '-' }}</span>
                         </div>
                     @empty
                         <div class="text-slate-500 text-xs text-center py-2">No historical rounds yet.</div>

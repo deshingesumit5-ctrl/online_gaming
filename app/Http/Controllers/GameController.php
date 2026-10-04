@@ -119,7 +119,7 @@ class GameController extends Controller
         // Last 21 declared results (oldest first) for the bead road
         $beadHistory = GameRound::where('room_id', $roomId)
             ->whereIn('status', ['result_declared', 'round_closed'])
-            ->whereNotNull('winning_side')
+            ->whereIn('winning_side', ['andar', 'bahar'])
             ->latest('id')
             ->take(21)
             ->pluck('winning_side')
