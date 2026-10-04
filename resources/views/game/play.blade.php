@@ -1411,7 +1411,7 @@ const coverScale = (fit === 'contain')
             if (indexSuitB) indexSuitB.textContent = symbol;
             fillOverlayPips(pips, symbol, overlayPipCount(raw), 'player-live-card-suit');
             const photoEl = overlay.querySelector('.card-photo');
-            if (photoEl) photoEl.src = photo || defaultOverlayPhoto;
+            if (photoEl) { var nextSrc = photo || defaultOverlayPhoto; if (photoEl.getAttribute("src") !== nextSrc) { photoEl.style.visibility = "hidden"; photoEl.onload = photoEl.onerror = function () { photoEl.style.visibility = "visible"; }; photoEl.src = nextSrc; } }
             overlay.classList.add('is-visible');
             overlay.classList.add('is-red');
             overlay.classList.remove('is-black');
@@ -1471,11 +1471,11 @@ const coverScale = (fit === 'contain')
                 enableWorker: true,
                 lowLatencyMode: false,
                 backBufferLength: 10,
-                maxBufferLength: 30,
+                maxBufferLength: 6,
                 maxMaxBufferLength: 40,
-               liveSyncDurationCount: 2,
-             liveMaxLatencyDurationCount: Infinity,
-                maxLiveSyncPlaybackRate: 1,
+               liveSyncDuration: 1,
+             liveMaxLatencyDuration: 3,
+                maxLiveSyncPlaybackRate: 1.5,
                 maxBufferHole: 1.5,
                 nudgeMaxRetry: 10,
                 startPosition: -1,

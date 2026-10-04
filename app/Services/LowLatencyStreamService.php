@@ -133,7 +133,7 @@ class LowLatencyStreamService
         }
 
         $lines = preg_split('/\r\n|\n|\r/', $body) ?: [];
-        $header = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-3,PRECISE=NO'];
+        $header = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-1,PRECISE=NO'];
         $target = 2;
         $pairs = [];
         $rawSegments = [];
@@ -182,7 +182,7 @@ class LowLatencyStreamService
             $pending = [];
         }
 
-              $keep = array_slice($pairs, -8);
+              $keep = array_slice($pairs, -3);
         if ($keep === []) {
             return null;
         }
@@ -289,7 +289,7 @@ class LowLatencyStreamService
         }
 
         $lines   = preg_split('/\r\n|\n|\r/', $body) ?: [];
-        $header  = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-3,PRECISE=NO'];
+        $header  = ['#EXTM3U', '#EXT-X-VERSION:7', '#EXT-X-START:TIME-OFFSET=-1,PRECISE=NO'];
         $target  = 2;
         $pairs   = [];
         $rawSegments = [];
@@ -337,7 +337,7 @@ class LowLatencyStreamService
             $pairs[]  = array_merge($pending, [$this->proxiedAdminSegmentUrl($room->id, $seg)]);
             $pending  = [];
         }
-        $keep = array_slice($pairs, -8);
+        $keep = array_slice($pairs, -3);
         if ($keep === []) {
             return null;
         }
@@ -546,7 +546,7 @@ class LowLatencyStreamService
     }
 
     /** Serve the last good playlist for about 1s so overlapping players do not stampede the camera. */
-    private function readPlaylistCache(int $roomId, string $which, float $maxAge = 1.2): ?string
+    private function readPlaylistCache(int $roomId, string $which, float $maxAge = 0.5): ?string
     {
         $path = $this->playlistCachePath($roomId, $which);
         if (!is_file($path)) {
