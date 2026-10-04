@@ -1995,14 +1995,33 @@ const coverScale = (fit === 'contain')
              const pauseStateUrl = @json(url('/game/' . $room->id . '/stream-pause'));
         let streamPausedByAdmin = false;
         function setPlayerPaused(paused) {
-            if (paused === streamPausedByAdmin) return;
             streamPausedByAdmin = paused;
-            const cover = document.getElementById('player-pause-cover');
-            if (cover) cover.classList.toggle('hidden', !paused);
-            if (!paused) {
-                const v = document.getElementById('live-cctv-stream');
+            const box = document.getElementById('player-live-stream-box');
+            const v = document.getElementById('live-cctv-stream');
+            let freeze = document.getElementById('player-pause-freeze');
+            if (paused) {
+                if (freeze && freeze.style.display === 'block') return;
+                if (!v || !(v.videoWidth > 0)) return;
+                if (!freeze && box) {
+                    freeze = document.createElement('canvas');
+                    freeze.id = 'player-pause-freeze';
+                    freeze.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:5;display:none;';
+                    box.appendChild(freeze);
+                }
+                if (!freeze) return;
+                freeze.width = v.videoWidth;
+                freeze.height = v.videoHeight;
+                let ok = false;
+                try {
+                    freeze.getContext('2d').drawImage(v, 0, 0, freeze.width, freeze.height);
+                    ok = true;
+                } catch (e) {}
+                freeze.style.display = ok ? 'block' : 'none';
+            } else if (freeze && freeze.style.display === 'block') {
+                freeze.style.display = 'none';
                 if (v) { jumpVideoToLiveEdge(v); v.play().catch(function () {}); }
             }
+        }
         }
         (function runPausePoll() {
             fetch(pauseStateUrl, { headers: { 'Accept': 'application/json' }, cache: 'no-store' })
