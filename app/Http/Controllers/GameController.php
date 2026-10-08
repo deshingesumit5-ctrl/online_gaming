@@ -45,10 +45,13 @@ class GameController extends Controller
         $denominations = array_values(array_filter(array_map('intval', (array) $denominations), function ($d) {
             return $d > 0 && $d !== 100;
         }));
-        if ($denominations === []) {
+            if ($denominations === []) {
             $denominations = [500, 1000, 2000, 5000, 10000];
         }
-
+        if (!in_array(10000, $denominations, true)) {
+            $denominations[] = 10000;
+        }
+        sort($denominations);
         $recentRounds = GameRound::where('room_id', $roomId)
             ->whereIn('status', ['result_declared', 'round_closed'])
             ->latest('id')

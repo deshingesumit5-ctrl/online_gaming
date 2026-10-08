@@ -48,7 +48,8 @@
     .chip-1000  { background: radial-gradient(circle, #2563eb, #1e3a8a); }
     .chip-2000  { background: radial-gradient(circle, #7c3aed, #4c1d95); }
     .chip-5000  { background: radial-gradient(circle, #dc2626, #7f1d1d); }
-    .chip-10000 { background: radial-gradient(circle, #d97706, #78350f); }
+        .chip-10000 { background: radial-gradient(circle, #d97706, #78350f); }
+    .chip-gold  { background: radial-gradient(circle, #d97706, #78350f); }
 
     /* Fanned Deck Representation */
     .fanned-card {
@@ -224,7 +225,7 @@
             height: 2.5px !important;
         }
         .hud-andar-bahar-box {
-            max-width: 240px !important;
+                 max-width: 220px !important;
             margin-bottom: 2px !important;
         }
         .hud-andar-bahar-box #btn-bet-andar,
@@ -459,6 +460,11 @@
         <!-- ============================================================== -->
         <!-- 1. LEFT BLACK SCREEN PANEL (Matching Image 2 Exactly)          -->
         <!-- ============================================================== -->
+                <div id="player-live-dealer-badge" class="absolute top-2 left-2 z-30 flex items-center gap-1.5 bg-black/70 border border-red-500/40 px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] {{ $room->is_streaming ? '' : 'hidden' }}">
+            <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+            <span class="font-black uppercase tracking-wider text-red-400">LIVE DEALER</span>
+        </div>
+
         <div id="panel-left-black" class="panel-black-sidebar panel-left absolute left-0 top-0 bottom-0 z-20 flex flex-col justify-between p-2 sm:p-3 bg-black select-none border-r border-white/10 shadow-2xl">
             <!-- Upper Section: Poker Chips Vertically Stacked -->
             <div class="flex flex-col items-center justify-center flex-1 my-auto py-1 sm:py-2 gap-2 sm:gap-3">
@@ -530,8 +536,8 @@
         <!-- ============================================================== -->
         <!-- 2. CENTER TABLE AREA: ANDAR / BAHAR BOX (Matching Image 2)     -->
         <!-- ============================================================== -->
-        <div class="center-hud-anchor absolute bottom-2 sm:bottom-4 z-20 pointer-events-none flex justify-center items-center px-2">
-            <div class="relative w-full max-w-[280px] sm:max-w-[340px] md:max-w-[380px] hud-andar-bahar-box pointer-events-auto">
+       <div class="center-hud-anchor absolute top-2 z-20 pointer-events-none flex justify-start items-start px-2">
+    <div class="relative w-full max-w-[220px] sm:max-w-[260px] hud-andar-bahar-box pointer-events-auto">
                 <div class="w-full rounded-2xl overflow-hidden border-2 border-slate-700 bg-black shadow-2xl relative">
                     <!-- ANDAR Area (Black Bar) -->
                     <div id="btn-bet-andar" onclick="selectBetSide('andar')"
@@ -560,23 +566,6 @@
                         <div class="w-7 sm:w-8 md:w-9 h-12 sm:h-14 md:h-15 rounded-xl bg-gradient-to-b from-slate-900 via-slate-800 to-red-950 border border-white/20 flex flex-col items-center justify-center text-[10px] sm:text-[11px] font-bold text-white shadow-inner">
                             <span id="hud-first-card-rank">{{ $currentRound->first_card ? strtoupper(explode('_', $currentRound->first_card)[0]) : '4' }}</span>
                             <span class="text-red-400 text-xs sm:text-sm leading-none mt-0.5">★</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ⚡ BOTH Button (Below ANDAR and BAHAR) -->
-                <div class="mt-1 sm:mt-1.5 w-full">
-                    <div id="btn-bet-both" onclick="openBothBetModal()"
-                         class="w-full rounded-xl py-1.5 sm:py-2 px-3 sm:px-4 bg-gradient-to-r from-[#181a22] via-[#242b3d] to-[#7f1d1d] hover:brightness-110 border-2 border-amber-400/80 shadow-lg flex items-center justify-between cursor-pointer transition active:scale-[0.98] select-none group">
-                        <div class="flex items-center gap-1.5 sm:gap-2">
-                            <span class="text-xs sm:text-sm font-black font-royal tracking-wider text-amber-300 group-hover:text-amber-200">
-                                ⚡ BOTH
-                            </span>
-                            <span class="text-[9px] sm:text-[10px] text-slate-300 font-bold hidden xs:inline">(Andar + Bahar)</span>
-                        </div>
-                        <div class="flex items-center gap-1.5 sm:gap-2">
-                            <span id="both-bet-badge" class="text-[10px] sm:text-xs font-black text-amber-300"></span>
-                            <span class="px-2 py-0.5 rounded bg-gradient-to-r from-amber-400 to-yellow-400 text-slate-950 text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow">SET BET</span>
                         </div>
                     </div>
                 </div>
@@ -671,88 +660,6 @@
             </button>
         </div>
     </div>
-
-    {{-- Place Bet on Both Modal Dialog --}}
-    <div id="bothBetModal" class="fixed inset-0 z-50 flex items-center justify-center hidden p-3" style="background:rgba(0,0,0,0.8);backdrop-filter:blur(6px);">
-        <div class="relative w-full max-w-[420px] rounded-3xl bg-gradient-to-b from-[#181c24] to-[#0b0e14] border-2 border-amber-400 shadow-2xl p-4 sm:p-5 text-white flex flex-col gap-3 max-h-[95vh] overflow-y-auto">
-            <!-- Header with title & close button -->
-            <div class="flex items-center justify-between border-b border-white/10 pb-2">
-                <div class="flex items-center gap-2">
-                    <span class="text-amber-400 text-lg">⚡</span>
-                    <h3 class="text-xs sm:text-sm font-black font-royal uppercase tracking-wider text-amber-300">Place Bet on Both</h3>
-                </div>
-                <button type="button" onclick="closeBothBetModal()" class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center text-xs font-bold transition">✕</button>
-            </div>
-
-            <!-- ANDAR Section -->
-            <div class="bg-black/60 border border-slate-700/80 rounded-2xl p-2.5 sm:p-3">
-                <div class="flex items-center justify-between mb-1.5">
-                    <span class="text-xs sm:text-sm font-black font-royal tracking-widest text-indigo-300 flex items-center gap-1.5">
-                        <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span> ANDAR BET
-                    </span>
-                    <span id="both-modal-andar-display" class="text-xs sm:text-sm font-black text-amber-300">500 pts</span>
-                </div>
-                <!-- Quick Chips for Andar -->
-                <div class="flex items-center justify-between gap-1 mb-2">
-                    <button type="button" onclick="setBothSideAmount('andar', 500)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-indigo-950 border border-white/15 text-[10px] sm:text-xs font-black">500</button>
-                    <button type="button" onclick="setBothSideAmount('andar', 1000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-indigo-950 border border-white/15 text-[10px] sm:text-xs font-black">1k</button>
-                    <button type="button" onclick="setBothSideAmount('andar', 2000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-indigo-950 border border-white/15 text-[10px] sm:text-xs font-black">2k</button>
-                    <button type="button" onclick="setBothSideAmount('andar', 5000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-indigo-950 border border-white/15 text-[10px] sm:text-xs font-black">5k</button>
-                    <button type="button" onclick="setBothSideAmount('andar', 10000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-indigo-950 border border-white/15 text-[10px] sm:text-xs font-black">10k</button>
-                </div>
-                <!-- Manual Input for Andar -->
-                <div class="flex items-center gap-2">
-                    <label class="text-[10px] text-slate-400 font-bold shrink-0">Manual Amt:</label>
-                    <input type="number" id="both-andar-manual" min="500" max="1000000" step="100" placeholder="e.g. 500" value="500"
-                           oninput="onBothManualInput('andar', this.value)"
-                           class="w-full px-2 py-1 rounded-lg bg-black/90 border border-slate-600 focus:border-amber-400 text-xs font-black text-white text-center">
-                </div>
-            </div>
-
-            <!-- BAHAR Section -->
-            <div class="bg-black/60 border border-red-900/60 rounded-2xl p-2.5 sm:p-3">
-                <div class="flex items-center justify-between mb-1.5">
-                    <span class="text-xs sm:text-sm font-black font-royal tracking-widest text-red-400 flex items-center gap-1.5">
-                        <span class="w-2.5 h-2.5 rounded-full bg-red-500"></span> BAHAR BET
-                    </span>
-                    <span id="both-modal-bahar-display" class="text-xs sm:text-sm font-black text-amber-300">1,000 pts</span>
-                </div>
-                <!-- Quick Chips for Bahar -->
-                <div class="flex items-center justify-between gap-1 mb-2">
-                    <button type="button" onclick="setBothSideAmount('bahar', 500)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-red-950 border border-white/15 text-[10px] sm:text-xs font-black">500</button>
-                    <button type="button" onclick="setBothSideAmount('bahar', 1000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-red-950 border border-white/15 text-[10px] sm:text-xs font-black">1k</button>
-                    <button type="button" onclick="setBothSideAmount('bahar', 2000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-red-950 border border-white/15 text-[10px] sm:text-xs font-black">2k</button>
-                    <button type="button" onclick="setBothSideAmount('bahar', 5000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-red-950 border border-white/15 text-[10px] sm:text-xs font-black">5k</button>
-                    <button type="button" onclick="setBothSideAmount('bahar', 10000)" class="flex-1 py-1 rounded-lg bg-slate-800 hover:bg-red-950 border border-white/15 text-[10px] sm:text-xs font-black">10k</button>
-                </div>
-                <!-- Manual Input for Bahar -->
-                <div class="flex items-center gap-2">
-                    <label class="text-[10px] text-slate-400 font-bold shrink-0">Manual Amt:</label>
-                    <input type="number" id="both-bahar-manual" min="500" max="1000000" step="100" placeholder="e.g. 1000" value="1000"
-                           oninput="onBothManualInput('bahar', this.value)"
-                           class="w-full px-2 py-1 rounded-lg bg-black/90 border border-slate-600 focus:border-amber-400 text-xs font-black text-white text-center">
-                </div>
-            </div>
-
-            <!-- Total Summary Bar -->
-            <div class="flex items-center justify-between px-3 py-2 rounded-xl bg-slate-900 border border-white/10 text-xs sm:text-sm font-bold">
-                <span class="text-slate-300">Total Points:</span>
-                <span id="both-modal-total-display" class="text-sm sm:text-base font-black text-amber-300">1,500 pts</span>
-            </div>
-
-            <!-- Actions -->
-            <div class="grid grid-cols-2 gap-2 pt-1">
-                <button type="button" onclick="closeBothBetModal()"
-                        class="py-2.5 rounded-xl font-black text-xs uppercase tracking-wider text-white bg-slate-800 hover:bg-slate-700 transition border border-white/15">
-                    CANCEL
-                </button>
-                <button type="button" id="btn-both-modal-confirm" onclick="submitBothBet()"
-                        class="py-2.5 rounded-xl font-black text-xs uppercase tracking-wider text-slate-950 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:brightness-110 transition shadow-lg shadow-amber-500/40">
-                    PLACE BET ON BOTH
-                </button>
-            </div>
-        </div>
-    </div>
 </div>
 @endsection
 
@@ -761,108 +668,10 @@
 <script src="{{ asset('js/game-engine.js') }}"></script>
 <script>
     let activeSelectedChip = {{ $denominations[0] ?? 500 }};
-    let activeSelectedSide = null;
-    let gameEngineInstance = null;
-    let activeBothAndar = 500;
-    let activeBothBahar = 1000;
-
-    function openBothBetModal() {
-        selectBetSide('both');
-        updateBothModalDisplays();
-        document.getElementById('bothBetModal')?.classList.remove('hidden');
-    }
-
-    function closeBothBetModal() {
-        document.getElementById('bothBetModal')?.classList.add('hidden');
-    }
-
-    function setBothSideAmount(side, val) {
-        const parsed = parseInt(val, 10);
-        if (isNaN(parsed) || parsed < 500) return;
-        if (side === 'andar') {
-            activeBothAndar = parsed;
-            const input = document.getElementById('both-andar-manual');
-            if (input) input.value = parsed;
-        } else if (side === 'bahar') {
-            activeBothBahar = parsed;
-            const input = document.getElementById('both-bahar-manual');
-            if (input) input.value = parsed;
-        }
-        updateBothModalDisplays();
-        syncBothHudBadges();
-    }
-
-    function onBothManualInput(side, val) {
-        const parsed = parseInt(val, 10);
-        if (side === 'andar') {
-            activeBothAndar = isNaN(parsed) ? 0 : parsed;
-        } else if (side === 'bahar') {
-            activeBothBahar = isNaN(parsed) ? 0 : parsed;
-        }
-        updateBothModalDisplays();
-        syncBothHudBadges();
-    }
-
-    function updateBothModalDisplays() {
-        const andarDisp = document.getElementById('both-modal-andar-display');
-        const baharDisp = document.getElementById('both-modal-bahar-display');
-        const totalDisp = document.getElementById('both-modal-total-display');
-        if (andarDisp) andarDisp.textContent = `${activeBothAndar.toLocaleString()} pts`;
-        if (baharDisp) baharDisp.textContent = `${activeBothBahar.toLocaleString()} pts`;
-        if (totalDisp) totalDisp.textContent = `${(activeBothAndar + activeBothBahar).toLocaleString()} pts`;
-    }
-
-    function syncBothHudBadges() {
-        if (activeSelectedSide === 'both') {
-            const andarBadge = document.getElementById('andar-bet-badge');
-            const baharBadge = document.getElementById('bahar-bet-badge');
-            const bothBadge = document.getElementById('both-bet-badge');
-            if (andarBadge) andarBadge.textContent = `${activeBothAndar.toLocaleString()} pts`;
-            if (baharBadge) baharBadge.textContent = `${activeBothBahar.toLocaleString()} pts`;
-            if (bothBadge) bothBadge.textContent = `${(activeBothAndar + activeBothBahar).toLocaleString()} pts`;
-            document.getElementById('status-first-bet').textContent = `${activeBothAndar.toLocaleString()} pts`;
-            document.getElementById('status-second-bet').textContent = `${activeBothBahar.toLocaleString()} pts`;
-        }
-    }
-
-    async function submitBothBet() {
-        if (activeBothAndar < 500 || activeBothBahar < 500) {
-            showSquareBanner('Minimum Bet', 'Minimum betting amount is 500 points for each side.');
-            return;
-        }
-
-        const totalAmount = activeBothAndar + activeBothBahar;
-        const totalEl = document.getElementById('sum-total');
-        const currentSessionTotal = totalEl ? parseInt(totalEl.textContent.replace(/,/g, '') || '0', 10) : 0;
-        if ((currentSessionTotal + totalAmount) > 1000000) {
-            showSquareBanner('Session Limit Exceeded', 'Session betting limit exceeded. Maximum cumulative limit is 10,00,000 Points across Andar + Bahar.');
-            return;
-        }
-
-        closeBothBetModal();
-
-        if (gameEngineInstance) {
-            const placeBtn = document.getElementById('btn-hud-place-bet');
-            const modalBtn = document.getElementById('btn-both-modal-confirm');
-            if (placeBtn) {
-                placeBtn.disabled = true;
-                placeBtn.dataset.originalText = placeBtn.textContent;
-                placeBtn.textContent = 'PLACING...';
-            }
-            if (modalBtn) modalBtn.disabled = true;
-
-            await gameEngineInstance.placeBet('both', {
-                andar_amount: activeBothAndar,
-                bahar_amount: activeBothBahar
-            });
-
-            if (placeBtn) {
-                placeBtn.disabled = false;
-                placeBtn.textContent = placeBtn.dataset.originalText || 'PLACE BET';
-            }
-            if (modalBtn) modalBtn.disabled = false;
-        }
-    }
+      let gameEngineInstance = null;
+    let pendingAndar = 0;
+    let pendingBahar = 0;
+    const RING_CLASSES = ['ring-2', 'ring-inset', 'ring-amber-400'];
 
     function selectPokerChip(val, el) {
         activeSelectedChip = parseInt(val, 10);
@@ -870,56 +679,82 @@
         if (el) el.classList.add('selected');
         const manual = document.getElementById('manual-bet-amount');
         if (manual) manual.value = '';
+    }
 
-        if (activeSelectedSide && activeSelectedSide !== 'both') {
-            updateSideBadge(activeSelectedSide, activeSelectedChip);
+    function currentBetAmount() {
+        const manual = document.getElementById('manual-bet-amount');
+        if (manual && manual.value !== '') {
+            const typed = parseInt(manual.value, 10);
+            return isNaN(typed) ? 0 : typed;
         }
+        return activeSelectedChip;
+    }
+
+    function renderPendingBets() {
+        const andarBox = document.getElementById('btn-bet-andar');
+        const baharBox = document.getElementById('btn-bet-bahar');
+        RING_CLASSES.forEach(c => {
+            andarBox.classList.toggle(c, pendingAndar > 0);
+            baharBox.classList.toggle(c, pendingBahar > 0);
+        });
+        document.getElementById('andar-bet-badge').textContent = pendingAndar > 0 ? `${pendingAndar.toLocaleString()} pts` : '';
+        document.getElementById('bahar-bet-badge').textContent = pendingBahar > 0 ? `${pendingBahar.toLocaleString()} pts` : '';
+        document.getElementById('status-first-bet').textContent = `${pendingAndar.toLocaleString()} pts`;
+        document.getElementById('status-second-bet').textContent = `${pendingBahar.toLocaleString()} pts`;
     }
 
     function selectBetSide(side) {
-        activeSelectedSide = side;
-        const andarBox = document.getElementById('btn-bet-andar');
-        const baharBox = document.getElementById('btn-bet-bahar');
-        const bothBox = document.getElementById('btn-bet-both');
-
-        if (side === 'both') {
-            bothBox?.classList.add('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
-            andarBox.classList.add('ring-2', 'ring-amber-400');
-            baharBox.classList.add('ring-2', 'ring-amber-400');
-            syncBothHudBadges();
+        const amt = currentBetAmount();
+        if (amt < 500) {
+            showSquareBanner('Minimum Bet', 'Minimum betting amount is 500 points.');
             return;
         }
-
-        bothBox?.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
-        const bothBadge = document.getElementById('both-bet-badge');
-        if (bothBadge) bothBadge.textContent = '';
-
-        if (side === 'andar') {
-            andarBox.classList.add('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
-            baharBox.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
-            document.getElementById('status-first-bet').textContent = `${activeSelectedChip.toLocaleString()} pts`;
-            document.getElementById('status-second-bet').textContent = `0 pts`;
-        } else {
-            baharBox.classList.add('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
-            andarBox.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
-            document.getElementById('status-second-bet').textContent = `${activeSelectedChip.toLocaleString()} pts`;
-            document.getElementById('status-first-bet').textContent = `0 pts`;
-        }
-
-        updateSideBadge(side, activeSelectedChip);
+        if (side === 'andar') pendingAndar += amt;
+        else if (side === 'bahar') pendingBahar += amt;
+        renderPendingBets();
     }
 
-    function updateSideBadge(side, amount) {
-        const andarBadge = document.getElementById('andar-bet-badge');
-        const baharBadge = document.getElementById('bahar-bet-badge');
-        if (side === 'andar') {
-            andarBadge.textContent = `${amount.toLocaleString()} pts`;
-            baharBadge.textContent = '';
-        } else if (side === 'bahar') {
-            baharBadge.textContent = `${amount.toLocaleString()} pts`;
-            andarBadge.textContent = '';
-        }
+    function handleUndoBet() {
+        pendingAndar = 0;
+        pendingBahar = 0;
+        renderPendingBets();
     }
+
+    // ---- Voice announcement ----
+    function pickFemaleVoice() {
+        const voices = (window.speechSynthesis.getVoices() || []).filter(v => /^en/i.test(v.lang));
+        return voices.find(v => /female|zira|aria|jenny|samantha|hazel|heera|susan|google uk english female/i.test(v.name)) || voices[0] || null;
+    }
+    function speakResultAnnouncement(side, round) {
+        if (!('speechSynthesis' in window) || !side || !round) return;
+        const text = (side === 'andar' ? 'Andar' : 'Bahar') + ' won round ' + round;
+        const go = function () {
+            const u = new SpeechSynthesisUtterance(text);
+            const v = pickFemaleVoice();
+            if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = 'en-US'; }
+            u.pitch = 1.15;
+            u.rate = 0.95;
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(u);
+        };
+        if (window.speechSynthesis.getVoices().length) { go(); return; }
+        let done = false;
+        const once = function () {
+            if (done) return;
+            done = true;
+            window.speechSynthesis.onvoiceschanged = null;
+            go();
+        };
+        window.speechSynthesis.onvoiceschanged = once;
+        setTimeout(once, 1000);
+    }
+    document.addEventListener('pointerdown', function () {
+        try {
+            const u = new SpeechSynthesisUtterance(' ');
+            u.volume = 0;
+            window.speechSynthesis.speak(u);
+        } catch (e) {}
+    }, { once: true });
 
     function handleUndoBet() {
         activeSelectedSide = null;
@@ -947,47 +782,46 @@
         document.getElementById('squareAlertModal').classList.add('hidden');
     }
 
-    async function handleConfirmBet() {
-        if (!activeSelectedSide) {
-            showSquareBanner('Selection Required', 'Please select ANDAR, BAHAR, or BOTH before placing your bet.');
+      async function handleConfirmBet() {
+        if (pendingAndar <= 0 && pendingBahar <= 0) {
+            showSquareBanner('Selection Required', 'Please tap ANDAR or BAHAR to add your bet before placing it.');
             return;
         }
-
-        if (activeSelectedSide === 'both') {
-            await submitBothBet();
+        if ((pendingAndar > 0 && pendingAndar < 500) || (pendingBahar > 0 && pendingBahar < 500)) {
+            showSquareBanner('Minimum Bet', 'Minimum betting amount is 500 points.');
             return;
-        }
-
-        const manual = document.getElementById('manual-bet-amount');
-        if (manual && manual.value !== '') {
-            const typed = parseInt(manual.value, 10);
-            if (isNaN(typed) || typed < 500) {
-                showSquareBanner('Minimum Bet', 'Minimum betting amount is 500 points.');
-                return;
-            }
-            activeSelectedChip = typed;
         }
 
         const totalEl = document.getElementById('sum-total');
         const currentSessionTotal = totalEl ? parseInt(totalEl.textContent.replace(/,/g, '') || '0', 10) : 0;
-        if ((currentSessionTotal + activeSelectedChip) > 1000000) {
+        if ((currentSessionTotal + pendingAndar + pendingBahar) > 1000000) {
             showSquareBanner('Session Limit Exceeded', 'Session betting limit exceeded. Maximum cumulative limit is 10,00,000 Points across Andar + Bahar.');
             return;
         }
 
-        if (gameEngineInstance) {
-            gameEngineInstance.selectedChip = activeSelectedChip;
-            const placeBtn = document.getElementById('btn-hud-place-bet');
-            if (placeBtn) {
-                placeBtn.disabled = true;
-                placeBtn.dataset.originalText = placeBtn.textContent;
-                placeBtn.textContent = 'PLACING...';
+        if (!gameEngineInstance) return;
+        const a = pendingAndar, b = pendingBahar;
+        const placeBtn = document.getElementById('btn-hud-place-bet');
+        if (placeBtn) {
+            placeBtn.disabled = true;
+            placeBtn.dataset.originalText = placeBtn.textContent;
+            placeBtn.textContent = 'PLACING...';
+        }
+        try {
+            if (a > 0 && b > 0) {
+                await gameEngineInstance.placeBet('both', { andar_amount: a, bahar_amount: b });
+            } else {
+                gameEngineInstance.selectedChip = a > 0 ? a : b;
+                await gameEngineInstance.placeBet(a > 0 ? 'andar' : 'bahar');
             }
-            await gameEngineInstance.placeBet(activeSelectedSide);
+        } finally {
             if (placeBtn) {
                 placeBtn.disabled = false;
                 placeBtn.textContent = placeBtn.dataset.originalText || 'PLACE BET';
             }
+            pendingAndar = 0;
+            pendingBahar = 0;
+            renderPendingBets();
         }
     }
 
@@ -1097,7 +931,7 @@
                 if (!isNaN(typed) && typed >= 500) {
                     activeSelectedChip = typed;
                     document.querySelectorAll('.poker-chip').forEach(c => c.classList.remove('selected'));
-                    if (activeSelectedSide) updateSideBadge(activeSelectedSide, activeSelectedChip);
+                
                 }
             });
         }
@@ -1106,7 +940,23 @@
         const oldRenderState = gameEngineInstance.renderState.bind(gameEngineInstance);
         gameEngineInstance.renderState = function(data) {
             oldRenderState(data);
-            renderBeadRoad(data.bead_history);
+                   renderBeadRoad(data.bead_history);
+
+            (function () {
+                const rn = data.round_number != null ? data.round_number : (data.round && data.round.round_number);
+                const ws = data.winning_side != null ? data.winning_side : (data.round && data.round.winning_side);
+                const declared = data.round_status === 'result_declared' && (ws === 'andar' || ws === 'bahar') && rn;
+                const key = declared ? (rn + '-' + ws) : null;
+                if (!window._voiceReady) {           // first state load: never announce
+                    window._voiceReady = true;
+                    window._lastVoiceKey = key;
+                    return;
+                }
+                if (key && key !== window._lastVoiceKey) {
+                    window._lastVoiceKey = key;
+                    if (soundOn) speakResultAnnouncement(ws, rn);
+                }
+            })();
             const timerBar = document.getElementById('hud-timer-bar');
             if (timerBar && data.round_status === 'betting_open' && (data.remaining_seconds === null || data.remaining_seconds === undefined)) {
                 timerBar.style.width = '100%';
@@ -1796,7 +1646,8 @@ const coverScale = (fit === 'contain')
 
             if (isStreaming) {
                 streamEndedByAdmin = false;
-                window._isStreamActive = true;
+                         window._isStreamActive = true;
+                document.getElementById('player-live-dealer-badge')?.classList.remove('hidden');
                 setFeltBackground(true);
                 if (!liveFootageReady) showLiveWaitCover();
                 if (streamBox) {
@@ -1857,7 +1708,8 @@ const coverScale = (fit === 'contain')
                 }
             } else {
                 streamEndedByAdmin = true;
-                window._isStreamActive = false;
+                            window._isStreamActive = false;
+                document.getElementById('player-live-dealer-badge')?.classList.add('hidden');
                 liveFootageReady = false;
                 pendingLiveCard = undefined;
                 setFeltBackground(false);

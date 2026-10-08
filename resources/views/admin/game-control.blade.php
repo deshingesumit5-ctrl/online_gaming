@@ -316,7 +316,7 @@
         </div>
 
         <div class="w-full grid grid-cols-1 xl:grid-cols-3 gap-4">
-            <div class="glass-panel p-4 border-amber-500/30">
+           <div id="live-session-card" class="glass-panel p-4 border-amber-500/30">
                 <h3 class="text-xs font-black uppercase tracking-wider text-amber-300 mb-3">Session</h3>
                 <div class="grid grid-cols-2 gap-2 text-[11px]">
                     <div class="p-2.5 rounded-xl bg-slate-950/80 border border-slate-800">
@@ -461,7 +461,7 @@
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5 pt-1">
         
         <!-- Table 1: Round # Bet Book & Volume -->
-        <div class="glass-panel p-5 border-slate-800 flex flex-col justify-between">
+       <div id="live-bet-book" class="glass-panel p-5 border-slate-800 flex flex-col justify-between">
             <div>
                 <h3 class="text-xs font-bold uppercase text-slate-400 tracking-wider mb-3">Round #{{ $currentRound->round_number }} Bet Book & Volume</h3>
                 
@@ -488,7 +488,7 @@
         </div>
 
         <!-- Table 2: Active Bets Placed in This Round -->
-        <div class="glass-panel p-5 border-slate-800 flex flex-col justify-between">
+      <div id="live-active-bets" class="glass-panel p-5 border-slate-800 flex flex-col justify-between">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold font-royal text-white">Active Bets ({{ count($activeBets) }})</h3>
                 <span class="text-xs font-normal text-slate-400">Auto-Refreshes</span>
@@ -559,7 +559,7 @@
     </div>
 
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5 pt-1">
-        <div class="glass-panel p-5 border-slate-800 md:col-span-3">
+      <div id="live-round-history" class="glass-panel p-5 border-slate-800 md:col-span-3">
             <h4 class="text-xs font-bold uppercase text-slate-400 mb-2.5">Betting Round History</h4>
             <div class="space-y-2 max-h-80 overflow-y-auto pr-1">
                 @forelse(($bettingWindows ?? []) as $w)
@@ -1618,6 +1618,33 @@
         document.getElementById('resultBannerModal').classList.add('hidden');
         window.location.reload();
     }
+    function pickFemaleVoice() {
+        const voices = (window.speechSynthesis.getVoices() || []).filter(v => /^en/i.test(v.lang));
+        return voices.find(v => /female|zira|aria|jenny|samantha|hazel|heera|susan|google uk english female/i.test(v.name)) || voices[0] || null;
+    }
+    function speakResultAnnouncement(side, round) {
+        if (!('speechSynthesis' in window) || !side || !round) return;
+        const text = (side === 'andar' ? 'Andar' : 'Bahar') + ' won round ' + round;
+        const go = function () {
+            const u = new SpeechSynthesisUtterance(text);
+            const v = pickFemaleVoice();
+            if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = 'en-US'; }
+            u.pitch = 1.15;
+            u.rate = 0.95;
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(u);
+        };
+        if (window.speechSynthesis.getVoices().length) { go(); return; }
+        let done = false;
+        const once = function () {
+            if (done) return;
+            done = true;
+            window.speechSynthesis.onvoiceschanged = null;
+            go();
+        };
+        window.speechSynthesis.onvoiceschanged = once;
+        setTimeout(once, 1000);
+    }
 
     async function submitConfirmedForm() {
         if (!_pendingFormId) return;
@@ -1653,6 +1680,7 @@
                 if (btnAndar) btnAndar.disabled = true;
                 if (btnBahar) btnBahar.disabled = true;
 
+                              speakResultAnnouncement(winningSide, @json($currentRound->round_number));
                 showResultBannerModal(data.message, winningSide);
             } else {
                 alert((data && data.message) ? data.message : 'Declaration failed. Please try again.');
@@ -2144,6 +2172,33 @@ shortcutCards.forEach(function (c) { if (c.photo) { (new Image()).src = c.photo;
             btn.innerHTML = btn.dataset.busyText || 'Processing...';
         });
     });
+</script>
+<script>
+(function () {
+    const IDS = ['live-session-card', 'live-bet-book', 'live-active-bets', 'live-round-history'];
+    let busy = false;
+    async function tick() {
+        if (document.hidden || busy) return;
+        busy = true;
+        try {
+            const res = await fetch(window.location.href, { credentials: 'same-origin', cache: 'no-store' });
+            if (!res.ok) return;
+            const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+            IDS.forEach(function (id) {
+                const cur = document.getElementById(id);
+                const nxt = doc.getElementById(id);
+                if (!cur || !nxt || cur.innerHTML === nxt.innerHTML) return;
+                const tops = Array.from(cur.querySelectorAll('.overflow-y-auto')).map(function (c) { return c.scrollTop; });
+                cur.innerHTML = nxt.innerHTML;
+                cur.querySelectorAll('.overflow-y-auto').forEach(function (c, i) { if (tops[i]) c.scrollTop = tops[i]; });
+            });
+        } catch (e) {
+        } finally {
+            busy = false;
+        }
+    }
+    setInterval(tick, 2000);
+})();
 </script>
 @endsection
 
