@@ -306,9 +306,7 @@
             height: 100vh !important;
         }
     }
-    .hud-andar-bahar-box #btn-bet-both {
-        transition: all 0.2s ease;
-    }
+    
 </style>
 @endpush
 
@@ -439,13 +437,7 @@
                 <svg class="animate-spin h-10 w-10 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
             
             </div>
-            <!-- Live Streaming Indicator Badge -->
-            <div class="absolute top-2.5 left-[clamp(120px,18vw,220px)] ml-2 sm:ml-3 z-10 flex items-center gap-1.5 sm:gap-2 bg-black/70 backdrop-blur-sm border border-red-500/40 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full text-[9px] sm:text-[10px]">
-                <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
-                <span class="font-black uppercase tracking-wider text-red-400">LIVE DEALER</span>
-                <span class="text-slate-500">&bull;</span>
-                <span class="font-bold text-slate-200">👥 <span id="player-count-display">{{ $room->active_users_count ?? 1 }}</span> Players</span>
-            </div>
+            
             <div id="player-game-status-banner" class="absolute top-11 left-1/2 -translate-x-1/2 z-20 px-3 py-1.5 rounded-lg bg-black/70 border border-white/15 text-[10px] sm:text-xs font-black uppercase tracking-wider text-amber-300 text-center max-w-[80%]"></div>
         </div>
 
@@ -756,21 +748,7 @@
         } catch (e) {}
     }, { once: true });
 
-    function handleUndoBet() {
-        activeSelectedSide = null;
-        const andarBox = document.getElementById('btn-bet-andar');
-        const baharBox = document.getElementById('btn-bet-bahar');
-        const bothBox = document.getElementById('btn-bet-both');
-        andarBox.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
-        baharBox.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
-        bothBox?.classList.remove('ring-2', 'ring-amber-400', 'shadow-[0_0_15px_rgba(245,158,11,0.5)]');
-        document.getElementById('andar-bet-badge').textContent = '';
-        document.getElementById('bahar-bet-badge').textContent = '';
-        const bothBadge = document.getElementById('both-bet-badge');
-        if (bothBadge) bothBadge.textContent = '';
-        document.getElementById('status-first-bet').textContent = '0 pts';
-        document.getElementById('status-second-bet').textContent = '0 pts';
-    }
+    
 
     function showSquareBanner(title, message) {
         if (title) document.getElementById('squareAlertTitle').textContent = title;
