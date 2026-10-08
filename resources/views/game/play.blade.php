@@ -575,38 +575,7 @@
 
             <!-- Vertical Bead Road Scorecard Card (Matching Image 2) -->
             <div class="vertical-bead-card flex-1 flex flex-col items-center justify-center my-auto p-1.5 sm:p-2.5 rounded-2xl sm:rounded-3xl border-2 border-red-900/60 shadow-xl bg-gradient-to-b from-[#28080e] via-[#1a0509] to-[#120306] w-full max-w-[105px] sm:max-w-[120px]">
-                <div class="flex items-start justify-center gap-1.5 sm:gap-2.5 py-1">
-                    <!-- Column 1: Bead circles B and A -->
-                    <div class="flex flex-col items-center gap-1 sm:gap-1.5">
-                        <div class="bead-b-circle shrink-0">B</div>
-                        <div class="bead-b-circle shrink-0">B</div>
-                        <div class="bead-a-circle shrink-0">A</div>
-                        <div class="bead-a-circle shrink-0">A</div>
-                        <div class="bead-b-circle shrink-0">B</div>
-                        <div class="bead-a-circle shrink-0">A</div>
-                        <div class="bead-b-circle shrink-0">B</div>
-                    </div>
-                    <!-- Column 2: Dots -->
-                    <div class="flex flex-col items-center gap-2 sm:gap-2.5 py-1">
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                    </div>
-                    <!-- Column 3: Dots -->
-                    <div class="flex flex-col items-center gap-2 sm:gap-2.5 py-1">
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                        <div class="bead-dot shrink-0"></div>
-                    </div>
-                </div>
+                <div id="bead-road" class="flex items-start justify-center gap-1.5 sm:gap-2.5 py-1"></div>
             </div>
 
             <!-- Limits Display at Bottom of Right Panel -->
@@ -890,6 +859,34 @@
         stopCancelCountdown();
         handleUndoBet();
     };
+
+    function renderBeadRoad(results) {
+        const el = document.getElementById('bead-road');
+        if (!el) return;
+        const ROWS = 7, COLS = 3;
+        const list = (results || [])
+            .map(r => String(r).toLowerCase())
+            .filter(r => r === 'andar' || r === 'bahar')
+            .map(r => r === 'andar' ? 'A' : 'B')
+            .slice(-ROWS * COLS);
+        el.innerHTML = '';
+        for (let c = 0; c < COLS; c++) {
+            const col = document.createElement('div');
+            col.className = 'flex flex-col items-center gap-1 sm:gap-1.5 py-0.5';
+            for (let r = 0; r < ROWS; r++) {
+                const idx = c * ROWS + r;
+                const d = document.createElement('div');
+                if (idx < list.length) {
+                    d.className = (list[idx] === 'A' ? 'bead-a-circle' : 'bead-b-circle') + ' shrink-0';
+                    d.textContent = list[idx];
+                } else {
+                    d.className = 'bead-dot shrink-0';
+                }
+                col.appendChild(d);
+            }
+            el.appendChild(col);
+        }
+    }
 
     document.addEventListener('DOMContentLoaded', () => {
         gameEngineInstance = new GameEngine({

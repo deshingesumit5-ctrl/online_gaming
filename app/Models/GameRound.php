@@ -58,7 +58,7 @@ class GameRound extends Model
     public function currentBettingWindow(): ?BettingWindow
     {
         try {
-            return $this->bettingWindows()->latest('id')->first();
+            return $this->bettingWindows()->reorder()->orderByDesc('id')->first();
         } catch (\Throwable $e) {
             return null;
         }
