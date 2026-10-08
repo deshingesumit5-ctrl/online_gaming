@@ -214,7 +214,7 @@
     @endphp
 
     <div class="gc-control-matrix flex flex-col gap-4">
-        <div class="w-full glass-panel p-3 sm:p-4 border-slate-800 flex flex-col">
+        <div class="w-full glass-panel p-3 sm:p-4 border-slate-800 flex flex-col" style="order:2;">
             <div class="flex items-center justify-between mb-3">
                 <h3 class="text-sm font-bold font-royal text-white flex items-center gap-2">
                     <span class="w-6 h-6 rounded-full bg-amber-500 text-slate-950 flex items-center justify-center font-black text-xs shrink-0">2</span>
@@ -314,8 +314,8 @@
                 <button type="button" id="btn-stream-pause" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider border border-amber-400 cursor-pointer">⏸ Pause</button>
             </div> -->
         </div>
-
-        <div class="w-full grid grid-cols-1 xl:grid-cols-3 gap-4">
+        
+<div class="w-full grid grid-cols-1 xl:grid-cols-3 gap-4" style="order:1;">
            <div id="live-session-card" class="glass-panel p-4 border-amber-500/30">
                 <h3 class="text-xs font-black uppercase tracking-wider text-amber-300 mb-3">Session</h3>
                 <div class="grid grid-cols-2 gap-2 text-[11px]">
@@ -1614,10 +1614,17 @@
         document.getElementById('resultBannerModal').classList.remove('hidden');
     }
 
-    function closeResultBannerModal() {
-        document.getElementById('resultBannerModal').classList.add('hidden');
-        window.location.reload();
-    }
+  function closeResultBannerModal() {
+    document.getElementById('resultBannerModal').classList.add('hidden');
+    const waitSpeech = function () {
+        if ('speechSynthesis' in window && window.speechSynthesis.speaking) {
+            setTimeout(waitSpeech, 200);
+        } else {
+            window.location.reload();
+        }
+    };
+    waitSpeech();
+}
     function pickFemaleVoice() {
         const voices = (window.speechSynthesis.getVoices() || []).filter(v => /^en/i.test(v.lang));
         return voices.find(v => /female|zira|aria|jenny|samantha|hazel|heera|susan|google uk english female/i.test(v.name)) || voices[0] || null;
