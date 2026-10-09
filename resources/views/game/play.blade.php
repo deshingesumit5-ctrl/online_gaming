@@ -528,7 +528,7 @@
         <!-- ============================================================== -->
         <!-- 2. CENTER TABLE AREA: ANDAR / BAHAR BOX (Matching Image 2)     -->
         <!-- ============================================================== -->
-       <div class="center-hud-anchor absolute top-2 z-20 pointer-events-none flex justify-start items-start px-2">
+      <div class="center-hud-anchor absolute z-20 pointer-events-none flex px-2" style="bottom:8px; justify-content:center; align-items:flex-end;">
     <div class="relative w-full max-w-[220px] sm:max-w-[260px] hud-andar-bahar-box pointer-events-auto">
                 <div class="w-full rounded-2xl overflow-hidden border-2 border-slate-700 bg-black shadow-2xl relative">
                     <!-- ANDAR Area (Black Bar) -->
@@ -634,12 +634,22 @@
     let pendingBahar = 0;
     const RING_CLASSES = ['ring-2', 'ring-inset', 'ring-amber-400'];
 
+     let activeSide = null;
+
     function selectPokerChip(val, el) {
         activeSelectedChip = parseInt(val, 10);
         document.querySelectorAll('.poker-chip').forEach(c => c.classList.remove('selected'));
         if (el) el.classList.add('selected');
         const manual = document.getElementById('manual-bet-amount');
         if (manual) manual.value = '';
+
+        if (!activeSide) {
+            showSquareBanner('Selection Required', 'Please tap ANDAR or BAHAR first, then tap a coin to add your bet.');
+            return;
+        }
+        if (activeSide === 'andar') pendingAndar += activeSelectedChip;
+        else pendingBahar += activeSelectedChip;
+        renderPendingBets();
     }
 
     function currentBetAmount() {
@@ -654,9 +664,9 @@
     function renderPendingBets() {
         const andarBox = document.getElementById('btn-bet-andar');
         const baharBox = document.getElementById('btn-bet-bahar');
-        RING_CLASSES.forEach(c => {
-            andarBox.classList.toggle(c, pendingAndar > 0);
-            baharBox.classList.toggle(c, pendingBahar > 0);
+              RING_CLASSES.forEach(c => {
+            andarBox.classList.toggle(c, activeSide === 'andar');
+            baharBox.classList.toggle(c, activeSide === 'bahar');
         });
         document.getElementById('andar-bet-badge').textContent = pendingAndar > 0 ? `${pendingAndar.toLocaleString()} pts` : '';
         document.getElementById('bahar-bet-badge').textContent = pendingBahar > 0 ? `${pendingBahar.toLocaleString()} pts` : '';
@@ -665,13 +675,7 @@
     }
 
     function selectBetSide(side) {
-        const amt = currentBetAmount();
-        if (amt < 500) {
-            showSquareBanner('Minimum Bet', 'Minimum betting amount is 500 points.');
-            return;
-        }
-        if (side === 'andar') pendingAndar += amt;
-        else if (side === 'bahar') pendingBahar += amt;
+        activeSide = side;
         renderPendingBets();
     }
 
@@ -899,8 +903,24 @@
             cancellationDuration: {{ (int) $room->cancellation_duration }}
         });
 
-        const manualAmt = document.getElementById('manual-bet-amount');
+             const manualAmt = document.getElementById('manual-bet-amount');
         if (manualAmt) {
+            manualAmt.addEventListener('keydown', function (e) {
+                if (e.key !== 'Enter') return;
+                const typed = parseInt(this.value, 10);
+                if (!activeSide) {
+                    showSquareBanner('Selection Required', 'Please tap ANDAR or BAHAR first.');
+                    return;
+                }
+                if (isNaN(typed) || typed < 500) {
+                    showSquareBanner('Minimum Bet', 'Minimum betting amount is 500 points.');
+                    return;
+                }
+                if (activeSide === 'andar') pendingAndar += typed;
+                else pendingBahar += typed;
+                this.value = '';
+                renderPendingBets();
+            });
             manualAmt.addEventListener('input', function () {
                 const typed = parseInt(this.value, 10);
                 if (!isNaN(typed) && typed >= 500) {
