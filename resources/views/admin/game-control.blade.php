@@ -738,10 +738,7 @@
     const streamChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('fun2win_room_' + currentRoomId) : null;
     const canvasForFrames = document.getElementById('admin-stream-canvas');
     const canvasCtx = canvasForFrames ? canvasForFrames.getContext('2d') : null;
-    const penUpdateUrl = @json(route('->name('admin.game.pen.position.update');
-
-Route::post('/game-control/{roomId}/stream-heartbeat', [AdminGameController::class, 'streamHeartbeat'])
-    ->name('admin.game.stream.heartbeat');', $room->id));
+       const penUpdateUrl = @json(route('admin.game.pen.position.update', $room->id));
     const adminPenMarker = document.getElementById('admin-pen-marker');
     const adminPreview = document.getElementById('admin-stream-preview');
     let adminPenStreaming = false;
@@ -1719,17 +1716,6 @@ Route::post('/game-control/{roomId}/stream-heartbeat', [AdminGameController::cla
         startAdminLiveJpeg();
         startLiveCameraStream();
     }
-
-    const heartbeatUrl = @json(route('admin.game.stream.heartbeat', $room->id));
-    setInterval(function () {
-        if (!adminWantsLive) return;
-        const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
-        fetch(heartbeatUrl, {
-            method: 'POST',
-            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': token },
-            credentials: 'same-origin'
-        }).catch(function () {});
-    }, 10000);
 
        const heartbeatUrl = @json(route('admin.game.stream.heartbeat', $room->id));
     setInterval(function () {

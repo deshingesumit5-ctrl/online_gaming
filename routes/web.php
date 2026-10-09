@@ -132,6 +132,8 @@ Route::prefix('admin')->name('admin.')->middleware(['auth', 'admin'])->group(fun
     Route::post('/game-control/{roomId}/action', [AdminGameController::class, 'handleAction'])->name('game.action');
     Route::post('/game-control/{roomId}/stream-frame', [AdminGameController::class, 'uploadStreamFrame'])->name('game.stream.frame.upload');
     Route::post('/game-control/{roomId}/pen-position', [AdminGameController::class, 'updatePenPosition'])->name('game.pen.position.update');
+    Route::post('/game-control/{roomId}/stream-heartbeat', [AdminGameController::class, 'streamHeartbeat'])->name('game.stream.heartbeat');
+    Route::post('/game-control/{roomId}/stream-heartbeat', [AdminGameController::class, 'streamHeartbeat'])->name('game.stream.heartbeat');
     Route::get('/game-control/{room}/stream-pause', [StreamPauseController::class, 'get'])->name('game.stream.pause.get');
     Route::post('/game-control/{room}/stream-pause', [StreamPauseController::class, 'set'])->name('game.stream.pause.set');
     // Admin HLS proxy routes (avoids relying on player-auth middleware for stream)
