@@ -314,7 +314,7 @@
                 <button type="button" id="btn-stream-pause" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider border border-amber-400 cursor-pointer">⏸ Pause</button>
             </div> -->
         </div>
-        
+
 <div class="w-full grid grid-cols-1 xl:grid-cols-3 gap-4" style="order:1;">
            <div id="live-session-card" class="glass-panel p-4 border-amber-500/30">
                 <h3 class="text-xs font-black uppercase tracking-wider text-amber-300 mb-3">Session</h3>
@@ -738,7 +738,10 @@
     const streamChannel = ('BroadcastChannel' in window) ? new BroadcastChannel('fun2win_room_' + currentRoomId) : null;
     const canvasForFrames = document.getElementById('admin-stream-canvas');
     const canvasCtx = canvasForFrames ? canvasForFrames.getContext('2d') : null;
-    const penUpdateUrl = @json(route('admin.game.pen.position.update', $room->id));
+    const penUpdateUrl = @json(route('->name('admin.game.pen.position.update');
+
+Route::post('/game-control/{roomId}/stream-heartbeat', [AdminGameController::class, 'streamHeartbeat'])
+    ->name('admin.game.stream.heartbeat');', $room->id));
     const adminPenMarker = document.getElementById('admin-pen-marker');
     const adminPreview = document.getElementById('admin-stream-preview');
     let adminPenStreaming = false;
@@ -1716,6 +1719,28 @@
         startAdminLiveJpeg();
         startLiveCameraStream();
     }
+
+    const heartbeatUrl = @json(route('admin.game.stream.heartbeat', $room->id));
+    setInterval(function () {
+        if (!adminWantsLive) return;
+        const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        fetch(heartbeatUrl, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': token },
+            credentials: 'same-origin'
+        }).catch(function () {});
+    }, 10000);
+
+       const heartbeatUrl = @json(route('admin.game.stream.heartbeat', $room->id));
+    setInterval(function () {
+        if (!adminWantsLive) return;
+        const token = document.querySelector('meta[name="csrf-token"]')?.content || '';
+        fetch(heartbeatUrl, {
+            method: 'POST',
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': token },
+            credentials: 'same-origin'
+        }).catch(function () {});
+    }, 10000);
 
     // Session keep-alive: lightweight ping every 4 minutes so a long-open
     // admin tab never silently loses its session while a room is live.

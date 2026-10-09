@@ -16,7 +16,8 @@ class Room extends Model
         'game_id',
         'name',
         'live_stream_url',
-        'is_streaming',
+              'is_streaming',
+        'stream_last_ping_at',
         'betting_duration',
         'cancellation_duration',
         'allowed_denominations',
@@ -32,7 +33,8 @@ class Room extends Model
             'allowed_denominations' => 'array',
             'betting_duration' => 'integer',
             'cancellation_duration' => 'integer',
-            'is_streaming' => 'boolean',
+                      'is_streaming' => 'boolean',
+            'stream_last_ping_at' => 'datetime',
             'start_time' => 'datetime',
         ];
     }
@@ -55,6 +57,15 @@ class Room extends Model
     public function currentRound(): HasOne
     {
         return $this->hasOne(GameRound::class)->latestOfMany();
+    }
+
+      public function getIsOnlineAttribute(): bool
+    {
+        return $this->status === 'live'
+            && $this->is_streaming
+            && filled($this->live_stream_url)
+            && $this->stream_last_ping_at
+            && $this->stream_last_ping_at->gt(now()->subSeconds(30));
     }
 
     public function getActiveUsersCountAttribute(): int

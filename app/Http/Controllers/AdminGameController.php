@@ -265,7 +265,7 @@ class AdminGameController extends Controller
         $action = $request->action;
 
         if ($action === 'start_stream') {
-            $room->update(['is_streaming' => true]);
+                      $room->update(['is_streaming' => true, 'stream_last_ping_at' => now()]);
             try {
                 app(\App\Services\LowLatencyStreamService::class)->start($room);
             } catch (\Throwable $e) {
@@ -277,7 +277,7 @@ class AdminGameController extends Controller
         }
 
         if ($action === 'end_stream') {
-            $room->update(['is_streaming' => false]);
+                      $room->update(['is_streaming' => false, 'stream_last_ping_at' => null]);
             \Illuminate\Support\Facades\Cache::forget("room_pen_position_{$roomId}");
             try {
                 app(\App\Services\LowLatencyStreamService::class)->stop($room);
@@ -298,7 +298,11 @@ class AdminGameController extends Controller
         }
 
         if ($action === 'update_stream') {
-            $room->update(['live_stream_url' => $request->live_stream_url]);
+                    $room->update([
+                'live_stream_url' => $request->live_stream_url,
+                'is_streaming' => false,
+                'stream_last_ping_at' => null,
+            ]);
             return back()->with('success', 'Stream URL updated successfully.');
         }
 
@@ -754,6 +758,15 @@ class AdminGameController extends Controller
         }
 
         return $deck;
+    }
+
+        public function streamHeartbeat(int $roomId): JsonResponse
+    {
+        $room = Room::findOrFail($roomId);
+        if ($room->is_streaming) {
+            $room->forceFill(['stream_last_ping_at' => now()])->save();
+        }
+        return response()->json(['success' => true]);
     }
 
     public function uploadStreamFrame(Request $request, int $roomId): JsonResponse

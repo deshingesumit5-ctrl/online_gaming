@@ -120,7 +120,7 @@
 
                         {{-- Status & Metadata (Online/Offline, Users, Opening/Closing Hours) --}}
                         <div class="w-full text-center mt-2.5">
-                            @if(!empty($room->is_streaming))
+                          @if($room->is_online)
                                 <div class="inline-flex items-center justify-center gap-1.5 text-emerald-400 font-black text-xs sm:text-sm">
                                     <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-[0_0_8px_#10b981] animate-pulse"></span>
                                     <span>Online</span>
