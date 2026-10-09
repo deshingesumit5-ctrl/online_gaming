@@ -9,20 +9,20 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-  public function up(): void
-{
-                Schema::table('rooms', function (Blueprint $table) {
-            $table->dropColumn('stream_last_ping_at');
+    public function up(): void
+    {
+        Schema::table('rooms', function (Blueprint $table) {
+            $table->timestamp('stream_last_ping_at')->nullable();
         });
     }
 
     /**
      * Reverse the migrations.
      */
-  public function down(): void
-{
-    Schema::table('rooms', function (Blueprint $table) {
-        $table->dropColumn('stream_last_ping_at');
-    });
-}
+    public function down(): void
+    {
+        Schema::table('rooms', function (Blueprint $table) {
+            $table->dropColumn('stream_last_ping_at');
+        });
+    }
 };
