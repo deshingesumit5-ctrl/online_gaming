@@ -306,13 +306,13 @@
                     <span>⏹ END</span>
                 </button>
             </div>
-            <!-- <p class="text-[10px] text-slate-500 mt-2">Press 2–9 or 0 on this page to put that card on the live table video. Drag it over the real card so it covers it for all players.</p> -->
-            <!-- <div class="flex items-center gap-2 mt-2">
-                <button type="button" id="btn-overlay-card-smaller" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider border border-slate-700 cursor-pointer">− Size</button>
+            <p class="text-[10px] text-slate-500 mt-2">Press 2–9 on this page to put that card on the live table video. Drag it over the real card so it covers it for all players</p>
+            <div class="flex items-center gap-2 mt-2">
+                <!-- <button type="button" id="btn-overlay-card-smaller" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider border border-slate-700 cursor-pointer">− Size</button>
                 <button type="button" id="btn-overlay-card-larger" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[10px] font-black uppercase tracking-wider border border-slate-700 cursor-pointer">+ Size</button>
-                <button type="button" id="btn-overlay-card-delete" class="px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white text-[10px] font-black uppercase tracking-wider border border-red-500 cursor-pointer">Delete</button>
+                <button type="button" id="btn-overlay-card-delete" class="px-3 py-1.5 rounded-lg bg-red-700 hover:bg-red-600 text-white text-[10px] font-black uppercase tracking-wider border border-red-500 cursor-pointer">Delete</button> -->
                 <button type="button" id="btn-stream-pause" class="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-500 text-slate-950 text-[10px] font-black uppercase tracking-wider border border-amber-400 cursor-pointer">⏸ Pause</button>
-            </div> -->
+            </div>
         </div>
 
 <div class="w-full grid grid-cols-1 xl:grid-cols-3 gap-4" style="order:1;">
