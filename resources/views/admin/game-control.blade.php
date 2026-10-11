@@ -1629,6 +1629,7 @@
         const voices = (window.speechSynthesis.getVoices() || []).filter(v => /^en/i.test(v.lang));
         return voices.find(v => /female|zira|aria|jenny|samantha|hazel|heera|susan|google uk english female/i.test(v.name)) || voices[0] || null;
     }
+     window._pendingVoice = null;
     function speakResultAnnouncement(side, round) {
         if (!('speechSynthesis' in window) || !side || !round) return;
         const text = (side === 'andar' ? 'Andar' : 'Bahar') + ' won round ' + round;
@@ -1638,6 +1639,11 @@
             if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = 'en-US'; }
             u.pitch = 1.15;
             u.rate = 0.95;
+            u.onstart = function () { window._pendingVoice = null; console.log('[voice] speaking:', text); };
+            u.onerror = function (ev) {
+                console.warn('[voice] blocked:', ev.error);
+                if (ev.error === 'not-allowed') window._pendingVoice = { side: side, round: round, at: Date.now() };
+            };
             window.speechSynthesis.cancel();
             window.speechSynthesis.speak(u);
         };

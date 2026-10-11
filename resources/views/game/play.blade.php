@@ -690,6 +690,7 @@
         const voices = (window.speechSynthesis.getVoices() || []).filter(v => /^en/i.test(v.lang));
         return voices.find(v => /female|zira|aria|jenny|samantha|hazel|heera|susan|google uk english female/i.test(v.name)) || voices[0] || null;
     }
+    window._pendingVoice = null;
     function speakResultAnnouncement(side, round) {
         if (!('speechSynthesis' in window) || !side || !round) return;
         const text = (side === 'andar' ? 'Andar' : 'Bahar') + ' won round ' + round;
@@ -699,6 +700,11 @@
             if (v) { u.voice = v; u.lang = v.lang; } else { u.lang = 'en-US'; }
             u.pitch = 1.15;
             u.rate = 0.95;
+            u.onstart = function () { window._pendingVoice = null; console.log('[voice] speaking:', text); };
+            u.onerror = function (ev) {
+                console.warn('[voice] blocked:', ev.error);
+                if (ev.error === 'not-allowed') window._pendingVoice = { side: side, round: round, at: Date.now() };
+            };
             window.speechSynthesis.cancel();
             window.speechSynthesis.speak(u);
         };
@@ -713,13 +719,23 @@
         window.speechSynthesis.onvoiceschanged = once;
         setTimeout(once, 1000);
     }
-    document.addEventListener('pointerdown', function () {
-        try {
-            const u = new SpeechSynthesisUtterance(' ');
-            u.volume = 0;
-            window.speechSynthesis.speak(u);
-        } catch (e) {}
-    }, { once: true });
+    ['pointerdown', 'touchstart', 'keydown'].forEach(function (evt) {
+        document.addEventListener(evt, function () {
+            try {
+                const u = new SpeechSynthesisUtterance(' ');
+                u.volume = 0;
+                window.speechSynthesis.speak(u);
+            } catch (e) {}
+        }, { once: true });
+    });
+
+        document.addEventListener('pointerdown', function () {
+        const p = window._pendingVoice;
+        if (p && Date.now() - p.at < 20000) {
+            window._pendingVoice = null;
+            speakResultAnnouncement(p.side, p.round);
+        }
+    });
 
     
 
@@ -937,10 +953,13 @@
             oldRenderState(data);
                    renderBeadRoad(data.bead_history);
 
-            (function () {
-                const rn = data.round_number != null ? data.round_number : (data.round && data.round.round_number);
-                const ws = data.winning_side != null ? data.winning_side : (data.round && data.round.winning_side);
-                const declared = data.round_status === 'result_declared' && (ws === 'andar' || ws === 'bahar') && rn;
+                       (function () {
+                const r = data.round || {};
+                const rn = data.round_number ?? r.round_number ?? data.session_number ?? null;
+                const ws = String(data.winning_side ?? r.winning_side ?? '').toLowerCase();
+                const status = data.round_status ?? data.status ?? r.status;
+                console.log('[voice-debug]', { status, rn, ws });
+                const declared = status === 'result_declared' && (ws === 'andar' || ws === 'bahar') && rn;
                 const key = declared ? (rn + '-' + ws) : null;
                 if (!window._voiceReady) {           // first state load: never announce
                     window._voiceReady = true;
