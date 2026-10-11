@@ -960,12 +960,13 @@
                 const status = data.round_status ?? data.status ?? r.status;
                 console.log('[voice-debug]', { status, rn, ws });
                 const declared = status === 'result_declared' && (ws === 'andar' || ws === 'bahar') && rn;
-                const key = declared ? (rn + '-' + ws) : null;
+                             const key = declared ? (rn + '-' + ws + '-' + (data.betting_window_number ?? '')) : null;
                 if (!window._voiceReady) {           // first state load: never announce
                     window._voiceReady = true;
                     window._lastVoiceKey = key;
                     return;
                 }
+                if (!key) window._lastVoiceKey = null;
                 if (key && key !== window._lastVoiceKey) {
                     window._lastVoiceKey = key;
                     if (soundOn) speakResultAnnouncement(ws, rn);
