@@ -182,7 +182,7 @@ class LowLatencyStreamService
             $pending = [];
         }
 
-              $keep = array_slice($pairs, -3);
+         $keep = array_slice($pairs, -5);
         if ($keep === []) {
             return null;
         }
@@ -337,7 +337,7 @@ class LowLatencyStreamService
             $pairs[]  = array_merge($pending, [$this->proxiedAdminSegmentUrl($room->id, $seg)]);
             $pending  = [];
         }
-        $keep = array_slice($pairs, -3);
+  $keep = array_slice($pairs, -5);
         if ($keep === []) {
             return null;
         }

@@ -958,7 +958,7 @@
                 const rn = data.round_number ?? r.round_number ?? data.session_number ?? null;
                 const ws = String(data.winning_side ?? r.winning_side ?? '').toLowerCase();
                 const status = data.round_status ?? data.status ?? r.status;
-                console.log('[voice-debug]', { status, rn, ws });
+             
                 const declared = status === 'result_declared' && (ws === 'andar' || ws === 'bahar') && rn;
                              const key = declared ? (rn + '-' + ws + '-' + (data.betting_window_number ?? '')) : null;
                 if (!window._voiceReady) {           // first state load: never announce
@@ -1402,7 +1402,7 @@ const coverScale = (fit === 'contain')
                             try { playerHls.startLoad(-1); } catch (e) {}
                             video.play().catch(function () {});
                         }
-                                          if (video._edgeStall >= 45 && Date.now() - playerHlsLastRestartAt >= 15000) {
+                            if (video._edgeStall >= 8 && Date.now() - playerHlsLastRestartAt >= 8000) {
                             video._edgeStall = 0;
                             playerHlsLastRestartAt = Date.now();
                             restartPlayerHls(video);
@@ -1886,8 +1886,22 @@ const coverScale = (fit === 'contain')
                 } catch (e) {}
                 freeze.style.display = ok ? 'block' : 'none';
             } else if (freeze && freeze.style.display === 'block') {
-                freeze.style.display = 'none';
-                       if (v) { jumpVideoToLiveEdge(v); v.play().catch(function () {}); }
+             const reveal = function () { freeze.style.display = 'none'; };
+                    if (v) {
+    try {
+        if (playerHls && playerHls.liveSyncPosition) v.currentTime = playerHls.liveSyncPosition;
+        else jumpVideoToLiveEdge(v);
+    } catch (e) {}
+    v.play().catch(function () {});
+    if (typeof v.requestVideoFrameCallback === 'function') {
+        v.requestVideoFrameCallback(function () { requestAnimationFrame(reveal); });
+        setTimeout(reveal, 800);
+    } else {
+        setTimeout(reveal, 200);
+    }
+} else {
+    reveal();
+}
             }
         }
         (function runPausePoll() {
