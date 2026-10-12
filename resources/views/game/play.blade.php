@@ -1332,31 +1332,30 @@ const coverScale = (fit === 'contain')
             }
         }
 
-        function createLowLatencyHls() {
-            return new Hls({
-                enableWorker: true,
-                lowLatencyMode: false,
-                backBufferLength: 10,
-                maxBufferLength: 6,
-                maxMaxBufferLength: 40,
-               liveSyncDuration: 1,
-             liveMaxLatencyDuration: 3,
-                maxLiveSyncPlaybackRate: 1.5,
-                maxBufferHole: 1.5,
-                nudgeMaxRetry: 10,
-                startPosition: -1,
-                liveDurationInfinity: true,
-                startFragPrefetch: true,
-                manifestLoadingMaxRetry: 10,
-                manifestLoadingRetryDelay: 500,
-                manifestLoadingTimeOut: 10000,
-                levelLoadingMaxRetry: 10,
-                levelLoadingRetryDelay: 500,
-                fragLoadingMaxRetry: 8,
-                fragLoadingRetryDelay: 500,
-                fragLoadingTimeOut: 20000
-            });
-        }
+function createLowLatencyHls() {
+    return new Hls({
+        enableWorker: true,
+        lowLatencyMode: false,
+        backBufferLength: 20,
+        maxBufferLength: 12,
+        maxMaxBufferLength: 30,
+        liveSyncDuration: 3,
+        liveMaxLatencyDuration: 8,
+        maxLiveSyncPlaybackRate: 1,
+        maxBufferHole: 1.5,
+        nudgeMaxRetry: 10,
+        startPosition: -1,
+        liveDurationInfinity: true,
+        manifestLoadingMaxRetry: 10,
+        manifestLoadingRetryDelay: 500,
+        manifestLoadingTimeOut: 10000,
+        levelLoadingMaxRetry: 10,
+        levelLoadingRetryDelay: 500,
+        fragLoadingMaxRetry: 8,
+        fragLoadingRetryDelay: 500,
+        fragLoadingTimeOut: 20000
+    });
+}
 
         let playerHlsLastRestartAt = 0;
 
@@ -1397,12 +1396,12 @@ const coverScale = (fit === 'contain')
                     const t = video.currentTime || 0;
                     if (video.videoWidth > 0 && t === video._edgeLastT) {
                         video._edgeStall = (video._edgeStall || 0) + 1;
-                       if (video._edgeStall === 4) {
+                    if (video._edgeStall === 10) {
                             jumpVideoToLiveEdge(video);
                             try { playerHls.startLoad(-1); } catch (e) {}
                             video.play().catch(function () {});
                         }
-                            if (video._edgeStall >= 8 && Date.now() - playerHlsLastRestartAt >= 8000) {
+if (video._edgeStall >= 25 && Date.now() - playerHlsLastRestartAt >= 20000) {
                             video._edgeStall = 0;
                             playerHlsLastRestartAt = Date.now();
                             restartPlayerHls(video);
@@ -1913,7 +1912,7 @@ const coverScale = (fit === 'contain')
         })();
 
         (function runPenLoop() {
-pollPenPosition().finally(() => setTimeout(runPenLoop, 400));
+pollPenPosition().finally(() => setTimeout(runPenLoop, 1000));
         })();
 
         @if($room->is_streaming)
