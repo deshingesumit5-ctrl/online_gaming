@@ -596,9 +596,10 @@ $keep = array_slice($pairs, -10);
     /** Download the newest segment while building the playlist so the first player request is already cached. */
     private function prefetchNewest(array $rawSegments): void
     {
-        $latest = $rawSegments === [] ? null : $rawSegments[count($rawSegments) - 1];
-        if (is_string($latest) && $latest !== '') {
-            $this->fetchSegment($latest);
+                foreach (array_slice($rawSegments, -3) as $seg) {
+            if (is_string($seg) && $seg !== '') {
+                $this->fetchSegment($seg);
+            }
         }
     }
 
@@ -607,7 +608,7 @@ $keep = array_slice($pairs, -10);
         $cacheKey = substr(hash('sha256', $url), 0, 24);
         $cacheFile = storage_path('app/live/segs/' . $cacheKey . '.bin');
         $typeFile = $cacheFile . '.type';
-        if ($range === null && is_file($cacheFile) && filesize($cacheFile) > 32 && (time() - filemtime($cacheFile)) < 3) {
+        if ($range === null && is_file($cacheFile) && filesize($cacheFile) > 32 && (time() - filemtime($cacheFile)) < 180) {
             $type = is_file($typeFile) ? trim((string) file_get_contents($typeFile)) : $this->guessSegmentType($url, null);
 
             return ['body' => (string) file_get_contents($cacheFile), 'type' => $type, 'status' => 200];
@@ -643,7 +644,14 @@ $keep = array_slice($pairs, -10);
                             mkdir($dir, 0777, true);
                         }
                         file_put_contents($cacheFile, $body);
-                        file_put_contents($typeFile, $type);
+                                           file_put_contents($typeFile, $type);
+                        if (random_int(1, 40) === 1) {
+                            foreach (glob($dir . '/*') ?: [] as $old) {
+                                if (is_file($old) && (time() - filemtime($old)) > 300) {
+                                    @unlink($old);
+                                }
+                            }
+                        }
                     }
 
                     return ['body' => $body, 'type' => $type, 'status' => $status];

@@ -1351,8 +1351,8 @@ function createLowLatencyHls() {
         manifestLoadingTimeOut: 10000,
         levelLoadingMaxRetry: 10,
         levelLoadingRetryDelay: 500,
-        fragLoadingMaxRetry: 8,
-        fragLoadingRetryDelay: 500,
+        fragLoadingMaxRetry: 2
+   fragLoadingRetryDelay: 300,
         fragLoadingTimeOut: 20000
     });
 }
@@ -1369,8 +1369,57 @@ function createLowLatencyHls() {
                 }
             } catch (e) {}
         }
+        function hideRecoverFreeze() {
+            const c = document.getElementById('player-recover-freeze');
+            if (c) c.style.display = 'none';
+        }
+
+        function showRecoverFreeze(video) {
+            try {
+                if (streamEndedByAdmin) return;
+                const box = document.getElementById('player-live-stream-box');
+                if (!box || !video || !(video.videoWidth > 0)) return;
+                let c = document.getElementById('player-recover-freeze');
+                if (!c) {
+                    c = document.createElement('canvas');
+                    c.id = 'player-recover-freeze';
+                    c.style.cssText = 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;z-index:5;display:none;';
+                    box.appendChild(c);
+                }
+                c.width = video.videoWidth;
+                c.height = video.videoHeight;
+                c.getContext('2d').drawImage(video, 0, 0, c.width, c.height);
+                c.style.display = 'block';
+                clearTimeout(c._t);
+                c._t = setTimeout(hideRecoverFreeze, 8000);
+                const onPlay = function () {
+                    video.removeEventListener('playing', onPlay);
+                    setTimeout(hideRecoverFreeze, 400);
+                };
+                video.addEventListener('playing', onPlay);
+            } catch (e) {}
+        }
+
+        function jumpPlayerToLive(video) {
+            if (!video || streamEndedByAdmin) return;
+            const now = Date.now();
+            if (now - (video._lastLiveJumpAt || 0) < 2500) return;
+            video._lastLiveJumpAt = now;
+            const pos = playerHls ? playerHls.liveSyncPosition : null;
+            if (playerHls && pos != null && isFinite(pos) && pos > 0) {
+                try {
+                    playerHls.stopLoad();
+                    playerHls.startLoad(pos);
+                    video.currentTime = pos;
+                } catch (e) {}
+                video.play().catch(function () {});
+            } else {
+                restartPlayerHls(video);
+            }
+        }
 
         function restartPlayerHls(video) {
+            showRecoverFreeze(video);
             if (!video || streamEndedByAdmin) return;
             if (video._liveEdgeIv) {
                 clearInterval(video._liveEdgeIv);
@@ -1396,12 +1445,12 @@ function createLowLatencyHls() {
                     const t = video.currentTime || 0;
                     if (video.videoWidth > 0 && t === video._edgeLastT) {
                         video._edgeStall = (video._edgeStall || 0) + 1;
-                    if (video._edgeStall === 10) {
+                    if (video._edgeStall === 4) {
                             jumpVideoToLiveEdge(video);
-                            try { playerHls.startLoad(-1); } catch (e) {}
+                          jumpPlayerToLive(video);
                             video.play().catch(function () {});
                         }
-if (video._edgeStall >= 25 && Date.now() - playerHlsLastRestartAt >= 20000) {
+if (video._edgeStall >= 12 && Date.now() - playerHlsLastRestartAt >= 20000) {
                             video._edgeStall = 0;
                             playerHlsLastRestartAt = Date.now();
                             restartPlayerHls(video);
@@ -1626,7 +1675,7 @@ if (video._edgeStall >= 25 && Date.now() - playerHlsLastRestartAt >= 20000) {
                                 attachPlayerHls(video, livePlaylistUrl);
                                 return;
                             }
-                            try { playerHls.startLoad(); } catch (e) {}
+                        jumpPlayerToLive(video);
                             video.play().catch(() => {});
                                           } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
                             playerHls.recoverMediaError();
