@@ -766,6 +766,7 @@ class AdminGameController extends Controller
         if ($room->is_streaming) {
             $room->forceFill(['stream_last_ping_at' => now()])->save();
         }
+            \Illuminate\Support\Facades\Cache::put("room_stream_heartbeat_{$roomId}", time(), 60);
         return response()->json(['success' => true]);
     }
 

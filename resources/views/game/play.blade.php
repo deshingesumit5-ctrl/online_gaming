@@ -1351,8 +1351,8 @@ function createLowLatencyHls() {
         manifestLoadingTimeOut: 10000,
         levelLoadingMaxRetry: 10,
         levelLoadingRetryDelay: 500,
-        fragLoadingMaxRetry: 2
-   fragLoadingRetryDelay: 300,
+        fragLoadingMaxRetry: 6,
+        fragLoadingRetryDelay: 300,
         fragLoadingTimeOut: 20000
     });
 }
