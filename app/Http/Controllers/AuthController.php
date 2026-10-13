@@ -90,19 +90,9 @@ class AuthController extends Controller
             ->orWhere('email', $loginInput)
             ->first();
 
-        // Fallback for admin credentials (admin username, email, or mobile)
-        if (!$user && in_array($loginInput, ['admin', 'admin@gmail.com', '9307324546', '9999999999'])) {
-            $user = User::where('email', 'admin@gmail.com')->orWhere('role', 'admin')->first();
-        }
+    
 
-        $passwordValid = false;
-        if ($user) {
-            if (Hash::check($password, $user->password)) {
-                $passwordValid = true;
-            } elseif ($user->isAdmin() && in_array($password, ['admin123', 'admin@123'])) {
-                $passwordValid = true;
-            }
-        }
+  $passwordValid = $user && Hash::check($password, $user->password);
 
         if (!$user || !$passwordValid) {
             return back()->withInput($request->only('login', 'password'))->withErrors([
