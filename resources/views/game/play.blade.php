@@ -580,9 +580,9 @@
 
             <!-- Limits Display at Bottom of Right Panel -->
             <div class="text-center shrink-0 pt-1">
-                <span class="text-[9px] sm:text-[10px] text-slate-400 font-medium">
-                    Bet: 0/500,000
-                </span>
+            <span class="text-[9px] sm:text-[10px] text-slate-400 font-medium">
+               Bet: <span id="hud-bet-used">0</span>/<span id="hud-bet-limit">10,00,000</span>
+            </span>
             </div>
         </div>
 
@@ -761,7 +761,9 @@
 
         const totalEl = document.getElementById('sum-total');
         const currentSessionTotal = totalEl ? parseInt(totalEl.textContent.replace(/,/g, '') || '0', 10) : 0;
-        if ((currentSessionTotal + pendingAndar + pendingBahar) > 1000000) {
+       const limitEl = document.getElementById('sum-limit');
+const sessionLimit = limitEl ? (parseInt(limitEl.textContent.replace(/,/g, ''), 10) || 1000000) : 1000000;
+if ((currentSessionTotal + pendingAndar + pendingBahar) > sessionLimit) {
             showSquareBanner('Session Limit Exceeded', 'Session betting limit exceeded. Maximum cumulative limit is 10,00,000 Points across Andar + Bahar.');
             return;
         }
@@ -880,7 +882,33 @@
         handleUndoBet();
     };
 
-    function renderBeadRoad(results) {
+    function updateHudBetTotal(data) {
+    const LIMIT = 500000; // change this if the real limit is different
+    let used = 0;
+    const sumEl = document.getElementById('sum-total');
+    if (sumEl && sumEl.textContent.trim() !== '') {
+        used = parseInt(sumEl.textContent.replace(/,/g, ''), 10) || 0;
+    } else {
+        used = (data.user_bets || [])
+            .filter(b => !['cancelled', 'refunded'].includes(String(b.status).toLowerCase()))
+            .reduce((s, b) => s + (parseFloat(b.amount) || 0), 0);
+    }
+    const usedEl = document.getElementById('hud-bet-used');
+    const limitEl = document.getElementById('hud-bet-limit');
+    if (usedEl) usedEl.textContent = used.toLocaleString();
+    if (limitEl) limitEl.textContent = LIMIT.toLocaleString();
+}
+
+function updateHudBetTotal(data) {
+    const used = Number(data.session_total || 0);
+    const limit = Number(data.session_limit || 1000000);
+    const usedEl = document.getElementById('hud-bet-used');
+    const limitEl = document.getElementById('hud-bet-limit');
+    if (usedEl) usedEl.textContent = used.toLocaleString('en-IN');
+    if (limitEl) limitEl.textContent = limit.toLocaleString('en-IN');
+}
+
+function renderBeadRoad(results) {
         const el = document.getElementById('bead-road');
         if (!el) return;
         const ROWS = 7, COLS = 3;
@@ -951,7 +979,9 @@
         const oldRenderState = gameEngineInstance.renderState.bind(gameEngineInstance);
         gameEngineInstance.renderState = function(data) {
             oldRenderState(data);
-                   renderBeadRoad(data.bead_history);
+                renderBeadRoad(data.bead_history);
+                updateHudBetTotal(data);
+                updateHudBetTotal(data);
 
                        (function () {
                 const r = data.round || {};
