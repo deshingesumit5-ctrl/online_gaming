@@ -858,13 +858,13 @@
     return new Hls({
         enableWorker: true,
         lowLatencyMode: false,
-        backBufferLength: 20,
-        maxBufferLength: 12,
-        maxMaxBufferLength: 30,
-        liveSyncDuration: 3,
-        liveMaxLatencyDuration: 8,
-        maxLiveSyncPlaybackRate: 1,
-        maxBufferHole: 1.5,
+        backBufferLength: 5,
+        maxBufferLength: 6,
+        maxMaxBufferLength: 10,
+        liveSyncDuration: 2,
+        liveMaxLatencyDuration: 5,
+        maxLiveSyncPlaybackRate: 1.5,
+        maxBufferHole: 1,
         nudgeMaxRetry: 10,
         startPosition: -1,
         liveDurationInfinity: true,
@@ -1182,8 +1182,8 @@
             return;
         }
         adminCctvReconnectBusy = true;
-        const probeUrl = livePlaylistUrl + (livePlaylistUrl.indexOf('?') >= 0 ? '&' : '?') + '_r=' + Date.now();
-        fetch(probeUrl, { cache: 'no-store' }).then(function (resp) {
+            const probeUrl = directHlsUrl + (directHlsUrl.indexOf('?') >= 0 ? '&' : '?') + '_r=' + Date.now();
+            fetch(probeUrl, { cache: 'no-store' }).then(function (resp) {
             if (!adminWantsLive) return false;
             if (resp.status === 401 || resp.status === 419) return 'session';
             if (resp.status !== 200) return false;
