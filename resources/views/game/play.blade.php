@@ -581,7 +581,7 @@
             <!-- Limits Display at Bottom of Right Panel -->
             <div class="text-center shrink-0 pt-1">
             <span class="text-[9px] sm:text-[10px] text-slate-400 font-medium">
-               Bet: <span id="hud-bet-used">0</span>/<span id="hud-bet-limit">10,00,000</span>
+              Table Bets: <span id="hud-bet-used">0</span>/<span id="hud-bet-limit">10,00,000</span>
             </span>
             </div>
         </div>
@@ -900,7 +900,8 @@ if ((currentSessionTotal + pendingAndar + pendingBahar) > sessionLimit) {
 }
 
 function updateHudBetTotal(data) {
-    const used = Number(data.session_total || 0);
+    // Combined bets of ALL players on this table
+    const used = Number(data.total_andar || 0) + Number(data.total_bahar || 0);
     const limit = Number(data.session_limit || 1000000);
     const usedEl = document.getElementById('hud-bet-used');
     const limitEl = document.getElementById('hud-bet-limit');
