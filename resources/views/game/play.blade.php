@@ -1355,26 +1355,9 @@ const coverScale = (fit === 'contain')
                 fragLoadingMaxRetry: 6,
                 fragLoadingRetryDelay: 300,
                 fragLoadingTimeOut: 20000
-            });
+              });
         }
-    maxBufferLength: 6,
-    maxMaxBufferLength: 10,
-    liveSyncDuration: 2,
-    liveMaxLatencyDuration: 5,
-    maxLiveSyncPlaybackRate: 1.5,
-    maxBufferHole: 1,
-    nudgeMaxRetry: 10,
-    startPosition: -1,
-    liveDurationInfinity: true,
-    manifestLoadingMaxRetry: 10,
-    manifestLoadingRetryDelay: 500,
-    manifestLoadingTimeOut: 10000,
-    levelLoadingMaxRetry: 10,
-    levelLoadingRetryDelay: 500,
-    fragLoadingMaxRetry: 6,
-    fragLoadingRetryDelay: 300,
-    fragLoadingTimeOut: 20000
-});
+
         let playerHlsLastRestartAt = 0;
 
         function jumpVideoToLiveEdge(video) {
