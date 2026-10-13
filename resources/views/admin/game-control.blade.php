@@ -852,6 +852,7 @@
     let adminLiveJpegTimer = null;
     const liveJpegUrl = @json(route('admin.game.admin.live.jpeg', $room->id));
     const livePlaylistUrl = @json(route('admin.game.admin.live.playlist', $room->id));
+    const directHlsUrl = configuredStreamUrl;
 
     function createLowLatencyHls() {
     return new Hls({
@@ -1160,7 +1161,7 @@
         }
         video._triedProxyHls = false;
         video.classList.remove('hidden');
-        attachAdminHls(video, livePlaylistUrl, null);
+        attachAdminHls(video, directHlsUrl, livePlaylistUrl);
         startAdminHlsWatchdog(video);
     }
 
@@ -1349,7 +1350,7 @@
                     if (cctvVideo) {
                         cctvVideo.classList.remove('hidden');
                         startAdminLiveJpeg();
-                        attachAdminHls(cctvVideo, livePlaylistUrl, null);
+                attachAdminHls(cctvVideo, directHlsUrl, livePlaylistUrl);
                         startAdminHlsWatchdog(cctvVideo);
                         startCctvReconnectWatchdog();
                     }

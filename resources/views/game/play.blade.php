@@ -1060,6 +1060,7 @@
         let pendingLiveCard = undefined;
         const liveJpegUrl = @json(route('game.live.jpeg', $room->id));
         const livePlaylistUrl = @json(route('game.live.playlist', $room->id));
+        const directHlsUrl = @json($room->live_stream_url ?? '');
         const penPositionUrl = @json(route('game.pen.position.get', $room->id));
         const playerPenMarker = document.getElementById('player-pen-marker');
         let lastPenT = 0;
@@ -1332,31 +1333,28 @@ const coverScale = (fit === 'contain')
             }
         }
 
-function createLowLatencyHls() {
-    return new Hls({
-        enableWorker: true,
-        lowLatencyMode: false,
-        backBufferLength: 20,
-        maxBufferLength: 12,
-        maxMaxBufferLength: 30,
-        liveSyncDuration: 3,
-        liveMaxLatencyDuration: 8,
-        maxLiveSyncPlaybackRate: 1,
-        maxBufferHole: 1.5,
-        nudgeMaxRetry: 10,
-        startPosition: -1,
-        liveDurationInfinity: true,
-        manifestLoadingMaxRetry: 10,
-        manifestLoadingRetryDelay: 500,
-        manifestLoadingTimeOut: 10000,
-        levelLoadingMaxRetry: 10,
-        levelLoadingRetryDelay: 500,
-        fragLoadingMaxRetry: 6,
-        fragLoadingRetryDelay: 300,
-        fragLoadingTimeOut: 20000
-    });
-}
-
+return new Hls({
+    enableWorker: true,
+    lowLatencyMode: false,
+    backBufferLength: 5,
+    maxBufferLength: 6,
+    maxMaxBufferLength: 10,
+    liveSyncDuration: 2,
+    liveMaxLatencyDuration: 5,
+    maxLiveSyncPlaybackRate: 1.5,
+    maxBufferHole: 1,
+    nudgeMaxRetry: 10,
+    startPosition: -1,
+    liveDurationInfinity: true,
+    manifestLoadingMaxRetry: 10,
+    manifestLoadingRetryDelay: 500,
+    manifestLoadingTimeOut: 10000,
+    levelLoadingMaxRetry: 10,
+    levelLoadingRetryDelay: 500,
+    fragLoadingMaxRetry: 6,
+    fragLoadingRetryDelay: 300,
+    fragLoadingTimeOut: 20000
+});
         let playerHlsLastRestartAt = 0;
 
         function jumpVideoToLiveEdge(video) {
@@ -1431,7 +1429,7 @@ function createLowLatencyHls() {
             }
             video._triedProxyHls = false;
             video._edgeStall = 0;
-            attachPlayerHls(video, livePlaylistUrl);
+            attachPlayerHls(video, directHlsUrl);
         }
 
         function keepHlsAtLiveEdge(hls, video) {
@@ -1739,7 +1737,7 @@ if (video._edgeStall >= 12 && Date.now() - playerHlsLastRestartAt >= 20000) {
                         if (ytIframe) ytIframe.classList.add('hidden');
                         stopLiveJpeg();
                         hidePlayerLiveJpeg();
-                        const playUrl = livePlaylistUrl || parsed.streamUrl;
+                     const playUrl = parsed.streamUrl;
                         attachPlayerHls(cctvVideo, playUrl);
                     } else if (parsed && parsed.type === 'jpeg') {
                         if (ytIframe) ytIframe.classList.add('hidden');
@@ -1759,7 +1757,7 @@ if (video._edgeStall >= 12 && Date.now() - playerHlsLastRestartAt >= 20000) {
                         // Fallback generic stream
                                             if (ytIframe) ytIframe.classList.add('hidden');
                         stopLiveJpeg();
-                        const playUrl = livePlaylistUrl || rawUrl;
+                     	const playUrl = rawUrl;
                         attachPlayerHls(cctvVideo, playUrl);
                     }
                 } else {
